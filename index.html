@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <!-- =========================================================
+         DocuMorph | Universal File Tool
+         Author: Samson Eniolorunda
+         Purpose: UI shell for file conversion/compression/resizing/merging
+         ========================================================= -->
+
+    <!-- Basic Document Metadata -->
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+
+    <!-- Responsive / Mobile -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="format-detection" content="telephone=no">
+
+    <!-- SEO -->
+    <title>DocuMorph | Universal File Tool</title>
+    <meta name="description" content="DocuMorph is a modern, easy-to-use interface for converting, compressing, resizing, and merging documents and images.">
+    <meta name="keywords" content="file converter, word to pdf, pdf to word, compress pdf, compress image, resize image, merge pdf, documents, DocuMorph">
+    <meta name="author" content="Samson Eniolorunda">
+    <meta name="robots" content="index, follow">
+    <meta name="referrer" content="strict-origin-when-cross-origin">
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🧊</text></svg>">
+    <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 180 180%22><text x=%2250%25%22 y=%2255%25%22 text-anchor=%22middle%22 font-size=%22120%22>🧊</text></svg>">
+
+    <!-- Fonts / Icons -->
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css">
+
+    <!-- Stylesheet -->
+    <link rel="stylesheet" href="assets/css/styles.css">
+</head>
+<body>
+    <!-- =========================================================
+         BACKGROUND DECOR (visual-only)
+         ========================================================= -->
+    <div class="bg-mesh" aria-hidden="true"></div>
+
+    <!-- =========================================================
+         TOP NAVIGATION
+         - Desktop nav buttons: switch tool views
+         - Mobile hamburger: opens overlay menu
+         ========================================================= -->
+    <nav class="navbar glass" aria-label="Primary navigation">
+        <div class="logo" aria-label="DocuMorph home">
+            <div class="logo-icon" aria-hidden="true"><i class="fa-solid fa-cube"></i></div>
+            <span>DocuMorph</span>
+        </div>
+
+        <!-- Desktop Navigation -->
+        <div class="nav-links desktop-only" role="navigation" aria-label="Tool navigation">
+            <button class="nav-btn active" type="button" onclick="switchView('convert')">Convert</button>
+            <button class="nav-btn" type="button" onclick="switchView('compress')">Compress</button>
+            <button class="nav-btn" type="button" onclick="switchView('resize')">Resize</button>
+            <button class="nav-btn" type="button" onclick="switchView('merge')">Merge</button>
+        </div>
+
+        <!-- Mobile Menu Toggle -->
+        <button class="menu-toggle" type="button" onclick="toggleMenu()" aria-label="Toggle Menu" aria-controls="mobile-menu" aria-expanded="false">
+            <span></span>
+            <span></span>
+            <span></span>
+        </button>
+    </nav>
+
+    <!-- =========================================================
+         MOBILE MENU OVERLAY
+         ========================================================= -->
+    <div class="mobile-menu" id="mobile-menu">
+        <button class="mob-btn" type="button" onclick="switchView('convert'); toggleMenu()">Convert</button>
+        <button class="mob-btn" type="button" onclick="switchView('compress'); toggleMenu()">Compress</button>
+        <button class="mob-btn" type="button" onclick="switchView('resize'); toggleMenu()">Resize</button>
+        <button class="mob-btn" type="button" onclick="switchView('merge'); toggleMenu()">Merge</button>
+    </div>
+
+    <!-- =========================================================
+         MAIN APP CONTAINER
+         ========================================================= -->
+    <main class="container" id="main">
+        <div class="glass-card main-panel">
+            <!-- =====================================================
+                 VIEW: CONVERT
+                 ===================================================== -->
+            <section id="view-convert" class="view-section active" aria-label="Convert files view">
+                <div class="header-content">
+                    <h1>Convert Files</h1>
+                    <p>Transform documents &amp; images instantly.</p>
+                </div>
+
+                <div class="tool-wrapper">
+                    <label>Select Tool:</label>
+                    <div class="custom-select" id="convert-dropdown">
+                        <div class="select-trigger">
+                            <span class="trigger-text"><i class="fa-solid fa-file-word"></i> Word to PDF</span>
+                            <i class="fa-solid fa-chevron-down arrow" aria-hidden="true"></i>
+                        </div>
+                        <div class="options-container" role="listbox" aria-label="Convert tools">
+                            <div class="option" data-value="word-to-pdf"><i class="fa-solid fa-file-word"></i> Word to PDF</div>
+                            <div class="option" data-value="pdf-to-word"><i class="fa-solid fa-file-pdf"></i> PDF to Word</div>
+                            <div class="option" data-value="jpg-to-pdf"><i class="fa-solid fa-image"></i> JPG to PDF</div>
+                            <div class="option" data-value="png-to-jpg"><i class="fa-solid fa-file-image"></i> PNG to JPG</div>
+                            <div class="option" data-value="excel-to-pdf"><i class="fa-solid fa-file-excel"></i> Excel to PDF</div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- =====================================================
+                 VIEW: COMPRESS
+                 ===================================================== -->
+            <section id="view-compress" class="view-section hidden" aria-label="Compress files view">
+                <div class="header-content">
+                    <h1>Compress &amp; Reduce</h1>
+                    <p>Optimize file size while maintaining quality.</p>
+                </div>
+
+                <div class="tool-wrapper">
+                    <label>File Type:</label>
+                    <div class="custom-select" id="compress-dropdown">
+                        <div class="select-trigger">
+                            <span class="trigger-text"><i class="fa-solid fa-file-pdf"></i> Compress PDF</span>
+                            <i class="fa-solid fa-chevron-down arrow" aria-hidden="true"></i>
+                        </div>
+                        <div class="options-container" role="listbox" aria-label="Compression tools">
+                            <div class="option" data-value="comp-pdf"><i class="fa-solid fa-file-pdf"></i> Compress PDF</div>
+                            <div class="option" data-value="comp-img"><i class="fa-solid fa-image"></i> Compress Image</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="settings-box" aria-label="Compression settings">
+                    <div class="radio-group" role="radiogroup" aria-label="Compression mode">
+                        <label class="radio-card">
+                            <input type="radio" name="comp-mode" value="auto" checked onchange="toggleCompMode()">
+                            <span class="radio-box">Auto (Slider)</span>
+                        </label>
+                        <label class="radio-card">
+                            <input type="radio" name="comp-mode" value="target" onchange="toggleCompMode()">
+                            <span class="radio-box">Target Size</span>
+                        </label>
+                    </div>
+
+                    <div id="comp-auto-settings">
+                        <div class="range-slider">
+                            <input type="range" min="1" max="3" value="2" id="compression-range" oninput="updateRangeLabel()">
+                            <div class="range-labels">
+                                <span>Light</span><span>Balanced</span><span>Extreme</span>
+                            </div>
+                        </div>
+                        <p id="compression-text" class="highlight-text">Balanced: ~40% reduction.</p>
+                    </div>
+
+                    <div id="comp-target-settings" class="hidden">
+                        <label>Max File Size:</label>
+                        <div class="input-with-unit">
+                            <input type="number" placeholder="e.g. 2" id="target-size-input" inputmode="numeric">
+                            <select class="unit-select" aria-label="File size unit">
+                                <option>MB</option>
+                                <option>KB</option>
+                            </select>
+                        </div>
+                        <p class="highlight-text">We'll try to get under this limit.</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- =====================================================
+                 VIEW: RESIZE
+                 ===================================================== -->
+            <section id="view-resize" class="view-section hidden" aria-label="Resize images view">
+                <div class="header-content">
+                    <h1>Resize Images</h1>
+                    <p>Scale by pixels or percentage.</p>
+                </div>
+
+                <div class="resize-grid" aria-label="Resize settings">
+                    <div class="input-group">
+                        <label>Width (px)</label>
+                        <input type="number" placeholder="Auto" inputmode="numeric">
+                    </div>
+                    <div class="input-group">
+                        <label>Height (px)</label>
+                        <input type="number" placeholder="Auto" inputmode="numeric">
+                    </div>
+
+                    <div class="input-group full">
+                        <label>Or Scale %:</label>
+                        <div class="custom-select" id="resize-dropdown">
+                            <div class="select-trigger">
+                                <span class="trigger-text">Original (100%)</span>
+                                <i class="fa-solid fa-chevron-down arrow" aria-hidden="true"></i>
+                            </div>
+                            <div class="options-container" role="listbox" aria-label="Resize presets">
+                                <div class="option" data-value="100">Original (100%)</div>
+                                <div class="option" data-value="75">75% (Smaller)</div>
+                                <div class="option" data-value="50">50% (Half Size)</div>
+                                <div class="option" data-value="25">25% (Thumbnail)</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- =====================================================
+                 VIEW: MERGE
+                 ===================================================== -->
+            <section id="view-merge" class="view-section hidden" aria-label="Merge files view">
+                <div class="header-content">
+                    <h1>Merge Files</h1>
+                    <p>Combine multiple files into one.</p>
+                </div>
+
+                <div class="tool-wrapper">
+                    <label>Merge Mode:</label>
+                    <div class="custom-select" id="merge-dropdown">
+                        <div class="select-trigger">
+                            <span class="trigger-text"><i class="fa-solid fa-copy"></i> Merge PDFs</span>
+                            <i class="fa-solid fa-chevron-down arrow" aria-hidden="true"></i>
+                        </div>
+                        <div class="options-container" role="listbox" aria-label="Merge tools">
+                            <div class="option" data-value="merge-pdf"><i class="fa-solid fa-copy"></i> Merge PDFs</div>
+                            <div class="option" data-value="merge-img"><i class="fa-solid fa-images"></i> Images to PDF</div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- =====================================================
+                 FILE UPLOAD ZONE
+                 - drag & drop area
+                 - file picker button
+                 ===================================================== -->
+            <section class="upload-zone" id="drop-zone" aria-label="File upload zone">
+                <input type="file" id="file-input" hidden multiple>
+                <div class="upload-icon" aria-hidden="true"><i class="fa-solid fa-cloud-arrow-up"></i></div>
+                <h3>Drag &amp; Drop Files</h3>
+                <button class="btn-glow" type="button" onclick="document.getElementById('file-input').click()">Choose Files</button>
+                <p class="meta-text" id="file-limits">Supported: Word Docs • Max 50MB</p>
+            </section>
+
+            <!-- =====================================================
+                 PROCESS UI (loading/progress)
+                 ===================================================== -->
+            <section class="process-ui hidden" id="process-ui" aria-live="polite">
+                <div class="loader-ring" aria-hidden="true"></div>
+                <h3 id="process-title">Processing...</h3>
+                <div class="progress-track" aria-label="Progress">
+                    <div class="progress-fill" id="progress-bar"></div>
+                </div>
+            </section>
+
+            <!-- =====================================================
+                 SUCCESS UI (operation complete)
+                 ===================================================== -->
+            <section class="success-ui hidden" id="success-ui" aria-live="polite">
+                <div class="check-circle" aria-hidden="true"><i class="fa-solid fa-check"></i></div>
+                <h2>Done!</h2>
+                <p id="success-msg">File ready.</p>
+
+                <div class="btn-actions">
+                    <button class="btn-glow download-btn" type="button"><i class="fa-solid fa-download" aria-hidden="true"></i> Download</button>
+                    <button class="btn-outline" type="button" onclick="resetApp()">Convert More</button>
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <!-- =========================================================
+         FOOTER
+         ========================================================= -->
+    <footer class="site-footer">
+        <div class="footer-content">
+            <div class="footer-left">
+                <p class="copyright">&copy; 2025 Samson Eniolorunda. All rights reserved.</p>
+            </div>
+
+            <div class="footer-socials" aria-label="Social links">
+                <a href="https://linkedin.com/in/samson-eniolorunda" target="_blank" rel="noopener noreferrer" aria-label="LinkedIn">
+                    <i class="fa-brands fa-linkedin-in" aria-hidden="true"></i>
+                </a>
+                <a href="https://github.com/Samson-Eniolorunda" target="_blank" rel="noopener noreferrer" aria-label="GitHub">
+                    <i class="fa-brands fa-github" aria-hidden="true"></i>
+                </a>
+                <a href="https://x.com/s_eniolorunda_" target="_blank" rel="noopener noreferrer" aria-label="X">
+                    <i class="fa-brands fa-x-twitter" aria-hidden="true"></i>
+                </a>
+            </div>
+        </div>
+    </footer>
+
+    <!-- App Script -->
+    <script src="assets/js/scripts.js"></script>
+</body>
+</html>
