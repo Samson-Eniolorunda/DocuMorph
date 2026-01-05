@@ -1,89 +1,74 @@
-/* =========================================================
-   /api/convert.js  (Vercel Serverless Function)
-   ---------------------------------------------------------
-   Purpose:
-   - Secure proxy for ConvertAPI requests.
-   - Keeps CONVERT_API_TOKEN secret (server-side only).
-   - Forwards the incoming multipart/form-data upload to ConvertAPI
-     and streams ConvertAPI's response back to the client.
-
-   How it works:
-   1) Frontend sends POST /api/convert?type=<convertapi-route>
-      Example: /api/convert?type=docx/to/pdf
-   2) This API builds the ConvertAPI target URL using:
-      - type from req.query
-      - Token from process.env.CONVERT_API_TOKEN
-   3) It pipes the incoming request body directly to ConvertAPI,
-      and pipes the ConvertAPI response directly back to the frontend.
-
-   Requirements:
-   - Set environment variable in Vercel:
-     CONVERT_API_TOKEN
-
-   Notes:
-   - bodyParser is disabled so the raw stream can be piped (file uploads).
-   - This keeps your ConvertAPI token private and avoids CORS issues.
-   ========================================================= */
-
+/**
+ * /api/convert  (Vercel Serverless Function)
+ * ---------------------------------------------------------
+ * Purpose:
+ * - Proxy multipart uploads from the browser to ConvertAPI securely.
+ * - Keeps your ConvertAPI Secret on the server (ENV).
+ *
+ * Frontend calls:
+ *   POST /api/convert?type=<convertapi-route>
+ * Example:
+ *   /api/convert?type=docx/to/pdf
+ *
+ * Env required:
+ *   CONVERTAPI_SECRET
+ */
 const https = require("https");
 
-export default function handler(req, res) {
-  // Only allow POST (file uploads)
-  if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
-
-  try {
-    const rawType = req.query?.type;
-
-    // Basic validation (prevents weird injections)
-    if (!rawType || typeof rawType !== "string" || !rawType.includes("/to/")) {
-      return res.status(400).json({ error: "Invalid or missing type" });
-    }
-
-    const type = encodeURIComponent(rawType);
-    const secret = process.env.CONVERT_API_TOKEN;
-
-    if (!secret) {
-      return res.status(500).json({
-        error: "Missing ConvertAPI secret",
-        hint: "Set CONVERTAPI_SECRET in Vercel Environment Variables",
-      });
-    }
-
-    // ✅ ConvertAPI v2 auth param should be Secret=...
-    const targetUrl = `https://v2.convertapi.com/convert/${type}?Secret=${encodeURIComponent(secret)}&StoreFile=true`;
-
-    const proxyReq = https.request(
-      targetUrl,
-      {
-        method: "POST",
-        // Forward content-type + boundaries, etc.
-        headers: {
-          "content-type": req.headers["content-type"] || "multipart/form-data",
-          // keep other headers (but don't forward host)
-          ...req.headers,
-          host: "v2.convertapi.com",
-        },
-      },
-      (proxyRes) => {
-        res.writeHead(proxyRes.statusCode || 500, proxyRes.headers);
-        proxyRes.pipe(res);
-      }
-    );
-
-    proxyReq.on("error", (err) => {
-      console.error("ConvertAPI proxy error:", err);
-      res.status(500).json({ error: "Proxy Request Failed" });
-    });
-
-    // Stream upload to ConvertAPI
-    req.pipe(proxyReq);
-  } catch (err) {
-    console.error("ConvertAPI handler error:", err);
-    res.status(500).json({ error: "Internal Server Error" });
+module.exports = async (req, res) => {
+  // Only allow POST (browser sends multipart/form-data)
+  if (req.method !== "POST") {
+    res.statusCode = 405;
+    res.setHeader("Allow", "POST");
+    return res.end("Method Not Allowed");
   }
-}
 
-// Disable body parser so streaming works
-export const config = {
-  api: { bodyParser: false },
+  const secret = process.env.CONVERTAPI_SECRET;
+  const type = (req.query && req.query.type) ? String(req.query.type) : "";
+
+  if (!secret) {
+    res.statusCode = 500;
+    return res.end("Missing CONVERTAPI_SECRET");
+  }
+
+  if (!type) {
+    res.statusCode = 400;
+    return res.end("Missing type query param");
+  }
+
+  const targetUrl = new URL(`https://v2.convertapi.com/convert/${type}?Secret=${encodeURIComponent(secret)}`);
+
+  const proxyReq = https.request(
+    {
+      method: "POST",
+      hostname: targetUrl.hostname,
+      path: targetUrl.pathname + targetUrl.search,
+      headers: {
+        // Forward content-type + length for multipart boundary
+        "content-type": req.headers["content-type"] || "application/octet-stream",
+        "content-length": req.headers["content-length"] || undefined,
+        "user-agent": "DocuMorph-Proxy/1.0",
+      },
+    },
+    (proxyRes) => {
+      res.statusCode = proxyRes.statusCode || 500;
+
+      // ConvertAPI returns JSON
+      const ct = proxyRes.headers["content-type"] || "application/json";
+      res.setHeader("Content-Type", ct);
+
+      // Stream response back to client
+      proxyRes.on("data", (chunk) => res.write(chunk));
+      proxyRes.on("end", () => res.end());
+    }
+  );
+
+  proxyReq.on("error", (err) => {
+    console.error("ConvertAPI proxy error:", err);
+    res.statusCode = 502;
+    res.end("Bad Gateway");
+  });
+
+  // Pipe multipart body to ConvertAPI
+  req.pipe(proxyReq);
 };

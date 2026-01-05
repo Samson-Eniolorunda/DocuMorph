@@ -1,73 +1,47 @@
-/* =========================================================
-   /api/form.js  (Vercel Serverless Function)
-   ---------------------------------------------------------
-   Purpose:
-   - Secure proxy for Formspree submissions.
-   - Keeps your Formspree form ID hidden in environment variables.
-   - Receives JSON from the frontend and forwards it to Formspree.
-
-   How it works:
-   1) Frontend sends POST /api/form with JSON body:
-      { type, email, message, ... }
-   2) This API reads FORMSPREE_ID from env
-   3) Sends POST request to https://formspree.io/f/<FORMSPREE_ID>
-   4) Returns success/failure to the frontend
-
-   Requirements:
-   - Set environment variable in Vercel:
-     FORMSPREE_ID
-
-   Notes:
-   - This version expects req.body to already be parsed (JSON).
-   - Ensure your frontend sets Content-Type: application/json
-   ========================================================= */
-
-const https = require("https");
-
-export default async function handler(req, res) {
-  // -----------------------------
-  // Only allow POST requests
-  // -----------------------------
+/**
+ * /api/form  (Vercel Serverless Function)
+ * ---------------------------------------------------------
+ * Purpose:
+ * - Receives feature request submissions from the frontend
+ * - Forwards them to your Formspree endpoint (or any webhook)
+ *
+ * Env required:
+ *   FORMSPREE_ENDPOINT   (example: https://formspree.io/f/xxxxxx)
+ */
+module.exports = async (req, res) => {
   if (req.method !== "POST") {
-    return res.status(405).json({ error: "Method not allowed" });
+    res.statusCode = 405;
+    res.setHeader("Allow", "POST");
+    return res.end("Method Not Allowed");
   }
 
-  // -----------------------------
-  // Load Formspree ID from env
-  // -----------------------------
-  const formId = process.env.FORMSPREE_ID;
-  if (!formId) {
-    return res.status(500).json({ error: "Form ID missing" });
+  const endpoint = process.env.FORMSPREE_ENDPOINT;
+  if (!endpoint) {
+    res.statusCode = 500;
+    return res.end("Missing FORMSPREE_ENDPOINT");
   }
 
-  // -----------------------------
-  // Create request to Formspree endpoint
-  // -----------------------------
-  const externalReq = https.request(
-    `https://formspree.io/f/${formId}`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "application/json",
-      },
-    },
-    (externalRes) => {
-      // We keep response minimal to avoid leaking upstream details
-      res.status(externalRes.statusCode).json({ success: true });
+  // Read raw body (Vercel Functions don't auto-parse JSON)
+  let raw = "";
+  req.on("data", (chunk) => (raw += chunk));
+  req.on("end", async () => {
+    try {
+      const data = raw ? JSON.parse(raw) : {};
+
+      const r = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify(data),
+      });
+
+      res.statusCode = r.status;
+      res.setHeader("Content-Type", "application/json");
+      const text = await r.text();
+      return res.end(text || JSON.stringify({ ok: r.ok }));
+    } catch (err) {
+      console.error("Form proxy error:", err);
+      res.statusCode = 500;
+      return res.end(JSON.stringify({ ok: false }));
     }
-  );
-
-  // -----------------------------
-  // Handle upstream errors
-  // -----------------------------
-  externalReq.on("error", () => {
-    res.status(500).json({ error: "Formspree Error" });
   });
-
-  // -----------------------------
-  // Forward body (JSON) to Formspree
-  // -----------------------------
-  externalReq.write(JSON.stringify(req.body));
-  externalReq.end();
-}
+};

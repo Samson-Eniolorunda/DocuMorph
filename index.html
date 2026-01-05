@@ -42,10 +42,6 @@
 
     <!-- Main Stylesheet -->
     <link rel="stylesheet" href="assets/css/styles.css">
-
-    <!-- External Scripts (Wallet Libraries) -->
-    <script src="https://unpkg.com/@tonconnect/ui@latest/dist/tonconnect-ui.min.js"></script>
-    <script src="https://cdn.ethers.io/lib/ethers-5.2.umd.min.js"></script>
 </head>
 <body>
     <!-- Background Mesh / Decorative Layer -->
@@ -458,9 +454,8 @@
                         
                         <!-- Wallet connect area (used for TON connect or other providers) -->
                         <div id="connect-container" style="margin-top: 15px;">
-                            <button id="connect-wallet-btn" onclick="connectAndDonate()" class="btn-glow full-width"><i class="fa-solid fa-wallet"></i> Connect Wallet</button>
-                            <div id="ton-connect-btn" class="full-width" style="display:none; justify-content:center;"></div>
-                        </div>
+                            <button id="connect-wallet-btn" onclick="copyWallet()" class="btn-glow full-width"><i class="fa-solid fa-copy"></i> Copy Address</button>
+</div>
                     </div>
                 </div>
             </div>
