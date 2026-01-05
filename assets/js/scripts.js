@@ -4,10 +4,16 @@
    ---------------------------------------------------------
    Purpose:
    - Runs the DocuMorph UI (Convert / Compress / Resize / Merge).
-   - Handles file selection, drag & drop, progress UI, and downloads.
+   - Handles file selection + drag & drop, progress UI, and downloads.
    - Enforces a daily usage limit via localStorage.
-   - Integrates your Vercel endpoints (/api/convert, /api/wallets, /api/form).
-   - Supports wallet actions (MetaMask for EVM, Tonkeeper for TON, copy for others).
+   - Integrates:
+     1) ConvertAPI via your Vercel proxy (/api/convert)
+     2) Wallet addresses via (/api/wallets)
+     3) Feature request form via (/api/form)
+   - Wallet flows:
+     - MetaMask for EVM coins (ETH/BNB/USDT-EVM) with mobile “direct pay” link fallback
+     - TON via Tonkeeper deep-link (button label stays “Connect Wallet”)
+     - BTC/SOL/TRON remain copy-only
    ========================================================= */
 
 (() => {
@@ -33,8 +39,7 @@
     "usdt-arb": "0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9",
   };
 
-  // USDT decimals by network:
-  // ETH: 6, ARB: 6, BSC: 18 (commonly used for BSC USDT)
+  // Common USDT decimals (BSC-USDT commonly 18, ETH/ARB are 6)
   const USDT_DECIMALS = {
     "usdt-eth": 6,
     "usdt-arb": 6,
@@ -47,7 +52,7 @@
       chainId: "0x1",
       chainName: "Ethereum Mainnet",
       nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
-      rpcUrls: [],
+      rpcUrls: [], // MetaMask has defaults; you can add one if you want
       blockExplorerUrls: ["https://etherscan.io"],
     },
     bnb: {
@@ -66,7 +71,7 @@
     },
   };
 
-  // Chain IDs for ERC-681 links (MetaMask “direct pay” on mobile)
+  // Chain IDs for payment links
   const EVM_CHAIN_IDS = { eth: 1, bnb: 56, arb: 42161 };
 
   // Wallets loaded from backend (/api/wallets)
@@ -150,7 +155,7 @@
   const tonBtnRoot = document.getElementById("ton-connect-btn");
 
   // =========================================================
-  // 4) SMALL HELPERS
+  // 4) HELPERS
   // =========================================================
   const qs = (sel) => document.querySelector(sel);
   const qsa = (sel) => document.querySelectorAll(sel);
@@ -167,6 +172,24 @@
     return (el?.innerText || "").trim().toLowerCase();
   }
 
+  // BigInt helpers for payment-link amounts (no ethers needed for links)
+  function toUnitsBigInt(amountStr, decimals) {
+    // "5" or "0.005" => bigint in token units
+    const s = String(amountStr || "0").trim();
+    if (!s) return 0n;
+
+    const parts = s.split(".");
+    const whole = parts[0] || "0";
+    const frac = (parts[1] || "").slice(0, decimals);
+
+    const fracPadded = frac.padEnd(decimals, "0");
+    const wholeBI = BigInt(whole.replace(/[^\d]/g, "") || "0");
+    const fracBI = BigInt(fracPadded.replace(/[^\d]/g, "") || "0");
+    const base = 10n ** BigInt(decimals);
+
+    return wholeBI * base + fracBI;
+  }
+
   // =========================================================
   // 5) INIT
   // =========================================================
@@ -180,28 +203,23 @@
     if (y) y.textContent = new Date().getFullYear();
   } catch (_) {}
 
-  // =========================================================
-  // 6) EXPOSED WINDOW HANDLERS (used by your HTML onclick)
-  // =========================================================
+  // Expose handlers used by HTML inline onclick
   window.toggleMenu = toggleMenu;
   window.switchView = switchView;
   window.resetApp = resetApp;
   window.executeProcess = executeProcess;
   window.toggleCompMode = toggleCompMode;
   window.updateRangeLabel = updateRangeLabel;
-
   window.openModal = openModal;
   window.closeModal = closeModal;
 
   window.copyWallet = copyWallet;
-  window.connectAndDonate = connectAndDonate;
+  window.connectAndDonate = connectAndDonate; // used by button in HTML
   window.submitToFormspree = submitToFormspree;
-
-  // optional expose
-  window.updateWalletDisplay = updateWalletDisplay;
+  window.updateWalletDisplay = updateWalletDisplay; // optional
 
   // =========================================================
-  // 7) LEGAL CLICKWRAP
+  // 6) LEGAL CLICKWRAP
   // =========================================================
   window.toggleStartButton = function () {
     const checkbox = document.getElementById("legal-check");
@@ -218,7 +236,7 @@
   };
 
   // =========================================================
-  // 8) DAILY LIMIT
+  // 7) DAILY LIMIT
   // =========================================================
   function getUsage() {
     const today = new Date().toLocaleDateString();
@@ -227,9 +245,7 @@
     try {
       data = JSON.parse(localStorage.getItem("documorph_usage")) || data;
       if (data.date !== today) data = { date: today, count: 0 };
-    } catch (_) {
-      // fail-open
-    }
+    } catch (_) {}
 
     return data;
   }
@@ -252,7 +268,7 @@
   }
 
   // =========================================================
-  // 9) NAV + MENU
+  // 8) NAV + MENU
   // =========================================================
   function toggleMenu() {
     if (menuToggle) menuToggle.classList.toggle("open");
@@ -276,7 +292,7 @@
   }
 
   // =========================================================
-  // 10) MODALS
+  // 9) MODALS
   // =========================================================
   function openModal(type) {
     const container = document.getElementById("modal-container");
@@ -294,7 +310,7 @@
   }
 
   // =========================================================
-  // 11) FORM (POST -> /api/form)
+  // 10) FORM (POST -> /api/form)
   // =========================================================
   async function submitToFormspree(e) {
     e.preventDefault();
@@ -322,7 +338,7 @@
   }
 
   // =========================================================
-  // 12) TOOL CONTEXT (input accept + label)
+  // 11) TOOL CONTEXT (input accept + label)
   // =========================================================
   function updateContext(view, val) {
     appState.subTool = val;
@@ -380,7 +396,7 @@
   }
 
   // =========================================================
-  // 13) FILE INPUT + DRAG & DROP
+  // 12) FILE INPUT + DRAG & DROP
   // =========================================================
   function initFileInputs() {
     if (fileInput) {
@@ -406,7 +422,6 @@
         e.preventDefault();
         dropZone.style.borderColor = "#cbd5e1";
         dropZone.style.background = "rgba(255,255,255,0.6)";
-
         if (e.dataTransfer?.files?.length) handleFiles(e.dataTransfer.files);
       });
     }
@@ -416,10 +431,9 @@
     appState.files = Array.from(fileList || []);
     if (!appState.files.length) return;
 
-    if (dropZone) dropZone.classList.add("hidden");
-    if (uploadUI) uploadUI.classList.remove("hidden");
+    dropZone?.classList.add("hidden");
+    uploadUI?.classList.remove("hidden");
 
-    // Fake upload animation (UI only)
     let w = 0;
     const timer = setInterval(() => {
       w += 5;
@@ -429,7 +443,7 @@
       if (w >= 100) {
         clearInterval(timer);
         setTimeout(() => {
-          if (uploadUI) uploadUI.classList.add("hidden");
+          uploadUI?.classList.add("hidden");
           showReadyScreen();
         }, 300);
       }
@@ -437,13 +451,11 @@
   }
 
   function showReadyScreen() {
-    if (readyUI) readyUI.classList.remove("hidden");
+    readyUI?.classList.remove("hidden");
 
     if (fileNameDisplay) {
       fileNameDisplay.innerText =
-        appState.files.length === 1
-          ? appState.files[0].name
-          : `${appState.files.length} files selected`;
+        appState.files.length === 1 ? appState.files[0].name : `${appState.files.length} files selected`;
     }
 
     let actionText = "Start";
@@ -477,7 +489,7 @@
   }
 
   // =========================================================
-  // 14) COMPRESS SETTINGS
+  // 13) COMPRESS SETTINGS
   // =========================================================
   function toggleCompMode() {
     const mode = qs('input[name="comp-mode"]:checked')?.value;
@@ -495,24 +507,14 @@
   }
 
   function updateRangeLabel() {
-    const labels = [
-      "Smallest",
-      "Small",
-      "Compact",
-      "Balanced",
-      "Balanced",
-      "Better",
-      "Good",
-      "Great",
-      "Best Quality",
-    ];
+    const labels = ["Smallest", "Small", "Compact", "Balanced", "Balanced", "Better", "Good", "Great", "Best Quality"];
     const v = Number(document.getElementById("compression-range")?.value || 4);
     const out = document.getElementById("compression-text");
     if (out) out.innerText = labels[v - 1] || "Balanced";
   }
 
   // =========================================================
-  // 15) START PROCESS
+  // 14) START PROCESS
   // =========================================================
   function executeProcess() {
     if (!checkDailyLimit()) return;
@@ -527,7 +529,7 @@
   }
 
   // =========================================================
-  // 16) SUCCESS UI
+  // 15) SUCCESS UI
   // =========================================================
   function showSuccess(filename) {
     processUI?.classList.add("hidden");
@@ -547,13 +549,12 @@
   }
 
   // =========================================================
-  // 17) CONVERT/COMPRESS/RESIZE/MERGE PIPELINE (POST -> /api/convert)
+  // 16) CONVERSION PIPELINE (POST -> /api/convert)
   // =========================================================
   function resolveConvertTypeAndParams(formData, file) {
     const ext = file.name.split(".").pop().toLowerCase();
     let type = "";
 
-    // Convert tools
     if (appState.view === "convert") {
       if (appState.subTool === "word-to-pdf") type = ext === "doc" ? "doc/to/pdf" : "docx/to/pdf";
       else if (appState.subTool === "pdf-to-word") type = "pdf/to/docx";
@@ -563,11 +564,10 @@
       else if (appState.subTool === "png-to-jpg") type = "png/to/jpg";
     }
 
-    // Compress tools
     if (appState.view === "compress") {
       type = appState.subTool === "comp-pdf" ? "pdf/to/compress" : "jpg/to/compress";
-      const mode = qs('input[name="comp-mode"]:checked')?.value || "auto";
 
+      const mode = qs('input[name="comp-mode"]:checked')?.value || "auto";
       if (mode === "auto") {
         const s = Number(document.getElementById("compression-range")?.value || 4);
 
@@ -577,12 +577,10 @@
 
         if (type === "jpg/to/compress") formData.append("Quality", String(s * 10));
       } else {
-        // Keep simple; target-size is complex across images
         formData.append("Preset", "screen");
       }
     }
 
-    // Resize tool
     if (appState.view === "resize") {
       type = "jpg/to/jpg";
 
@@ -591,17 +589,8 @@
 
       if (w) formData.append("ImageWidth", w);
       if (h) formData.append("ImageHeight", h);
-
-      // If user didn’t set explicit w/h, allow scale dropdown fallback
-      if (!w && !h) {
-        const label = qs("#resize-scale-dropdown .trigger-text")?.innerText || "";
-        if (label.includes("75")) formData.append("ScaleImage", "75");
-        else if (label.includes("50")) formData.append("ScaleImage", "50");
-        else if (label.includes("25")) formData.append("ScaleImage", "25");
-      }
     }
 
-    // Merge tool
     if (appState.view === "merge") {
       type = "pdf/to/merge";
     }
@@ -620,7 +609,6 @@
     const formData = new FormData();
     formData.append("StoreFile", "true");
 
-    // Build multipart payload per tool
     if (appState.view === "merge") {
       appState.files.forEach((f, i) => formData.append(`Files[${i}]`, f));
     } else {
@@ -653,14 +641,12 @@
 
       try {
         const d = JSON.parse(xhr.responseText);
-
         if (d?.Files?.length) {
           appState.resultUrl = d.Files[0].Url;
           incrementUsage();
           showSuccess(d.Files[0].FileName);
           return;
         }
-
         alert("Conversion returned no file.");
         resetApp();
       } catch (_) {
@@ -678,7 +664,7 @@
   }
 
   // =========================================================
-  // 18) DROPDOWNS (custom-select)
+  // 17) DROPDOWNS
   // =========================================================
   function initCustomDropdowns() {
     const dropdowns = qsa(".custom-select");
@@ -694,19 +680,19 @@
         if (!isOpen) dd.classList.add("open");
       };
 
-      trigger?.addEventListener("click", toggle);
-
-      dd.addEventListener("keydown", (e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          toggle();
-        }
+      trigger?.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        toggle();
       });
 
       options.forEach((opt) => {
         opt.setAttribute("tabindex", "0");
 
-        const select = () => {
+        const select = (e) => {
+          e?.preventDefault?.();
+          e?.stopPropagation?.();
+
           const val = opt.getAttribute("data-value");
           if (!val) return;
 
@@ -717,18 +703,18 @@
             const usdtGroup = document.getElementById("usdt-network-group");
             if (val === "usdt") {
               usdtGroup?.classList.remove("hidden");
-              updateWalletDisplay("usdt-eth");
+              updateWalletDisplay("usdt-eth"); // default USDT network
             } else {
               usdtGroup?.classList.add("hidden");
-              updateWalletDisplay(val);
+              updateWalletDisplay(val); // btc/eth/bnb/sol/ton/tron
             }
           }
           // USDT network dropdown
           else if (dd.id === "network-dropdown") {
             if (triggerText) triggerText.innerHTML = opt.innerHTML;
-            updateWalletDisplay(val);
+            updateWalletDisplay(val); // usdt-eth/usdt-bnb/usdt-trc/usdt-sol/usdt-ton/usdt-arb
           }
-          // Tool dropdowns (convert/compress/merge)
+          // Tool dropdowns
           else if (dd.id !== "resize-scale-dropdown") {
             if (triggerText) triggerText.innerHTML = opt.innerHTML;
             updateContext(appState.view, val);
@@ -744,10 +730,7 @@
 
         opt.addEventListener("click", select);
         opt.addEventListener("keydown", (e) => {
-          if (e.key === "Enter") {
-            e.preventDefault();
-            select();
-          }
+          if (e.key === "Enter") select(e);
         });
       });
     });
@@ -758,7 +741,7 @@
   }
 
   // =========================================================
-  // 19) LOAD WALLETS (GET /api/wallets)
+  // 18) LOAD WALLETS (GET /api/wallets)
   // =========================================================
   async function fetchSecureWallets() {
     try {
@@ -766,7 +749,7 @@
       if (!response.ok) return;
 
       CRYPTO_WALLETS = await response.json();
-      updateWalletDisplay("btc");
+      updateWalletDisplay(donationState.selectedKey || "btc");
     } catch (e) {
       console.error("Wallet load failed", e);
     }
@@ -776,7 +759,6 @@
     if (key === "btc") return CRYPTO_WALLETS.btc;
     if (key === "eth") return CRYPTO_WALLETS.eth;
     if (key === "bnb") return CRYPTO_WALLETS.bnb;
-    if (key === "arb") return CRYPTO_WALLETS.eth || CRYPTO_WALLETS.bnb || "Address Not Set"; // optional
     if (key === "sol") return CRYPTO_WALLETS.sol;
     if (key === "ton") return CRYPTO_WALLETS.ton;
     if (key === "tron") return CRYPTO_WALLETS.tron;
@@ -792,8 +774,44 @@
   }
 
   // =========================================================
-  // 20) WALLET UI ROUTING (ONE BUTTON)
+  // 19) WALLET UI (ONE BUTTON) — TON STAYS “CONNECT WALLET”
   // =========================================================
+  function isUsdtKey(k) {
+    return k === "usdt-eth" || k === "usdt-bnb" || k === "usdt-arb";
+  }
+
+  function getChainKeyForDonateKey(k) {
+    if (k === "bnb" || k === "usdt-bnb") return "bnb";
+    if (k === "usdt-arb") return "arb";
+    return "eth";
+  }
+
+  // ERC-681 link builder (mobile “direct pay”)
+  function buildPaymentLink(donateKey, toAddress) {
+    const chainKey = getChainKeyForDonateKey(donateKey);
+    const chainId = EVM_CHAIN_IDS[chainKey] || 1;
+
+    // Native (ETH/BNB)
+    if (donateKey === "eth" || donateKey === "bnb") {
+      const amount = donateKey === "bnb" ? DONATION_DEFAULTS.bnb : DONATION_DEFAULTS.eth;
+      const valueWei = toUnitsBigInt(amount, 18).toString();
+      // MetaMask-friendly
+      return `ethereum:pay-${toAddress}@${chainId}?value=${valueWei}`;
+    }
+
+    // USDT (EVM)
+    if (isUsdtKey(donateKey)) {
+      const token = USDT_CONTRACTS[donateKey];
+      const decimals = USDT_DECIMALS[donateKey];
+      if (!token || typeof decimals !== "number") return null;
+
+      const unitAmount = toUnitsBigInt(DONATION_DEFAULTS.usdt, decimals).toString();
+      return `ethereum:${token}@${chainId}/transfer?address=${toAddress}&uint256=${unitAmount}`;
+    }
+
+    return null;
+  }
+
   function updateWalletDisplay(key) {
     donationState.selectedKey = key;
 
@@ -802,55 +820,52 @@
     const address = mapWalletAddressForKey(key) || "Address Not Set";
     walletInput.value = address;
 
-    // Hide TonConnect button root unless TON selected
+    // Hide TonConnect UI root by default (you can still keep it in DOM)
     if (tonBtnRoot) tonBtnRoot.style.display = "none";
 
-    // Build QR data:
-    // - For MetaMask/EVM selections: use a PAYMENT LINK (ERC-681)
-    // - Else fallback to raw address
-    const isEvm = ["eth", "bnb", "arb", "usdt-eth", "usdt-bnb", "usdt-arb"].includes(key);
-    const payLink = isEvm ? buildMetaMaskPaymentLink(key, address) : null;
+    // QR: for EVM show payment link QR, otherwise address QR
+    const isEvm = ["eth", "bnb", "usdt-eth", "usdt-bnb", "usdt-arb"].includes(key);
+    const payLink = isEvm ? buildPaymentLink(key, address) : null;
 
     if (qrBox && qrImg && address !== "Address Not Set" && address !== "Loading...") {
       qrBox.classList.remove("hidden");
-      const qrData = payLink || address;
-      qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(qrData)}`;
+      const data = payLink || address;
+      qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(data)}`;
     } else if (qrBox) {
       qrBox.classList.add("hidden");
     }
 
-    // Decide ONE button behavior
     const isTon = key === "ton" || key === "usdt-ton";
     const isCopyOnly = ["btc", "sol", "tron", "usdt-trc", "usdt-sol"].includes(key);
 
     connectBtn.style.display = "block";
 
+    // TON: keep the label as “Connect Wallet” (your request)
     if (isTon) {
-      if (tonBtnRoot) tonBtnRoot.style.display = "flex"; // optional, if you want TonConnect UI
-      connectBtn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Open Tonkeeper';
+      connectBtn.innerHTML = '<i class="fa-solid fa-wallet"></i> Connect Wallet';
       connectBtn.onclick = connectTonkeeper;
       return;
     }
 
+    // EVM: also keep “Connect Wallet”
     if (isEvm) {
-      connectBtn.innerHTML = '<i class="fa-solid fa-wallet"></i> Pay with MetaMask';
+      connectBtn.innerHTML = '<i class="fa-solid fa-wallet"></i> Connect Wallet';
       connectBtn.onclick = connectAndDonate;
       return;
     }
 
+    // Copy-only coins
     if (isCopyOnly) {
       connectBtn.innerHTML = '<i class="fa-solid fa-copy"></i> Copy Address';
       connectBtn.onclick = copyWallet;
       return;
     }
 
+    // fallback
     connectBtn.innerHTML = '<i class="fa-solid fa-copy"></i> Copy Address';
     connectBtn.onclick = copyWallet;
   }
 
-  // =========================================================
-  // 21) COPY WALLET
-  // =========================================================
   function copyWallet() {
     const input = document.getElementById("wallet-address");
     const feedback = document.getElementById("copy-feedback");
@@ -868,7 +883,7 @@
   }
 
   // =========================================================
-  // 22) TON / TONKEEPER (direct link like before)
+  // 20) TONKEEPER
   // =========================================================
   function redirectToTonkeeperInstall() {
     window.open("https://tonkeeper.com/", "_blank", "noopener,noreferrer");
@@ -889,26 +904,28 @@
       return;
     }
 
+    // USDT-TON is Jetton → manual
     if (donateKey === "usdt-ton") {
-      alert("USDT on TON (Jetton) is best sent manually in Tonkeeper. I’ll open Tonkeeper and you can paste the address.");
+      alert("USDT on TON is best sent manually in Tonkeeper. I’ll open Tonkeeper and you can paste the address.");
       redirectToTonkeeperInstall();
       copyWallet();
       return;
     }
 
-    // Optional: TonConnect exists but we keep the consistent deep-link experience
-    try {
-      if (tonConnectUI && tonBtnRoot) {
-        // No-op: TonConnect UI is available but not required
-      }
-    } catch (_) {}
-
+    // Keep your original reliable Tonkeeper flow
     const link = tonkeeperTransferLink(address, DONATION_DEFAULTS.ton, "DocuMorph Support");
     window.open(link, "_blank", "noopener,noreferrer");
+
+    // TonConnect stays optional/quiet (no UI change required)
+    try {
+      if (tonConnectUI && tonBtnRoot) {
+        // you can later show tonBtnRoot if you want, but we keep it hidden
+      }
+    } catch (_) {}
   }
 
   // =========================================================
-  // 23) METAMASK “DIRECT PAY” (ERC-681 links) + DESKTOP SEND
+  // 21) METAMASK (Mobile direct-pay link + Desktop injected provider)
   // =========================================================
   function redirectToMetaMaskInstall() {
     window.open("https://metamask.io/download/", "_blank", "noopener,noreferrer");
@@ -917,63 +934,6 @@
   function openInMetaMaskDappBrowser() {
     const dapp = window.location.href.replace(/^https?:\/\//, "");
     window.location.href = `https://metamask.app.link/dapp/${dapp}`;
-  }
-
-  function getChainKeyForDonateKey(key) {
-    if (key === "bnb" || key === "usdt-bnb") return "bnb";
-    if (key === "arb" || key === "usdt-arb") return "arb";
-    return "eth";
-  }
-
-  function isUsdtKey(key) {
-    return key === "usdt-eth" || key === "usdt-bnb" || key === "usdt-arb";
-  }
-
-  function buildErc681Native({ to, chainKey, amountEth }) {
-    const chainId = EVM_CHAIN_IDS[chainKey] || 1;
-    const valueWei = ethers.utils.parseEther(String(amountEth)).toString();
-    return `ethereum:pay-${to}@${chainId}?value=${valueWei}`;
-  }
-
-  function buildErc681Erc20Transfer({ tokenContract, to, chainKey, amount, decimals }) {
-    const chainId = EVM_CHAIN_IDS[chainKey] || 1;
-    const unitAmount = ethers.utils.parseUnits(String(amount), decimals).toString();
-    return `ethereum:${tokenContract}@${chainId}/transfer?address=${to}&uint256=${unitAmount}`;
-  }
-
-  function buildMetaMaskPaymentLink(donateKey, toAddress) {
-    const chainKey = getChainKeyForDonateKey(donateKey);
-
-    // Native
-    if (donateKey === "eth") {
-      return buildErc681Native({ to: toAddress, chainKey, amountEth: DONATION_DEFAULTS.eth });
-    }
-    if (donateKey === "bnb") {
-      return buildErc681Native({ to: toAddress, chainKey, amountEth: DONATION_DEFAULTS.bnb });
-    }
-
-    // USDT
-    if (isUsdtKey(donateKey)) {
-      const tokenContract = USDT_CONTRACTS[donateKey];
-      const decimals = USDT_DECIMALS[donateKey];
-      if (!tokenContract || typeof decimals !== "number") return null;
-
-      return buildErc681Erc20Transfer({
-        tokenContract,
-        to: toAddress,
-        chainKey,
-        amount: DONATION_DEFAULTS.usdt,
-        decimals,
-      });
-    }
-
-    // Optional: you can add arb native here if you want
-    if (donateKey === "arb") {
-      // Arbitrum native is ETH
-      return buildErc681Native({ to: toAddress, chainKey, amountEth: DONATION_DEFAULTS.arb });
-    }
-
-    return null;
   }
 
   async function ensureEvmChain(chainKey) {
@@ -1005,37 +965,6 @@
     }
   }
 
-  async function sendNativeDonation(signer, toAddress, donateKey) {
-    const chainKey = getChainKeyForDonateKey(donateKey);
-    const amount =
-      chainKey === "bnb" ? DONATION_DEFAULTS.bnb : donateKey === "arb" ? DONATION_DEFAULTS.arb : DONATION_DEFAULTS.eth;
-
-    const tx = await signer.sendTransaction({
-      to: toAddress,
-      value: ethers.utils.parseEther(String(amount)),
-    });
-
-    return tx.hash;
-  }
-
-  async function sendUsdtDonation(signer, toAddress, donateKey) {
-    const contractAddr = USDT_CONTRACTS[donateKey];
-    if (!contractAddr) throw new Error("USDT contract missing for " + donateKey);
-
-    const ERC20_ABI = [
-      "function decimals() view returns (uint8)",
-      "function transfer(address to, uint256 amount) returns (bool)",
-    ];
-
-    const token = new ethers.Contract(contractAddr, ERC20_ABI, signer);
-
-    const decimals = await token.decimals();
-    const amount = ethers.utils.parseUnits(String(DONATION_DEFAULTS.usdt), decimals);
-
-    const tx = await token.transfer(toAddress, amount);
-    return tx.hash;
-  }
-
   async function connectAndDonate() {
     const donateKey = donationState.selectedKey || "eth";
     const toAddress = mapWalletAddressForKey(donateKey);
@@ -1045,18 +974,20 @@
       return;
     }
 
-    // If no injected provider (common on mobile browsers), open MetaMask directly (like Tonkeeper)
+    const chainKey = getChainKeyForDonateKey(donateKey);
+
+    // MOBILE / NO INJECTED PROVIDER:
+    // behave like TON: open a direct payment link first
     if (typeof window.ethereum === "undefined") {
-      const payLink = buildMetaMaskPaymentLink(donateKey, toAddress);
-
-      // Best experience: open prefilled MetaMask payment screen
-      if (isMobile() && payLink) {
-        window.location.href = payLink;
-        return;
-      }
-
-      // Fallback: open site inside MetaMask browser
       if (isMobile()) {
+        const link = buildPaymentLink(donateKey, toAddress);
+        if (link) {
+          // tries to open MetaMask (or any EVM wallet that supports EIP-681)
+          window.location.href = link;
+          return;
+        }
+
+        // fallback to MetaMask in-app browser
         alert("Opening MetaMask… If it doesn’t auto-fill, you can pay by copying the address.");
         openInMetaMaskDappBrowser();
         return;
@@ -1068,18 +999,47 @@
       return;
     }
 
-    // Desktop/injected provider flow: connect + send transaction
+    // DESKTOP / INJECTED PROVIDER FLOW (uses ethers)
+    if (!window.ethers) {
+      alert("Ethers library not loaded. Please refresh the page and try again.");
+      copyWallet();
+      return;
+    }
+
     try {
-      const chainKey = getChainKeyForDonateKey(donateKey);
       await ensureEvmChain(chainKey);
 
-      const provider = new ethers.providers.Web3Provider(window.ethereum);
+      const provider = new window.ethers.providers.Web3Provider(window.ethereum);
       await provider.send("eth_requestAccounts", []);
       const signer = provider.getSigner();
 
-      const txHash = isUsdtKey(donateKey)
-        ? await sendUsdtDonation(signer, toAddress, donateKey)
-        : await sendNativeDonation(signer, toAddress, donateKey);
+      let txHash = "";
+
+      if (isUsdtKey(donateKey)) {
+        const contractAddr = USDT_CONTRACTS[donateKey];
+        if (!contractAddr) throw new Error("USDT contract missing");
+
+        const ERC20_ABI = [
+          "function decimals() view returns (uint8)",
+          "function transfer(address to, uint256 amount) returns (bool)",
+        ];
+
+        const token = new window.ethers.Contract(contractAddr, ERC20_ABI, signer);
+        const decimals = await token.decimals();
+        const amount = window.ethers.utils.parseUnits(String(DONATION_DEFAULTS.usdt), decimals);
+
+        const tx = await token.transfer(toAddress, amount);
+        txHash = tx.hash;
+      } else {
+        const amount = donateKey === "bnb" ? DONATION_DEFAULTS.bnb : DONATION_DEFAULTS.eth;
+
+        const tx = await signer.sendTransaction({
+          to: toAddress,
+          value: window.ethers.utils.parseEther(String(amount)),
+        });
+
+        txHash = tx.hash;
+      }
 
       alert("Payment sent! Tx Hash: " + txHash);
     } catch (err) {
@@ -1089,4 +1049,9 @@
     }
   }
 
+  // =========================================================
+  // 22) DROPDOWN DEFAULTS
+  // =========================================================
+  // Ensure wallet UI is usable even before /api/wallets returns
+  updateWalletDisplay("btc");
 })();
