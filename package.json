@@ -1,0 +1,9 @@
+{
+  "name": "documorph",
+  "version": "1.0.0",
+  "description": "DocuMorph (personal project) — static site preview using a local server.",
+  "scripts": {
+    "start": "serve"
+  },
+  "dependencies": {}
+}

@@ -1,298 +1,473 @@
+<!--
+  DocuMorph (Personal Project)
+  Purpose: Single-page UI for file tools (Convert, Compress, Resize, Merge) with upload → progress → download flow.
+  Sections: Head (meta/assets), Navbar + mobile menu, tool views, upload states, footer, modals, scripts.
+  Note: IDs/classes/onclick handlers are used by assets/js/scripts.js — avoid renaming unless you update the JS too.
+-->
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <!-- =========================================================
-         DocuMorph | Universal File Tool
-         Author: Samson Eniolorunda
-         Purpose: UI shell for file conversion/compression/resizing/merging
-         ========================================================= -->
-
-    <!-- Basic Document Metadata -->
+    <!-- Character Encoding -->
     <meta charset="UTF-8">
+
+    <!-- Browser Compatibility -->
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
 
-    <!-- Responsive / Mobile -->
+    <!-- Responsive Viewport / Safe Area Support -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <meta name="format-detection" content="telephone=no">
 
-    <!-- SEO -->
-    <title>DocuMorph | Universal File Tool</title>
-    <meta name="description" content="DocuMorph is a modern, easy-to-use interface for converting, compressing, resizing, and merging documents and images.">
-    <meta name="keywords" content="file converter, word to pdf, pdf to word, compress pdf, compress image, resize image, merge pdf, documents, DocuMorph">
+    <!-- Theme Rendering Hint (Light/Dark) -->
+    <meta name="color-scheme" content="light dark">
+    
+    <!-- Page Title -->
+    <title>DocuMorph | Secure File Converter & Compressor</title>
+
+    <!-- Meta Tags (SEO) -->
+    <meta name="description" content="Secure, free online tool to convert Word, Excel, PDF and Images. Compress and resize files instantly. No signup required.">
+    <meta name="keywords" content="pdf converter, word to pdf, compress pdf, resize image, merge pdf, documorph, secure file tool">
     <meta name="author" content="Samson Eniolorunda">
-    <meta name="robots" content="index, follow">
-    <meta name="referrer" content="strict-origin-when-cross-origin">
 
+    <!-- Open Graph Meta (Social Sharing Preview) -->
+    <meta property="og:title" content="DocuMorph - Magic File Tools">
+    <meta property="og:description" content="Convert, Compress, and Resize files instantly for free. Privacy-first file manipulation.">
+    
     <!-- Favicon -->
-    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🧊</text></svg>">
-    <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 180 180%22><text x=%2250%25%22 y=%2255%25%22 text-anchor=%22middle%22 font-size=%22120%22>🧊</text></svg>">
-
-    <!-- Fonts / Icons -->
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236366f1' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z'/%3E%3Cpolyline points='3.27 6.96 12 12.01 20.73 6.96'/%3E%3Cline x1='12' y1='22.08' x2='12' y2='12'/%3E%3C/svg%3E">
+    
+    <!-- Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <!-- Icons (Font Awesome) -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css">
 
-    <!-- Stylesheet -->
+    <!-- Main Stylesheet -->
     <link rel="stylesheet" href="assets/css/styles.css">
+
+    <!-- External Scripts (Wallet Libraries) -->
+    <script src="https://unpkg.com/@tonconnect/ui@latest/dist/tonconnect-ui.min.js"></script>
+    <script src="https://cdn.ethers.io/lib/ethers-5.2.umd.min.js"></script>
 </head>
 <body>
-    <!-- =========================================================
-         BACKGROUND DECOR (visual-only)
-         ========================================================= -->
+    <!-- Background Mesh / Decorative Layer -->
     <div class="bg-mesh" aria-hidden="true"></div>
 
-    <!-- =========================================================
-         TOP NAVIGATION
-         - Desktop nav buttons: switch tool views
-         - Mobile hamburger: opens overlay menu
-         ========================================================= -->
-    <nav class="navbar glass" aria-label="Primary navigation">
-        <div class="logo" aria-label="DocuMorph home">
-            <div class="logo-icon" aria-hidden="true"><i class="fa-solid fa-cube"></i></div>
+    <!-- Main Navigation Bar -->
+    <nav class="navbar glass">
+        <!-- Brand Logo / Home Link -->
+        <a href="index.html" class="logo">
+            <div class="logo-icon"><i class="fa-solid fa-cube"></i></div>
             <span>DocuMorph</span>
-        </div>
+        </a>
 
-        <!-- Desktop Navigation -->
-        <div class="nav-links desktop-only" role="navigation" aria-label="Tool navigation">
-            <button class="nav-btn active" type="button" onclick="switchView('convert')">Convert</button>
-            <button class="nav-btn" type="button" onclick="switchView('compress')">Compress</button>
-            <button class="nav-btn" type="button" onclick="switchView('resize')">Resize</button>
-            <button class="nav-btn" type="button" onclick="switchView('merge')">Merge</button>
+        <!-- Desktop Navigation (View Switch Buttons) -->
+        <div class="nav-links desktop-only">
+            <button class="nav-btn active" onclick="switchView('convert')">Convert</button>
+            <button class="nav-btn" onclick="switchView('compress')">Compress</button>
+            <button class="nav-btn" onclick="switchView('resize')">Resize</button>
+            <button class="nav-btn" onclick="switchView('merge')">Merge</button>
         </div>
 
         <!-- Mobile Menu Toggle -->
-        <button class="menu-toggle" type="button" onclick="toggleMenu()" aria-label="Toggle Menu" aria-controls="mobile-menu" aria-expanded="false">
-            <span></span>
-            <span></span>
-            <span></span>
-        </button>
+        <button class="menu-toggle" onclick="toggleMenu()"><span></span><span></span><span></span></button>
     </nav>
 
-    <!-- =========================================================
-         MOBILE MENU OVERLAY
-         ========================================================= -->
+    <!-- Mobile Navigation Drawer -->
     <div class="mobile-menu" id="mobile-menu">
-        <button class="mob-btn" type="button" onclick="switchView('convert'); toggleMenu()">Convert</button>
-        <button class="mob-btn" type="button" onclick="switchView('compress'); toggleMenu()">Compress</button>
-        <button class="mob-btn" type="button" onclick="switchView('resize'); toggleMenu()">Resize</button>
-        <button class="mob-btn" type="button" onclick="switchView('merge'); toggleMenu()">Merge</button>
+        <button class="mob-btn" onclick="switchView('convert'); toggleMenu()">Convert</button>
+        <button class="mob-btn" onclick="switchView('compress'); toggleMenu()">Compress</button>
+        <button class="mob-btn" onclick="switchView('resize'); toggleMenu()">Resize</button>
+        <button class="mob-btn" onclick="switchView('merge'); toggleMenu()">Merge</button>
+        <!-- Support Modal Shortcut -->
+        <button class="mob-btn support-highlight" onclick="openModal('support'); toggleMenu()">❤️ Support</button>
     </div>
 
-    <!-- =========================================================
-         MAIN APP CONTAINER
-         ========================================================= -->
+    <!-- Main App Container -->
     <main class="container" id="main">
         <div class="glass-card main-panel">
-            <!-- =====================================================
-                 VIEW: CONVERT
-                 ===================================================== -->
-            <section id="view-convert" class="view-section active" aria-label="Convert files view">
-                <div class="header-content">
-                    <h1>Convert Files</h1>
-                    <p>Transform documents &amp; images instantly.</p>
-                </div>
+            
+            <!-- Convert View -->
+            <section id="view-convert" class="view-section active">
+                <div class="header-content"><h1>Convert Files</h1><p>Transform documents &amp; images instantly.</p></div>
 
+                <!-- Convert Tool Selector -->
                 <div class="tool-wrapper">
                     <label>Select Tool:</label>
-                    <div class="custom-select" id="convert-dropdown">
-                        <div class="select-trigger">
-                            <span class="trigger-text"><i class="fa-solid fa-file-word"></i> Word to PDF</span>
-                            <i class="fa-solid fa-chevron-down arrow" aria-hidden="true"></i>
-                        </div>
-                        <div class="options-container" role="listbox" aria-label="Convert tools">
-                            <div class="option" data-value="word-to-pdf"><i class="fa-solid fa-file-word"></i> Word to PDF</div>
-                            <div class="option" data-value="pdf-to-word"><i class="fa-solid fa-file-pdf"></i> PDF to Word</div>
-                            <div class="option" data-value="jpg-to-pdf"><i class="fa-solid fa-image"></i> JPG to PDF</div>
-                            <div class="option" data-value="png-to-jpg"><i class="fa-solid fa-file-image"></i> PNG to JPG</div>
-                            <div class="option" data-value="excel-to-pdf"><i class="fa-solid fa-file-excel"></i> Excel to PDF</div>
+                    <div class="custom-select" id="convert-dropdown" tabindex="0">
+                        <!-- Selected Option Trigger -->
+                        <div class="select-trigger"><span class="trigger-text"><i class="fa-solid fa-file-word"></i> Word to PDF</span><i class="fa-solid fa-chevron-down arrow"></i></div>
+
+                        <!-- Convert Options -->
+                        <div class="options-container">
+                            <div class="option" data-value="word-to-pdf" tabindex="0"><i class="fa-solid fa-file-word"></i> Word to PDF</div>
+                            <div class="option" data-value="pdf-to-word" tabindex="0"><i class="fa-solid fa-file-pdf"></i> PDF to Word</div>
+                            <div class="option" data-value="excel-to-pdf" tabindex="0"><i class="fa-solid fa-file-excel"></i> Excel to PDF</div>
+                            <div class="option" data-value="pdf-to-excel" tabindex="0"><i class="fa-solid fa-file-pdf"></i> PDF to Excel</div>
+                            <div class="option" data-value="jpg-to-png" tabindex="0"><i class="fa-solid fa-image"></i> JPG to PNG</div>
+                            <div class="option" data-value="png-to-jpg" tabindex="0"><i class="fa-solid fa-image"></i> PNG to JPG</div>
                         </div>
                     </div>
                 </div>
             </section>
 
-            <!-- =====================================================
-                 VIEW: COMPRESS
-                 ===================================================== -->
-            <section id="view-compress" class="view-section hidden" aria-label="Compress files view">
-                <div class="header-content">
-                    <h1>Compress &amp; Reduce</h1>
-                    <p>Optimize file size while maintaining quality.</p>
-                </div>
+            <!-- Compress View -->
+            <section id="view-compress" class="view-section hidden">
+                <div class="header-content"><h1>Compress</h1><p>Reduce file size professionally.</p></div>
 
+                <!-- Compress Tool Selector -->
                 <div class="tool-wrapper">
                     <label>File Type:</label>
-                    <div class="custom-select" id="compress-dropdown">
-                        <div class="select-trigger">
-                            <span class="trigger-text"><i class="fa-solid fa-file-pdf"></i> Compress PDF</span>
-                            <i class="fa-solid fa-chevron-down arrow" aria-hidden="true"></i>
-                        </div>
-                        <div class="options-container" role="listbox" aria-label="Compression tools">
-                            <div class="option" data-value="comp-pdf"><i class="fa-solid fa-file-pdf"></i> Compress PDF</div>
-                            <div class="option" data-value="comp-img"><i class="fa-solid fa-image"></i> Compress Image</div>
+                    <div class="custom-select" id="compress-dropdown" tabindex="0">
+                        <!-- Selected Option Trigger -->
+                        <div class="select-trigger"><span class="trigger-text"><i class="fa-solid fa-file-pdf"></i> Compress PDF</span><i class="fa-solid fa-chevron-down arrow"></i></div>
+
+                        <!-- Compress Options -->
+                        <div class="options-container">
+                            <div class="option" data-value="comp-pdf" tabindex="0"><i class="fa-solid fa-file-pdf"></i> Compress PDF</div>
+                            <div class="option" data-value="comp-img" tabindex="0"><i class="fa-solid fa-image"></i> Compress Image</div>
                         </div>
                     </div>
                 </div>
 
-                <div class="settings-box" aria-label="Compression settings">
-                    <div class="radio-group" role="radiogroup" aria-label="Compression mode">
-                        <label class="radio-card">
-                            <input type="radio" name="comp-mode" value="auto" checked onchange="toggleCompMode()">
-                            <span class="radio-box">Auto (Slider)</span>
-                        </label>
-                        <label class="radio-card">
-                            <input type="radio" name="comp-mode" value="target" onchange="toggleCompMode()">
-                            <span class="radio-box">Target Size</span>
-                        </label>
+                <!-- Compression Settings -->
+                <div class="settings-box">
+                    <!-- Mode Toggle (Auto vs Target) -->
+                    <div class="radio-group">
+                        <label class="radio-card"><input type="radio" name="comp-mode" value="auto" checked onchange="toggleCompMode()"><span class="radio-box">Auto</span></label>
+                        <label class="radio-card"><input type="radio" name="comp-mode" value="target" onchange="toggleCompMode()"><span class="radio-box">Target Size</span></label>
                     </div>
 
+                    <!-- Auto Mode Settings -->
                     <div id="comp-auto-settings">
-                        <div class="range-slider">
-                            <input type="range" min="1" max="3" value="2" id="compression-range" oninput="updateRangeLabel()">
-                            <div class="range-labels">
-                                <span>Light</span><span>Balanced</span><span>Extreme</span>
-                            </div>
+                        <div class="range-slider"><input type="range" min="1" max="9" value="5" id="compression-range" oninput="updateRangeLabel()">
+                            <div class="range-labels"><span>Smallest</span><span>Balanced</span><span>Best Quality</span></div>
                         </div>
-                        <p id="compression-text" class="highlight-text">Balanced: ~40% reduction.</p>
+                        <p id="compression-text" class="highlight-text">Balanced</p>
                     </div>
 
+                    <!-- Target Mode Settings -->
                     <div id="comp-target-settings" class="hidden">
-                        <label>Max File Size:</label>
+                        <label>Max Size:</label>
                         <div class="input-with-unit">
-                            <input type="number" placeholder="e.g. 2" id="target-size-input" inputmode="numeric">
-                            <select class="unit-select" aria-label="File size unit">
-                                <option>MB</option>
-                                <option>KB</option>
-                            </select>
+                            <input type="number" class="simple-input" placeholder="e.g. 2" id="target-size-input">
+                            <select class="unit-select"><option value="MB">MB</option><option value="KB">KB</option></select>
                         </div>
-                        <p class="highlight-text">We'll try to get under this limit.</p>
                     </div>
                 </div>
             </section>
 
-            <!-- =====================================================
-                 VIEW: RESIZE
-                 ===================================================== -->
-            <section id="view-resize" class="view-section hidden" aria-label="Resize images view">
-                <div class="header-content">
-                    <h1>Resize Images</h1>
-                    <p>Scale by pixels or percentage.</p>
-                </div>
+            <!-- Resize View -->
+            <section id="view-resize" class="view-section hidden">
+                <div class="header-content"><h1>Resize</h1><p>Scale image dimensions.</p></div>
 
-                <div class="resize-grid" aria-label="Resize settings">
-                    <div class="input-group">
-                        <label>Width (px)</label>
-                        <input type="number" placeholder="Auto" inputmode="numeric">
-                    </div>
-                    <div class="input-group">
-                        <label>Height (px)</label>
-                        <input type="number" placeholder="Auto" inputmode="numeric">
-                    </div>
+                <!-- Resize Controls -->
+                <div class="resize-grid">
+                    <div class="input-group"><label>Width (px)</label><input type="number" placeholder="Auto" id="resize-w"></div>
+                    <div class="input-group"><label>Height (px)</label><input type="number" placeholder="Auto" id="resize-h"></div>
 
-                    <div class="input-group full">
-                        <label>Or Scale %:</label>
-                        <div class="custom-select" id="resize-dropdown">
-                            <div class="select-trigger">
-                                <span class="trigger-text">Original (100%)</span>
-                                <i class="fa-solid fa-chevron-down arrow" aria-hidden="true"></i>
-                            </div>
-                            <div class="options-container" role="listbox" aria-label="Resize presets">
-                                <div class="option" data-value="100">Original (100%)</div>
-                                <div class="option" data-value="75">75% (Smaller)</div>
-                                <div class="option" data-value="50">50% (Half Size)</div>
-                                <div class="option" data-value="25">25% (Thumbnail)</div>
+                    <!-- Resize Scale Dropdown -->
+                    <div class="input-group full"><label>Or Scale %:</label>
+                        <div class="custom-select" id="resize-scale-dropdown" tabindex="0">
+                            <!-- Selected Option Trigger -->
+                            <div class="select-trigger"><span class="trigger-text">Original (100%)</span><i class="fa-solid fa-chevron-down arrow"></i></div>
+
+                            <!-- Scale Options -->
+                            <div class="options-container">
+                                <div class="option" data-value="100" tabindex="0">Original (100%)</div>
+                                <div class="option" data-value="75" tabindex="0">75% (Smaller)</div>
+                                <div class="option" data-value="50" tabindex="0">50% (Half Size)</div>
+                                <div class="option" data-value="25" tabindex="0">25% (Thumbnail)</div>
                             </div>
                         </div>
                     </div>
                 </div>
             </section>
 
-            <!-- =====================================================
-                 VIEW: MERGE
-                 ===================================================== -->
-            <section id="view-merge" class="view-section hidden" aria-label="Merge files view">
-                <div class="header-content">
-                    <h1>Merge Files</h1>
-                    <p>Combine multiple files into one.</p>
-                </div>
+            <!-- Merge View -->
+            <section id="view-merge" class="view-section hidden">
+                <div class="header-content"><h1>Merge</h1><p>Combine multiple files.</p></div>
 
+                <!-- Merge Tool Selector -->
                 <div class="tool-wrapper">
-                    <label>Merge Mode:</label>
-                    <div class="custom-select" id="merge-dropdown">
-                        <div class="select-trigger">
-                            <span class="trigger-text"><i class="fa-solid fa-copy"></i> Merge PDFs</span>
-                            <i class="fa-solid fa-chevron-down arrow" aria-hidden="true"></i>
-                        </div>
-                        <div class="options-container" role="listbox" aria-label="Merge tools">
-                            <div class="option" data-value="merge-pdf"><i class="fa-solid fa-copy"></i> Merge PDFs</div>
-                            <div class="option" data-value="merge-img"><i class="fa-solid fa-images"></i> Images to PDF</div>
-                        </div>
+                    <label>Tool:</label>
+                    <div class="custom-select" id="merge-dropdown" tabindex="0">
+                        <!-- Selected Option Trigger -->
+                        <div class="select-trigger"><span class="trigger-text"><i class="fa-solid fa-copy"></i> Merge PDFs</span><i class="fa-solid fa-chevron-down arrow"></i></div>
+
+                        <!-- Merge Options -->
+                        <div class="options-container"><div class="option" data-value="merge-pdf" tabindex="0"><i class="fa-solid fa-copy"></i> Merge PDFs</div></div>
                     </div>
                 </div>
             </section>
 
-            <!-- =====================================================
-                 FILE UPLOAD ZONE
-                 - drag & drop area
-                 - file picker button
-                 ===================================================== -->
-            <section class="upload-zone" id="drop-zone" aria-label="File upload zone">
+            <!-- Upload Zone (Drag & Drop + Choose Files) -->
+            <section class="upload-zone" id="drop-zone">
+                <!-- Native File Input (Hidden) -->
                 <input type="file" id="file-input" hidden multiple>
-                <div class="upload-icon" aria-hidden="true"><i class="fa-solid fa-cloud-arrow-up"></i></div>
+
+                <!-- Upload UI -->
+                <div class="upload-icon"><i class="fa-solid fa-cloud-arrow-up"></i></div>
                 <h3>Drag &amp; Drop Files</h3>
                 <button class="btn-glow" type="button" onclick="document.getElementById('file-input').click()">Choose Files</button>
                 <p class="meta-text" id="file-limits">Supported: Word Docs • Max 50MB</p>
             </section>
 
-            <!-- =====================================================
-                 PROCESS UI (loading/progress)
-                 ===================================================== -->
-            <section class="process-ui hidden" id="process-ui" aria-live="polite">
-                <div class="loader-ring" aria-hidden="true"></div>
-                <h3 id="process-title">Processing...</h3>
-                <div class="progress-track" aria-label="Progress">
-                    <div class="progress-fill" id="progress-bar"></div>
+            <!-- Upload Progress UI -->
+            <section class="process-ui hidden" id="upload-ui">
+                <div class="loader-ring simple"></div><h3>Uploading...</h3><p id="upload-percent">0%</p>
+                <div class="progress-track"><div class="progress-fill" id="upload-bar"></div></div>
+            </section>
+
+            <!-- Ready UI (After Upload) -->
+            <section class="ready-ui hidden" id="ready-ui">
+                <!-- Uploaded File Summary -->
+                <div class="file-card">
+                    <div class="file-icon"><i class="fa-solid fa-file-circle-check"></i></div>
+                    <div class="file-info"><h3 id="ready-title">File Uploaded</h3><p id="file-name-display">filename.docx</p></div>
+                </div>
+                
+                <!-- Consent (Terms + Privacy) -->
+                <div class="legal-consent">
+                    <input type="checkbox" id="legal-check" onchange="toggleStartButton()">
+                    <label for="legal-check">I agree to the <span onclick="openModal('terms')">Terms</span> & <span onclick="openModal('privacy')">Privacy Policy</span></label>
+                </div>
+
+                <!-- Ready Actions -->
+                <div class="btn-actions">
+                    <button class="btn-glow disabled" id="start-btn" type="button" onclick="executeProcess()" disabled>Start Conversion</button>
+                    <button class="btn-outline" type="button" onclick="resetApp()">Cancel</button>
                 </div>
             </section>
 
-            <!-- =====================================================
-                 SUCCESS UI (operation complete)
-                 ===================================================== -->
-            <section class="success-ui hidden" id="success-ui" aria-live="polite">
-                <div class="check-circle" aria-hidden="true"><i class="fa-solid fa-check"></i></div>
-                <h2>Done!</h2>
-                <p id="success-msg">File ready.</p>
+            <!-- Processing UI -->
+            <section class="process-ui hidden" id="process-ui">
+                <div class="loader-ring"></div><h3 id="process-title">Processing...</h3><p id="process-percent">0%</p>
+                <div class="progress-track"><div class="progress-fill" id="process-bar"></div></div>
+            </section>
 
+            <!-- Success UI -->
+            <section class="success-ui hidden" id="success-ui">
+                <div class="check-circle"><i class="fa-solid fa-check"></i></div>
+                <h2>Done!</h2><p id="success-msg">Your file is ready.</p>
+
+                <!-- Success Actions -->
                 <div class="btn-actions">
-                    <button class="btn-glow download-btn" type="button"><i class="fa-solid fa-download" aria-hidden="true"></i> Download</button>
-                    <button class="btn-outline" type="button" onclick="resetApp()">Convert More</button>
+                    <button class="btn-glow download-btn"><i class="fa-solid fa-download"></i> Download</button>
+                    <button class="btn-outline" onclick="resetApp()">Start Over</button>
                 </div>
             </section>
         </div>
     </main>
 
-    <!-- =========================================================
-         FOOTER
-         ========================================================= -->
+    <!-- Site Footer -->
     <footer class="site-footer">
         <div class="footer-content">
+            <!-- Footer Left -->
             <div class="footer-left">
-                <p class="copyright">&copy; 2025 Samson Eniolorunda. All rights reserved.</p>
+                <!-- Dynamic Year Text -->
+                <p class="copyright">&copy; <span id="year"></span> DocuMorph. All rights reserved.</p>
+
+                <!-- Footer Legal Links (Open Modals) -->
+                <div class="legal-links">
+                    <button onclick="openModal('terms')">Terms of Service</button><span class="sep">•</span>
+                    <button onclick="openModal('privacy')">Privacy Policy</button><span class="sep">•</span>
+                    <button onclick="openModal('request')">Request Feature</button><span class="sep">•</span>
+                    <button onclick="openModal('support')" class="support-link">❤️ Support</button>
+                </div>
+
+                <!-- Attribution -->
+                <p class="attribution">Powered by <a href="https://www.convertapi.com" target="_blank">ConvertAPI</a></p>
             </div>
 
-            <div class="footer-socials" aria-label="Social links">
-                <a href="https://linkedin.com/in/samson-eniolorunda" target="_blank" rel="noopener noreferrer" aria-label="LinkedIn">
-                    <i class="fa-brands fa-linkedin-in" aria-hidden="true"></i>
-                </a>
-                <a href="https://github.com/Samson-Eniolorunda" target="_blank" rel="noopener noreferrer" aria-label="GitHub">
-                    <i class="fa-brands fa-github" aria-hidden="true"></i>
-                </a>
-                <a href="https://x.com/s_eniolorunda_" target="_blank" rel="noopener noreferrer" aria-label="X">
-                    <i class="fa-brands fa-x-twitter" aria-hidden="true"></i>
-                </a>
+            <!-- Footer Social Links -->
+            <div class="footer-socials">
+                <a href="https://www.linkedin.com/in/samson-eniolorunda" target="_blank"><i class="fa-brands fa-linkedin-in"></i></a>
+                <a href="https://github.com/Samson-Eniolorunda" target="_blank"><i class="fa-brands fa-github"></i></a>
+                <a href="https://x.com/s_eniolorunda_" target="_blank"><i class="fa-brands fa-x-twitter"></i></a>
             </div>
         </div>
     </footer>
 
-    <!-- App Script -->
+    <!-- Modal Container (Terms / Privacy / Feature Request / Support) -->
+    <div id="modal-container" class="modal hidden">
+        <!-- Modal Overlay (Click to Close) -->
+        <div class="modal-overlay" onclick="closeModal()"></div>
+
+        <!-- Modal Content -->
+        <div class="modal-content">
+            <!-- Close Button -->
+            <button class="close-btn" onclick="closeModal()"><i class="fa-solid fa-xmark"></i></button>
+            
+            <!-- Terms Modal -->
+            <div id="modal-terms" class="modal-body hidden">
+                <div class="modal-header"><i class="fa-solid fa-scale-balanced icon"></i><h2>Terms of Service</h2></div>
+                <div class="scroll-box">
+                    <p><strong>Effective Date: 2026</strong></p>
+                    <p>By using DocuMorph, you agree to these Terms between you and Samson Eniolorunda ("Developer").</p>
+                    
+                    <h3>1. Services Provided</h3>
+                    <p>DocuMorph offers file manipulation tools "AS IS". We rely on third-party APIs (ConvertAPI) for processing. We reserve the right to modify or discontinue the Service at any time.</p>
+
+                    <h3>2. Limitation of Liability</h3>
+                    <p>TO THE MAXIMUM EXTENT PERMITTED BY LAW, THE DEVELOPER SHALL NOT BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR EXEMPLARY DAMAGES, INCLUDING BUT NOT LIMITED TO DAMAGES FOR LOSS OF PROFITS, GOODWILL, USE, DATA, OR OTHER INTANGIBLE LOSSES RESULTING FROM THE USE OR INABILITY TO USE THE SERVICE.</p>
+
+                    <h3>3. Indemnification</h3>
+                    <p>You agree to defend, indemnify, and hold harmless the Developer from and against any claims, liabilities, damages, judgments, awards, losses, costs, expenses, or fees (including reasonable attorneys' fees) arising out of or relating to your violation of these Terms or your use of the Service, including any content you upload.</p>
+
+                    <h3>4. Disclaimer of Warranties</h3>
+                    <p>THE SERVICE IS PROVIDED WITHOUT WARRANTIES OF ANY KIND, WHETHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO IMPLIED WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND NON-INFRINGEMENT. WE DO NOT WARRANT THAT THE SERVICE WILL BE UNINTERRUPTED OR ERROR-FREE.</p>
+
+                    <h3>5. User Conduct</h3>
+                    <p>You strictly agree NOT to upload illegal, malicious, or copyright-infringing material. You are solely responsible for the content you process.</p>
+
+                    <h3>6. Fair Usage Policy</h3>
+                    <p>To ensure availability for all users, this service enforces a limit of 5 conversions per day per device. Attempts to circumvent this limit may result in temporary or permanent blocking.</p>
+                </div>
+            </div>
+            <!-- Privacy Modal -->
+            <div id="modal-privacy" class="modal-body hidden">
+                <div class="modal-header"><i class="fa-solid fa-shield-halved icon"></i><h2>Privacy Policy</h2></div>
+                <div class="scroll-box">
+                    <h3>1. No Data Retention</h3>
+                    <p>We operate on a strict privacy-first basis. Files uploaded to DocuMorph are transmitted securely via SSL/TLS directly to our processing partner (ConvertAPI) and are automatically deleted by the provider immediately after the transaction is complete. We do not view, copy, sell, or permanently store your files.</p>
+                    
+                    <h3>2. Local Storage</h3>
+                    <p>We do not use tracking cookies or pixels for advertising. We utilize your browser's "Local Storage" technology solely to maintain your daily usage counter locally on your device. This data is not sent to any analytics server.</p>
+
+                    <h3>3. Third-Party Services</h3>
+                    <p>Our service relies on ConvertAPI for file processing and Vercel for hosting. By using this tool, you acknowledge that your data is processed subject to their respective Privacy Policies.</p>
+                </div>
+            </div>
+
+            <!-- Feature Request Modals -->
+            <div id="modal-request" class="modal-body hidden">
+                <!-- Modal header (icon + title) -->
+                <div class="modal-header"><i class="fa-solid fa-lightbulb icon" 
+                    style="color: #6366f1;"></i><h2>Feature Request</h2>
+                </div>
+
+                <!-- Scrollable content container -->
+                <div class="scroll-box">
+                    <!-- Feature request form (handled by submitToFormspree in JS) -->
+                    <form id="request-form" class="request-form" onsubmit="submitToFormspree(event)">
+                        <!-- Request type selector -->
+                        <div class="form-group">
+                            <label>Request Type:</label>
+                            <select name="type">
+                                <option>New Tool</option>
+                                <option>Bug Report</option>
+                                <option>Other</option>
+                            </select>
+                        </div>
+
+                        <!-- Optional email field -->
+                        <div class="form-group">
+                            <label>Your Email (Optional):</label>
+                            <input type="email" name="email" placeholder="For updates...">
+                        </div>
+
+                        <!-- Main message field -->
+                        <div class="form-group">
+                            <label>Message:</label>
+                            <textarea name="message" rows="4" placeholder="Describe exactly what you need..." required></textarea>
+                        </div>
+
+                        <!-- Submit button -->
+                        <button type="submit" class="btn-glow full-width">Send Request</button>
+
+                        <!-- Status text updated by JS (success/error/loading) -->
+                        <p id="form-status" style="text-align:center; margin-top:10px; font-size:0.9rem;"></p>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Support / Donate Modal -->
+            <div id="modal-support" class="modal-body hidden">
+                <!-- Tabs (future-ready if you add more support methods later) -->
+                <div class="modal-tabs"><button class="tab-btn active">Donate (Crypto)</button></div>
+
+                <!-- Tab Content -->
+                <div class="tab-content active">
+                    <!-- Support intro -->
+                    <div class="support-header">
+                        <i class="fa-solid fa-coins icon" style="color: #f59e0b;"></i>
+                        <h3>Support Development</h3>
+                        <p>Help maintain the servers (250 Monthly Quota).</p>
+                    </div>
+                    
+                    <!-- Crypto donation checkout area -->
+                    <div class="crypto-checkout">
+                        <!-- QR container (shown when a wallet address/coin is selected) -->
+                        <div id="qr-container" class="qr-box hidden">
+                            <img id="crypto-qr" src="" alt="Scan to Donate">
+                        </div>
+
+                        <!-- Coin selector -->
+                        <label>Select Coin:</label>
+                        <div class="custom-select" id="crypto-dropdown" tabindex="0">
+                            <!-- Selected coin trigger -->
+                            <div class="select-trigger">
+                                <span class="trigger-text">
+                                    <img src="https://cryptologos.cc/logos/bitcoin-btc-logo.svg" class="coin-icon"> Bitcoin (BTC)
+                                </span>
+                                <i class="fa-solid fa-chevron-down arrow"></i>
+                            </div>
+
+                            <!-- Coin options -->
+                            <div class="options-container">
+                                <div class="option" data-value="btc" tabindex="0"><img src="https://cryptologos.cc/logos/bitcoin-btc-logo.svg" class="coin-icon"> Bitcoin (BTC)</div>
+                                <div class="option" data-value="eth" tabindex="0"><img src="https://cryptologos.cc/logos/ethereum-eth-logo.svg" class="coin-icon"> Ethereum (ETH)</div>
+                                <div class="option" data-value="bnb" tabindex="0"><img src="https://cryptologos.cc/logos/bnb-bnb-logo.svg" class="coin-icon"> BNB (BSC)</div>
+                                <div class="option" data-value="sol" tabindex="0"><img src="https://cryptologos.cc/logos/solana-sol-logo.svg" class="coin-icon"> Solana (SOL)</div>
+                                <div class="option" data-value="ton" tabindex="0"><img src="https://cryptologos.cc/logos/toncoin-ton-logo.svg" class="coin-icon"> TON</div>
+                                <div class="option" data-value="tron" tabindex="0"><img src="https://cryptologos.cc/logos/tron-trx-logo.svg" class="coin-icon"> Tron (TRX)</div>
+                                <div class="option" data-value="usdt" tabindex="0"><img src="https://cryptologos.cc/logos/tether-usdt-logo.svg" class="coin-icon"> USDT</div>
+                            </div>
+                        </div>
+
+                        <!-- USDT network selector (only shown when USDT is selected) -->
+                        <div id="usdt-network-group" class="hidden" style="margin-top: 15px;">
+                            <label>Select USDT Network:</label>
+                            <div class="custom-select" id="network-dropdown" tabindex="0">
+                                <!-- Selected network trigger -->
+                                <div class="select-trigger">
+                                    <span class="trigger-text">ERC-20 (Ethereum)</span>
+                                    <i class="fa-solid fa-chevron-down arrow"></i>
+                                </div>
+
+                                <!-- Network options -->
+                                <div class="options-container">
+                                    <div class="option" data-value="usdt-eth" tabindex="0">ERC-20 (Ethereum)</div>
+                                    <div class="option" data-value="usdt-bnb" tabindex="0">BEP-20 (BNB Chain)</div>
+                                    <div class="option" data-value="usdt-trc" tabindex="0">TRC-20 (Tron)</div>
+                                    <div class="option" data-value="usdt-sol" tabindex="0">SOL (Solana)</div>
+                                    <div class="option" data-value="usdt-ton" tabindex="0">TON (The Open Network)</div>
+                                    <div class="option" data-value="usdt-arb" tabindex="0">Arbitrum One</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Wallet address display + copy action -->
+                        <div class="wallet-display">
+                            <label>Wallet Address:</label>
+                            <div class="wallet-box">
+                                <input type="text" id="wallet-address" value="Loading..." readonly>
+                                <button onclick="copyWallet()" class="copy-btn" title="Copy"><i class="fa-regular fa-copy"></i></button>
+                            </div>
+                            <p id="copy-feedback" class="copy-msg">Copied!</p>
+                        </div>
+                        
+                        <!-- Wallet connect area (used for TON connect or other providers) -->
+                        <div id="connect-container" style="margin-top: 15px;">
+                            <button id="connect-wallet-btn" onclick="connectAndDonate()" class="btn-glow full-width"><i class="fa-solid fa-wallet"></i> Connect Wallet</button>
+                            <div id="ton-connect-btn" class="full-width" style="display:none; justify-content:center;"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main App Script -->
     <script src="assets/js/scripts.js"></script>
 </body>
 </html>
