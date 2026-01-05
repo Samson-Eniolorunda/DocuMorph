@@ -10,67 +10,106 @@
      1) ConvertAPI via your secure Vercel proxy (/api/convert)
      2) Wallet addresses via secure endpoint (/api/wallets)
      3) Feature request form via secure endpoint (/api/form)
-     4) Wallet connect flows (MetaMask via ethers, TON via TonConnect UI)
+     4) Wallet flows:
+        - MetaMask (Desktop extension + Mobile deep-link)
+        - TON / Tonkeeper (Tonkeeper deep-link + TonConnect UI when available)
 
-   Main Sections:
-   - Configuration + app state
-   - Wallet loading + donation UI logic
-   - Dropdown UX (click + keyboard)
-   - Modals + tabs
-   - Daily limit tracking
-   - File processing pipeline (build ConvertAPI "type" + upload -> result)
+   Notes:
+   - Mobile MetaMask: window.ethereum only exists inside MetaMask in-app browser.
+     So when users are on normal Chrome/Safari mobile, we deep-link them into MetaMask.
+   - TON: TonConnect can work, but Tonkeeper deep-link is the most reliable fallback.
    ========================================================= */
-
+   
 (() => {
   "use strict";
 
   // =========================================================
-  // 1) CONFIGURATION (limits + defaults)
+  // 1) CONFIG
   // =========================================================
-
-  // Daily conversion limit (stored locally per device)
   const DAILY_LIMIT = 5;
 
-  // NOTE:
-  // You should NOT hard-code secrets like Formspree IDs in frontend code.
-  // Keep them in Vercel env vars and call your /api/form endpoint instead.
-  // This constant is kept only because it was in your snippet.
-  const FORMSPREE_ID = "YOUR_FORMSPREE_ID"; // <--- PASTE ID (avoid in production)
+  // Default donation amounts (adjust anytime)
+  const DONATION_DEFAULTS = {
+    eth: "0.005",
+    arb: "0.005", // Arbitrum native is ETH
+    bnb: "0.01",
+    ton: "0.5",
+    usdt: "5",
+  };
 
-  // Wallets are loaded from your secure backend (/api/wallets)
-  // Default placeholder values are shown until fetch completes.
+  // USDT contracts (EVM only)
+  const USDT_CONTRACTS = {
+    "usdt-eth": "0xdAC17F958D2ee523a2206206994597C13D831ec7",
+    "usdt-bnb": "0x55d398326f99059fF775485246999027B3197955",
+    "usdt-arb": "0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9",
+  };
+
+  // Chains for MetaMask switching
+  const EVM_CHAINS = {
+    eth: {
+      chainId: "0x1",
+      chainName: "Ethereum Mainnet",
+      nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+      rpcUrls: [],
+      blockExplorerUrls: ["https://etherscan.io"],
+    },
+    bnb: {
+      chainId: "0x38",
+      chainName: "BNB Smart Chain",
+      rpcUrls: ["https://bsc-dataseed.binance.org"],
+      nativeCurrency: { name: "BNB", symbol: "BNB", decimals: 18 },
+      blockExplorerUrls: ["https://bscscan.com"],
+    },
+    arb: {
+      chainId: "0xA4B1",
+      chainName: "Arbitrum One",
+      rpcUrls: ["https://arb1.arbitrum.io/rpc"],
+      nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+      blockExplorerUrls: ["https://arbiscan.io"],
+    },
+  };
+
+  // Wallets loaded from your backend (/api/wallets)
   let CRYPTO_WALLETS = {
     btc: "Loading...",
     eth: "Loading...",
-    usdt: "Loading...",
+    bnb: "Loading...",
     sol: "Loading...",
     ton: "Loading...",
     tron: "Loading...",
+
+    usdt_eth: "Loading...",
+    usdt_bnb: "Loading...",
+    usdt_trc: "Loading...",
+    usdt_sol: "Loading...",
+    usdt_ton: "Loading...",
+    usdt_arb: "Loading...",
   };
 
-  // =========================================================
-  // 2) TON CONNECT (TON wallet integration)
-  // =========================================================
-  const tonConnectUI = new TON_CONNECT_UI.TonConnectUI({
-    // TonConnect manifest hosted on your domain
-    manifestUrl: "https://documorph.vercel.app/tonconnect-manifest.json",
-    // The element where TonConnect renders its button
-    buttonRootId: "ton-connect-btn",
-  });
+  // Current donation selection
+  const donationState = { selectedKey: "btc" };
 
   // =========================================================
-  // 3) DOM REFERENCES + APP STATE
+  // 2) OPTIONAL TON CONNECT (kept quiet, no button shown)
   // =========================================================
+  let tonConnectUI = null;
 
-  // Global app state for selected tool + files + result URL
-  const appState = {
-    view: "convert",
-    subTool: "word-to-pdf",
-    files: [],
-    resultUrl: null,
-  };
+  try {
+    if (window.TON_CONNECT_UI?.TonConnectUI) {
+      tonConnectUI = new TON_CONNECT_UI.TonConnectUI({
+        manifestUrl: "https://docu-morph.vercel.app/tonconnect-manifest.json",
+        buttonRootId: "ton-connect-btn", // hidden by CSS
+      });
+    }
+  } catch (_) {
+    tonConnectUI = null;
+  }
 
-  // View containers (each section is shown/hidden based on active tool)
+  // =========================================================
+  // 3) DOM + APP STATE
+  // =========================================================
+  const appState = { view: "convert", subTool: "word-to-pdf", files: [], resultUrl: null };
+
   const views = {
     convert: document.getElementById("view-convert"),
     compress: document.getElementById("view-compress"),
@@ -78,224 +117,365 @@
     merge: document.getElementById("view-merge"),
   };
 
-  // Core UI blocks
   const dropZone = document.getElementById("drop-zone");
   const uploadUI = document.getElementById("upload-ui");
   const readyUI = document.getElementById("ready-ui");
   const processUI = document.getElementById("process-ui");
   const successUI = document.getElementById("success-ui");
 
-  // Progress bars + labels
   const uploadBar = document.getElementById("upload-bar");
   const uploadPercent = document.getElementById("upload-percent");
   const processBar = document.getElementById("process-bar");
   const processPercent = document.getElementById("process-percent");
 
-  // File inputs + labels
   const fileInput = document.getElementById("file-input");
   const fileLimits = document.getElementById("file-limits");
   const fileNameDisplay = document.getElementById("file-name-display");
 
-  // Action buttons
   const startBtn = document.getElementById("start-btn");
   const downloadBtn = document.querySelector(".download-btn");
 
-  // Mobile menu controls
   const menuToggle = document.querySelector(".menu-toggle");
   const mobileMenu = document.getElementById("mobile-menu");
 
-  // =========================================================
-  // 4) INITIALIZATION (runs once on load)
-  // =========================================================
+  // Wallet UI
+  const walletInput = document.getElementById("wallet-address");
+  const connectBtn = document.getElementById("connect-wallet-btn");
+  const qrBox = document.getElementById("qr-container");
+  const qrImg = document.getElementById("crypto-qr");
 
-  // Enable custom dropdown behaviour (mouse + keyboard)
+  // =========================================================
+  // 4) INIT
+  // =========================================================
   initCustomDropdowns();
-
-  // Set default tool context for file type accept + UI labels
   updateContext("convert", "word-to-pdf");
-
-  // Load secure wallet addresses from backend
   fetchSecureWallets();
 
-  // Update footer year (safe-guarded)
   try {
-    document.getElementById("year").textContent = new Date().getFullYear();
-  } catch (e) {}
+    const y = document.getElementById("year");
+    if (y) y.textContent = new Date().getFullYear();
+  } catch (_) {}
 
   // =========================================================
-  // 5) LEGAL CLICKWRAP (enable/disable Start button)
+  // 5) HELPERS
+  // =========================================================
+  function isMobile() {
+    return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+  }
+
+  function setText(el, text) {
+    if (el) el.innerText = text;
+  }
+
+  function qs(sel) {
+    return document.querySelector(sel);
+  }
+
+  function qsa(sel) {
+    return document.querySelectorAll(sel);
+  }
+
+  // =========================================================
+  // 6) LEGAL CLICKWRAP
   // =========================================================
   window.toggleStartButton = function () {
     const checkbox = document.getElementById("legal-check");
     const btn = document.getElementById("start-btn");
-
     if (!checkbox || !btn) return;
 
     if (checkbox.checked) {
       btn.classList.remove("disabled");
       btn.removeAttribute("disabled");
-      return;
+    } else {
+      btn.classList.add("disabled");
+      btn.setAttribute("disabled", "true");
     }
-
-    btn.classList.add("disabled");
-    btn.setAttribute("disabled", "true");
   };
 
   // =========================================================
-  // 6) WALLETS (load + show address + donation UI)
+  // 7) LOAD WALLETS
   // =========================================================
-
-  // Fetch wallet addresses from your Vercel API endpoint
   async function fetchSecureWallets() {
     try {
       const response = await fetch("/api/wallets");
       if (!response.ok) return;
-
       CRYPTO_WALLETS = await response.json();
-      updateWalletDisplay("btc"); // Default coin view
+      updateWalletDisplay("btc");
     } catch (e) {
-      console.error("Wallet load failed");
+      console.error("Wallet load failed", e);
     }
   }
 
-  // Update wallet address field + QR + connect button behaviour
+  function mapWalletAddressForKey(key) {
+    if (key === "btc") return CRYPTO_WALLETS.btc;
+    if (key === "eth") return CRYPTO_WALLETS.eth;
+    if (key === "bnb") return CRYPTO_WALLETS.bnb;
+    if (key === "sol") return CRYPTO_WALLETS.sol;
+    if (key === "ton") return CRYPTO_WALLETS.ton;
+    if (key === "tron") return CRYPTO_WALLETS.tron;
+
+    if (key === "usdt-eth") return CRYPTO_WALLETS.usdt_eth;
+    if (key === "usdt-bnb") return CRYPTO_WALLETS.usdt_bnb;
+    if (key === "usdt-trc") return CRYPTO_WALLETS.usdt_trc;
+    if (key === "usdt-sol") return CRYPTO_WALLETS.usdt_sol;
+    if (key === "usdt-ton") return CRYPTO_WALLETS.usdt_ton;
+    if (key === "usdt-arb") return CRYPTO_WALLETS.usdt_arb;
+
+    return CRYPTO_WALLETS.eth || "Address Not Set";
+  }
+
+  // This controls what the single connect button does
   function updateWalletDisplay(key) {
-    const walletInput = document.getElementById("wallet-address");
-    const connectBtn = document.getElementById("connect-wallet-btn");
-    const tonBtn = document.getElementById("ton-connect-btn");
-    const qrBox = document.getElementById("qr-container");
-    const qrImg = document.getElementById("crypto-qr");
+    donationState.selectedKey = key;
 
-    if (!walletInput) return;
+    if (!walletInput || !connectBtn) return;
 
-    // Default fallback if a wallet is missing
-    let address = "Address Not Set";
-
-    // Standard coins
-    if (key === "btc") address = CRYPTO_WALLETS["btc"];
-    else if (key === "eth") address = CRYPTO_WALLETS["eth"];
-    else if (key === "bnb") address = CRYPTO_WALLETS["bnb"];
-    else if (key === "sol") address = CRYPTO_WALLETS["sol"];
-    else if (key === "ton") address = CRYPTO_WALLETS["ton"];
-    else if (key === "tron") address = CRYPTO_WALLETS["tron"];
-
-    // USDT networks
-    else if (key === "usdt-eth") address = CRYPTO_WALLETS["usdt_eth"];
-    else if (key === "usdt-bnb") address = CRYPTO_WALLETS["usdt_bnb"];
-    else if (key === "usdt-trc") address = CRYPTO_WALLETS["usdt_trc"];
-    else if (key === "usdt-sol") address = CRYPTO_WALLETS["usdt_sol"];
-    else if (key === "usdt-ton") address = CRYPTO_WALLETS["usdt_ton"];
-    else if (key === "usdt-arb") address = CRYPTO_WALLETS["usdt_arb"];
-
-    // Fallback (if something unknown is passed in)
-    else address = CRYPTO_WALLETS["eth"];
-
-    // Render wallet address
+    const address = mapWalletAddressForKey(key) || "Address Not Set";
     walletInput.value = address;
 
-    // Render QR only when an actual address exists
+    // QR
     if (qrBox && qrImg && address !== "Address Not Set" && address !== "Loading...") {
       qrBox.classList.remove("hidden");
-      qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${address}`;
+      qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(address)}`;
+    } else if (qrBox) {
+      qrBox.classList.add("hidden");
     }
 
-    // Decide which connect option to show
-    if (connectBtn && tonBtn) {
-      connectBtn.style.display = "none";
-      tonBtn.style.display = "none";
+    // Decide action per selection (ONE BUTTON ONLY)
+    const isTon = key === "ton" || key === "usdt-ton";
+    const isEvm = ["eth", "bnb", "arb", "usdt-eth", "usdt-bnb", "usdt-arb"].includes(key);
+    const isCopyOnly = ["btc", "sol", "tron", "usdt-trc", "usdt-sol"].includes(key);
 
-      // 1) TON network -> TonConnect button
-      if (key === "ton" || key === "usdt-ton") {
-        tonBtn.style.display = "flex";
-      }
-      // 2) EVM networks -> MetaMask connect
-      else if (["eth", "bnb", "matic", "arb", "usdt-eth", "usdt-bnb", "usdt-arb"].includes(key)) {
-        connectBtn.style.display = "block";
-        connectBtn.innerHTML = '<i class="fa-solid fa-wallet"></i> Connect Wallet';
-        connectBtn.onclick = connectAndDonate;
-      }
-      // 3) Non-EVM (BTC/SOL/TRON) -> copy only
-      else {
-        connectBtn.style.display = "block";
-        connectBtn.innerHTML = '<i class="fa-solid fa-copy"></i> Copy Address';
-        connectBtn.onclick = copyWallet;
+    connectBtn.style.display = "block";
+
+    if (isTon) {
+      connectBtn.innerHTML = '<i class="fa-solid fa-wallet"></i> Connect Wallet';
+      connectBtn.onclick = connectTonkeeper;
+      return;
+    }
+
+    if (isEvm) {
+      connectBtn.innerHTML = '<i class="fa-solid fa-wallet"></i> Connect Wallet';
+      connectBtn.onclick = connectAndDonate;
+      return;
+    }
+
+    if (isCopyOnly) {
+      connectBtn.innerHTML = '<i class="fa-solid fa-copy"></i> Copy Address';
+      connectBtn.onclick = copyWallet;
+      return;
+    }
+
+    // Fallback
+    connectBtn.innerHTML = '<i class="fa-solid fa-copy"></i> Copy Address';
+    connectBtn.onclick = copyWallet;
+  }
+
+  // =========================================================
+  // 8) METAMASK (desktop + mobile deep-link) + AUTO CHAIN + SEND
+  // =========================================================
+
+  function openInMetaMask() {
+    // Opens your site in MetaMask mobile browser
+    const dapp = window.location.href.replace(/^https?:\/\//, "");
+    window.location.href = `https://metamask.app.link/dapp/${dapp}`;
+  }
+
+  function redirectToMetaMaskInstall() {
+    window.open("https://metamask.io/download/", "_blank", "noopener,noreferrer");
+  }
+
+  function getEvmChainForDonateKey(key) {
+    if (key === "bnb" || key === "usdt-bnb") return "bnb";
+    if (key === "arb" || key === "usdt-arb") return "arb";
+    return "eth";
+  }
+
+  function isUsdtKey(key) {
+    return key === "usdt-eth" || key === "usdt-bnb" || key === "usdt-arb";
+  }
+
+  async function ensureEvmChain(chainKey) {
+    const cfg = EVM_CHAINS[chainKey];
+    if (!cfg) return;
+
+    try {
+      await window.ethereum.request({
+        method: "wallet_switchEthereumChain",
+        params: [{ chainId: cfg.chainId }],
+      });
+    } catch (err) {
+      // 4902 = chain not added
+      if (err?.code === 4902) {
+        await window.ethereum.request({
+          method: "wallet_addEthereumChain",
+          params: [
+            {
+              chainId: cfg.chainId,
+              chainName: cfg.chainName,
+              rpcUrls: cfg.rpcUrls,
+              nativeCurrency: cfg.nativeCurrency,
+              blockExplorerUrls: cfg.blockExplorerUrls,
+            },
+          ],
+        });
+      } else {
+        throw err;
       }
     }
   }
 
-  // =========================================================
-  // 7) CONNECT + DONATE (EVM ONLY via MetaMask/ethers)
-  // =========================================================
-  window.connectAndDonate = async function () {
+  async function sendNativeDonation(signer, toAddress, donateKey) {
+    const chain = getEvmChainForDonateKey(donateKey);
+    const amount = chain === "bnb" ? DONATION_DEFAULTS.bnb : DONATION_DEFAULTS.eth;
+
+    const tx = await signer.sendTransaction({
+      to: toAddress,
+      value: ethers.utils.parseEther(amount),
+    });
+
+    return tx.hash;
+  }
+
+  async function sendUsdtDonation(signer, toAddress, donateKey) {
+    const contractAddr = USDT_CONTRACTS[donateKey];
+    if (!contractAddr) throw new Error("USDT contract missing for " + donateKey);
+
+    const ERC20_ABI = [
+      "function decimals() view returns (uint8)",
+      "function transfer(address to, uint256 amount) returns (bool)",
+    ];
+
+    const token = new ethers.Contract(contractAddr, ERC20_ABI, signer);
+    const decimals = await token.decimals();
+    const amount = ethers.utils.parseUnits(DONATION_DEFAULTS.usdt, decimals);
+
+    const tx = await token.transfer(toAddress, amount);
+    return tx.hash;
+  }
+
+  async function connectAndDonate() {
+    const donateKey = donationState.selectedKey || "eth";
+    const toAddress = mapWalletAddressForKey(donateKey);
+
+    if (!toAddress || toAddress === "Loading..." || toAddress === "Address Not Set") {
+      alert("Wallet address not ready yet. Please try again in a moment.");
+      return;
+    }
+
+    // Not in MetaMask environment
     if (typeof window.ethereum === "undefined") {
-      alert("MetaMask not detected. Please copy the address.");
-      copyWallet();
+      if (isMobile()) {
+        alert("Opening MetaMask… complete payment inside MetaMask.");
+        openInMetaMask();
+      } else {
+        alert("MetaMask extension not detected. Opening MetaMask download…");
+        redirectToMetaMaskInstall();
+        copyWallet();
+      }
       return;
     }
 
     try {
+      // Switch to correct chain first (bnb/arb/eth)
+      const chainKey = getEvmChainForDonateKey(donateKey);
+      await ensureEvmChain(chainKey);
+
+      // Connect wallet
       const provider = new ethers.providers.Web3Provider(window.ethereum);
       await provider.send("eth_requestAccounts", []);
-
       const signer = provider.getSigner();
 
-      // NOTE:
-      // You’re currently sending to the ETH wallet always.
-      // If you want it to send to selected coin, you’ll need
-      // to track the current key and choose address accordingly.
-      const target = CRYPTO_WALLETS["eth"];
+      // Send correct asset
+      let txHash = "";
+      if (isUsdtKey(donateKey)) txHash = await sendUsdtDonation(signer, toAddress, donateKey);
+      else txHash = await sendNativeDonation(signer, toAddress, donateKey);
 
-      // Fixed donation value (0.005 ETH) — change if needed
-      const tx = await signer.sendTransaction({
-        to: target,
-        value: ethers.utils.parseEther("0.005"),
-      });
-
-      alert("Transaction Sent! Hash: " + tx.hash);
+      alert("Payment sent! Tx Hash: " + txHash);
     } catch (err) {
-      alert("Connection failed. Please copy the address manually.");
+      console.error(err);
+      alert("Payment cancelled/failed. You can copy the address instead.");
       copyWallet();
     }
-  };
+  }
 
-  // Copy wallet address to clipboard + show UI feedback
-  window.copyWallet = function () {
+  // =========================================================
+  // 9) TONKEEPER (single button)
+  // =========================================================
+
+  function redirectToTonkeeperInstall() {
+    window.open("https://tonkeeper.com/", "_blank", "noopener,noreferrer");
+  }
+
+  function tonkeeperTransferLink(to, tonAmount, memoText) {
+    const nano = Math.floor(Number(tonAmount) * 1e9);
+    const text = encodeURIComponent(memoText || "DocuMorph Support");
+    return `https://app.tonkeeper.com/transfer/${encodeURIComponent(to)}?amount=${nano}&text=${text}`;
+  }
+
+  async function connectTonkeeper() {
+    const donateKey = donationState.selectedKey || "ton";
+    const address = mapWalletAddressForKey(donateKey);
+
+    if (!address || address === "Loading..." || address === "Address Not Set") {
+      alert("TON wallet address not ready yet. Please try again in a moment.");
+      return;
+    }
+
+    // USDT-TON is Jetton → we keep it simple: open Tonkeeper site and copy address
+    if (donateKey === "usdt-ton") {
+      alert("USDT on TON (Jetton) is best sent manually in Tonkeeper. I’ll open Tonkeeper and you can paste the address.");
+      redirectToTonkeeperInstall();
+      copyWallet();
+      return;
+    }
+
+    // If TonConnect exists, you can optionally open its modal (still hidden UI)
+    // but we keep the experience consistent: direct Tonkeeper transfer link
+    const link = tonkeeperTransferLink(address, DONATION_DEFAULTS.ton, "DocuMorph Support");
+
+    // On mobile this will open Tonkeeper app; on desktop it opens Tonkeeper web
+    window.open(link, "_blank", "noopener,noreferrer");
+  }
+
+  // =========================================================
+  // 10) COPY WALLET
+  // =========================================================
+  function copyWallet() {
     const input = document.getElementById("wallet-address");
     const feedback = document.getElementById("copy-feedback");
 
     if (!input || input.value === "Loading...") return;
 
     input.select();
+    input.setSelectionRange(0, 99999);
     navigator.clipboard.writeText(input.value);
 
     if (feedback) {
       feedback.classList.add("visible");
       setTimeout(() => feedback.classList.remove("visible"), 2000);
     }
-  };
+  }
 
   // =========================================================
-  // 8) DROPDOWNS (custom-select: click + keyboard)
+  // 11) DROPDOWNS
   // =========================================================
   function initCustomDropdowns() {
-    const dropdowns = document.querySelectorAll(".custom-select");
+    const dropdowns = qsa(".custom-select");
 
     dropdowns.forEach((dd) => {
       const trigger = dd.querySelector(".select-trigger");
       const triggerText = dd.querySelector(".trigger-text");
       const options = dd.querySelectorAll(".option");
 
-      // Toggle dropdown open/close and close others
       const toggle = () => {
         const isOpen = dd.classList.contains("open");
         dropdowns.forEach((d) => d.classList.remove("open"));
         if (!isOpen) dd.classList.add("open");
       };
 
-      // Mouse open/close
       if (trigger) trigger.addEventListener("click", toggle);
 
-      // Keyboard open/close (Enter/Space)
       dd.addEventListener("keydown", (e) => {
         if (e.key === "Enter" || e.key === " ") {
           e.preventDefault();
@@ -303,39 +483,31 @@
         }
       });
 
-      // Selecting an option
       options.forEach((opt) => {
         opt.setAttribute("tabindex", "0");
 
         const select = () => {
           const val = opt.getAttribute("data-value");
 
-          // Crypto dropdown (supports USDT network selector)
           if (dd.id === "crypto-dropdown") {
-            triggerText.innerHTML = opt.innerHTML;
+            if (triggerText) triggerText.innerHTML = opt.innerHTML;
 
             const usdtGroup = document.getElementById("usdt-network-group");
             if (val === "usdt") {
               if (usdtGroup) usdtGroup.classList.remove("hidden");
-              updateWalletDisplay("usdt-eth"); // default USDT network
+              updateWalletDisplay("usdt-eth");
             } else {
               if (usdtGroup) usdtGroup.classList.add("hidden");
               updateWalletDisplay(val);
             }
-          }
-          // USDT network dropdown
-          else if (dd.id === "network-dropdown") {
-            triggerText.innerHTML = opt.innerHTML;
+          } else if (dd.id === "network-dropdown") {
+            if (triggerText) triggerText.innerHTML = opt.innerHTML;
             updateWalletDisplay(val);
-          }
-          // General tool dropdowns (convert/compress/merge)
-          else if (dd.id !== "resize-scale-dropdown") {
-            triggerText.innerHTML = opt.innerHTML;
+          } else if (dd.id !== "resize-scale-dropdown") {
+            if (triggerText) triggerText.innerHTML = opt.innerHTML;
             updateContext(appState.view, val);
-          }
-          // Resize scale dropdown (UI only, used later in processing)
-          else {
-            triggerText.innerHTML = opt.innerHTML;
+          } else {
+            if (triggerText) triggerText.innerHTML = opt.innerHTML;
           }
 
           dd.classList.remove("open");
@@ -352,41 +524,13 @@
       });
     });
 
-    // Close dropdown if user clicks outside
     window.addEventListener("click", (e) => {
-      if (!e.target.closest(".custom-select")) {
-        dropdowns.forEach((d) => d.classList.remove("open"));
-      }
+      if (!e.target.closest(".custom-select")) dropdowns.forEach((d) => d.classList.remove("open"));
     });
   }
 
   // =========================================================
-  // 9) SUCCESS UI + AUTO SUPPORT POPUP
-  // =========================================================
-  function showSuccess(filename) {
-    if (processUI) processUI.classList.add("hidden");
-    if (successUI) successUI.classList.remove("hidden");
-
-    // Configure download button to open generated file URL
-    if (downloadBtn) {
-      downloadBtn.onclick = () => {
-        const link = document.createElement("a");
-        link.href = appState.resultUrl;
-        link.download = filename;
-        link.target = "_blank";
-        link.click();
-      };
-    }
-
-    // Auto-open Support modal after success
-    setTimeout(() => {
-      openModal("support");
-      switchSupportTab("donate");
-    }, 1500);
-  }
-
-  // =========================================================
-  // 10) FEATURE REQUEST FORM (POST -> /api/form)
+  // 12) FORM (POST -> /api/form)
   // =========================================================
   window.submitToFormspree = async function (e) {
     e.preventDefault();
@@ -394,7 +538,7 @@
     const status = document.getElementById("form-status");
     const data = Object.fromEntries(new FormData(e.target).entries());
 
-    if (status) status.innerText = "Sending...";
+    setText(status, "Sending...");
 
     try {
       const r = await fetch("/api/form", {
@@ -404,66 +548,54 @@
       });
 
       if (r.ok) {
-        if (status) status.innerText = "Sent!";
+        setText(status, "Thanks! Request sent.");
         e.target.reset();
       } else {
-        if (status) status.innerText = "Error.";
+        setText(status, "Oops! Server error.");
       }
     } catch (_) {
-      if (status) status.innerText = "Network Error.";
+      setText(status, "Network Error.");
     }
   };
 
   // =========================================================
-  // 11) SUPPORT TABS + MODALS
+  // 13) MODALS + TABS
   // =========================================================
-
-  // Switch between support modal tabs
   window.switchSupportTab = function (n) {
-    document.querySelectorAll(".tab-btn").forEach((b) => b.classList.remove("active"));
-    document.querySelectorAll(".tab-content").forEach((c) => c.classList.add("hidden"));
-
-    // NOTE: "event" is used here from the inline onclick handler context
-    event.currentTarget.classList.add("active");
-    document.getElementById(`tab-${n}`).classList.remove("hidden");
+    qsa(".tab-btn").forEach((b) => b.classList.remove("active"));
+    qsa(".tab-content").forEach((c) => c.classList.add("hidden"));
+    if (window.event?.currentTarget) window.event.currentTarget.classList.add("active");
+    const target = document.getElementById(`tab-${n}`);
+    if (target) target.classList.remove("hidden");
   };
 
-  // Open any modal section (terms/privacy/request/support)
   window.openModal = function (t) {
     const container = document.getElementById("modal-container");
-
-    // Hide all modal bodies first
-    document.querySelectorAll(".modal-body").forEach((el) => el.classList.add("hidden"));
-
+    qsa(".modal-body").forEach((el) => el.classList.add("hidden"));
     const target = document.getElementById(`modal-${t}`);
     if (target) target.classList.remove("hidden");
     if (container) container.classList.remove("hidden");
   };
 
-  // Close modal container
   window.closeModal = function () {
     const c = document.getElementById("modal-container");
     if (c) c.classList.add("hidden");
   };
 
   // =========================================================
-  // 12) DAILY LIMIT (localStorage counter)
+  // 14) DAILY LIMIT
   // =========================================================
   function checkDailyLimit() {
     try {
       const today = new Date().toLocaleDateString();
       let d = JSON.parse(localStorage.getItem("documorph_usage")) || { date: today, count: 0 };
-
       if (d.date !== today) d = { date: today, count: 0 };
-
       if (d.count >= DAILY_LIMIT) {
-        alert("Daily limit reached.");
+        alert("Daily limit reached! Please try again tomorrow.");
         return false;
       }
-
       return true;
     } catch (_) {
-      // If storage fails, allow usage (fail-open)
       return true;
     }
   }
@@ -472,30 +604,23 @@
     try {
       const today = new Date().toLocaleDateString();
       let d = JSON.parse(localStorage.getItem("documorph_usage")) || { date: today, count: 0 };
-
       if (d.date !== today) d = { date: today, count: 0 };
-
       d.count++;
       localStorage.setItem("documorph_usage", JSON.stringify(d));
     } catch (_) {}
   }
 
   // =========================================================
-  // 13) NAV + MENU CONTROLS
+  // 15) NAV + MENU
   // =========================================================
   window.switchView = function (n) {
     appState.view = n;
 
-    // Highlight active top nav button
-    document.querySelectorAll(".nav-btn").forEach((b) => {
-      b.classList.toggle("active", b.innerText.toLowerCase() === n);
-    });
+    qsa(".nav-btn").forEach((b) => b.classList.toggle("active", b.innerText.toLowerCase() === n));
 
-    // Hide all view sections then show selected
     Object.values(views).forEach((v) => v && v.classList.add("hidden"));
     if (views[n]) views[n].classList.remove("hidden");
 
-    // Reset UI state and update accept filters for the new view
     window.resetApp();
 
     const firstOption = views[n] ? views[n].querySelector(".option") : null;
@@ -508,7 +633,7 @@
   };
 
   // =========================================================
-  // 14) RESET + START PROCESS
+  // 16) RESET + START PROCESS
   // =========================================================
   window.resetApp = function () {
     if (uploadUI) uploadUI.classList.add("hidden");
@@ -526,13 +651,11 @@
     if (processBar) processBar.style.width = "0%";
     if (processPercent) processPercent.innerText = "0%";
 
-    // Reset legal checkbox + button state
     const legal = document.getElementById("legal-check");
     if (legal) legal.checked = false;
     window.toggleStartButton();
   };
 
-  // Start processing (called after user agrees to Terms)
   window.executeProcess = function () {
     if (!checkDailyLimit()) return;
 
@@ -545,114 +668,68 @@
     processFilesWithProxy();
   };
 
-  // Toggle compress mode UI (auto vs target)
   window.toggleCompMode = function () {
-    const m = document.querySelector('input[name="comp-mode"]:checked').value;
+    const m = document.querySelector('input[name="comp-mode"]:checked')?.value;
     const a = document.getElementById("comp-auto-settings");
     const t = document.getElementById("comp-target-settings");
-
-    if (!a || !t) return;
+    if (!m || !a || !t) return;
 
     if (m === "auto") {
       a.classList.remove("hidden");
       t.classList.add("hidden");
-      return;
+    } else {
+      a.classList.add("hidden");
+      t.classList.remove("hidden");
     }
-
-    a.classList.add("hidden");
-    t.classList.remove("hidden");
   };
 
-  // Update compress slider label text (Smallest -> Best Quality)
   window.updateRangeLabel = function () {
     const labels = ["Smallest", "Small", "Compact", "Balanced", "Balanced", "Better", "Good", "Great", "Best Quality"];
-    const v = document.getElementById("compression-range").value;
-
+    const v = Number(document.getElementById("compression-range")?.value || 4);
     const out = document.getElementById("compression-text");
     if (out) out.innerText = labels[v - 1] || "Balanced";
   };
 
   // =========================================================
-  // 15) TOOL CONTEXT (accept filters + “Supported” label)
+  // 17) TOOL CONTEXT
   // =========================================================
   function updateContext(view, val) {
-    // Update active sub-tool (e.g., word-to-pdf, comp-pdf, merge-pdf)
     appState.subTool = val;
 
-    // Defaults (safe fallback)
     let accept = "*";
     let limitText = "Files";
 
-    // Convert tools
     if (view === "convert") {
       switch (val) {
-        case "word-to-pdf":
-          accept = ".doc,.docx";
-          limitText = "Word Docs";
-          break;
-        case "pdf-to-word":
-          accept = ".pdf";
-          limitText = "PDF Files";
-          break;
-        case "excel-to-pdf":
-          accept = ".xls,.xlsx";
-          limitText = "Excel Sheets";
-          break;
-        case "pdf-to-excel":
-          accept = ".pdf";
-          limitText = "PDF Files";
-          break;
-        case "jpg-to-png":
-          accept = "image/jpeg,image/jpg";
-          limitText = "JPG Images";
-          break;
-        case "png-to-jpg":
-          accept = "image/png";
-          limitText = "PNG Images";
-          break;
+        case "word-to-pdf": accept = ".doc,.docx"; limitText = "Word Docs"; break;
+        case "pdf-to-word": accept = ".pdf"; limitText = "PDF Files"; break;
+        case "excel-to-pdf": accept = ".xls,.xlsx"; limitText = "Excel Sheets"; break;
+        case "pdf-to-excel": accept = ".pdf"; limitText = "PDF Files"; break;
+        case "jpg-to-png": accept = "image/jpeg,image/jpg"; limitText = "JPG Images"; break;
+        case "png-to-jpg": accept = "image/png"; limitText = "PNG Images"; break;
       }
+    } else if (view === "compress") {
+      if (val === "comp-pdf") { accept = ".pdf"; limitText = "PDF Files"; }
+      else { accept = "image/*"; limitText = "Images"; }
+    } else if (view === "resize") {
+      accept = "image/*"; limitText = "Images";
+    } else if (view === "merge") {
+      accept = ".pdf"; limitText = "PDF Files";
     }
 
-    // Compress tools
-    else if (view === "compress") {
-      if (val === "comp-pdf") {
-        accept = ".pdf";
-        limitText = "PDF Files";
-      } else {
-        accept = "image/*";
-        limitText = "Images";
-      }
-    }
-
-    // Resize tools
-    else if (view === "resize") {
-      accept = "image/*";
-      limitText = "Images";
-    }
-
-    // Merge tools
-    else if (view === "merge") {
-      accept = ".pdf";
-      limitText = "PDF Files";
-    }
-
-    // Apply accept filter + UI label
     if (fileInput) fileInput.setAttribute("accept", accept);
     if (fileLimits) fileLimits.innerText = `Supported: ${limitText} • Max 50MB`;
   }
 
   // =========================================================
-  // 16) FILE INPUT + DRAG & DROP
+  // 18) FILE INPUT + DRAG & DROP
   // =========================================================
-
-  // File picker
   if (fileInput) {
     fileInput.addEventListener("change", () => {
       if (fileInput.files.length > 0) handleFiles(fileInput.files);
     });
   }
 
-  // Drag and drop
   if (dropZone) {
     dropZone.addEventListener("dragover", (e) => {
       e.preventDefault();
@@ -674,7 +751,6 @@
     });
   }
 
-  // Simulate upload UI progress, then show ready screen
   function handleFiles(fileList) {
     appState.files = Array.from(fileList);
 
@@ -697,13 +773,12 @@
     }, 15);
   }
 
-  // Update ready UI file label + start button text
   function showReadyScreen() {
     if (readyUI) readyUI.classList.remove("hidden");
 
     if (fileNameDisplay) {
       fileNameDisplay.innerText =
-        appState.files.length === 1 ? appState.files[0].name : `${appState.files.length} files`;
+        appState.files.length === 1 ? appState.files[0].name : `${appState.files.length} files selected`;
     }
 
     let actionText = "Start";
@@ -716,7 +791,32 @@
   }
 
   // =========================================================
-  // 17) CONVERSION PIPELINE (POST -> /api/convert)
+  // 19) SUCCESS UI
+  // =========================================================
+  function showSuccess(filename) {
+    if (processUI) processUI.classList.add("hidden");
+    if (successUI) successUI.classList.remove("hidden");
+
+    if (downloadBtn) {
+      downloadBtn.onclick = () => {
+        const link = document.createElement("a");
+        link.href = appState.resultUrl;
+        link.download = filename;
+        link.target = "_blank";
+        link.click();
+      };
+    }
+
+    // Auto-open support modal
+    setTimeout(() => {
+      window.openModal("support");
+      // If donate tab exists, keep it on donate.
+      // (Your existing HTML may already default here)
+    }, 1500);
+  }
+
+  // =========================================================
+  // 20) CONVERSION PIPELINE
   // =========================================================
   function processFilesWithProxy() {
     const file = appState.files[0];
@@ -729,107 +829,64 @@
     const formData = new FormData();
     const ext = file.name.split(".").pop().toLowerCase();
 
-    // Default ConvertAPI expects "File" for single file tools
     formData.append("File", file);
     formData.append("StoreFile", "true");
 
-    // ConvertAPI "type" route (example: docx/to/pdf)
     let type = "";
 
-    // ----------------------------
-    // Convert tools
-    // ----------------------------
     if (appState.subTool === "word-to-pdf") type = ext === "doc" ? "doc/to/pdf" : "docx/to/pdf";
     else if (appState.subTool === "pdf-to-word") type = "pdf/to/docx";
     else if (appState.subTool === "excel-to-pdf") type = ext === "xls" ? "xls/to/pdf" : "xlsx/to/pdf";
     else if (appState.subTool === "pdf-to-excel") type = "pdf/to/xlsx";
     else if (appState.subTool === "jpg-to-png") type = "jpg/to/png";
     else if (appState.subTool === "png-to-jpg") type = "png/to/jpg";
-
-    // ----------------------------
-    // Compress tools
-    // ----------------------------
     else if (appState.view === "compress") {
       type = appState.subTool === "comp-pdf" ? "pdf/to/compress" : "jpg/to/compress";
+      const mode = document.querySelector('input[name="comp-mode"]:checked')?.value || "auto";
 
-      const mode = document.querySelector('input[name="comp-mode"]:checked').value;
-
-      // Auto preset based on slider
       if (mode === "auto") {
-        const s = document.getElementById("compression-range").value;
-
+        const s = Number(document.getElementById("compression-range")?.value || 4);
         if (s <= 3) formData.append("Preset", "screen");
         else if (s <= 6) formData.append("Preset", "ebook");
         else formData.append("Preset", "printer");
-
-        // If compressing image, also set quality
         if (type === "jpg/to/compress") formData.append("Quality", s * 10);
       } else {
-        // Target-size logic placeholder (kept simple to avoid wrong output)
         formData.append("Preset", "screen");
       }
-    }
-
-    // ----------------------------
-    // Resize tool
-    // ----------------------------
-    else if (appState.view === "resize") {
+    } else if (appState.view === "resize") {
       type = "jpg/to/jpg";
-
-      const w = document.getElementById("resize-w").value;
-      const h = document.getElementById("resize-h").value;
-
+      const w = document.getElementById("resize-w")?.value;
+      const h = document.getElementById("resize-h")?.value;
       if (w) formData.append("ImageWidth", w);
       if (h) formData.append("ImageHeight", h);
-
-      // If no width/height, try scale dropdown text
-      if (!w && !h) {
-        const label = document.querySelector("#resize-scale-dropdown .trigger-text")?.innerText || "";
-        if (label.includes("75")) formData.append("ScaleImage", "75");
-        if (label.includes("25")) formData.append("ScaleImage", "25");
-      }
-    }
-
-    // ----------------------------
-    // Merge tool
-    // ----------------------------
-    else if (appState.view === "merge") {
+    } else if (appState.view === "merge") {
       type = "pdf/to/merge";
-      formData.delete("File"); // ConvertAPI merge expects Files[] array
+      formData.delete("File");
       appState.files.forEach((f, i) => formData.append(`Files[${i}]`, f));
     }
 
-    // ----------------------------
-    // Make request via XHR to show upload progress
-    // ----------------------------
     const xhr = new XMLHttpRequest();
-    xhr.open("POST", `/api/convert?type=${type}`, true);
+    xhr.open("POST", `/api/convert?type=${encodeURIComponent(type)}`, true);
 
-    // Upload progress -> process bar
     xhr.upload.onprogress = function (e) {
       if (!e.lengthComputable) return;
-
       const p = Math.round((e.loaded / e.total) * 100);
       if (processBar) processBar.style.width = p + "%";
       if (processPercent) processPercent.innerText = p + "%";
     };
 
-    // Response handling
     xhr.onload = function () {
       if (xhr.status === 200) {
         try {
           const d = JSON.parse(xhr.responseText);
-
-          // ConvertAPI returns Files array when StoreFile=true
           if (d.Files && d.Files.length > 0) {
             appState.resultUrl = d.Files[0].Url;
             incrementUsage();
             showSuccess(d.Files[0].FileName);
             return;
           }
-
-          throw new Error("API error");
-        } catch (e) {
+          throw new Error("ConvertAPI error");
+        } catch (_) {
           alert("Error parsing response");
           window.resetApp();
         }
@@ -846,4 +903,22 @@
 
     xhr.send(formData);
   }
+
+  // =========================================================
+  // 21) FILE PROCESS START
+  // =========================================================
+  window.executeProcess = function () {
+    if (!checkDailyLimit()) return;
+
+    if (readyUI) readyUI.classList.add("hidden");
+    if (processUI) processUI.classList.remove("hidden");
+
+    const title = document.getElementById("process-title");
+    if (title) title.innerText = "Processing...";
+
+    processFilesWithProxy();
+  };
+
+  // Expose if you need it elsewhere
+  window.updateWalletDisplay = updateWalletDisplay;
 })();
