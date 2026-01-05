@@ -40,7 +40,7 @@ export default function handler(req, res) {
     }
 
     const type = encodeURIComponent(rawType);
-    const secret = process.env.CONVERTAPI_SECRET || process.env.CONVERT_API_SECRET || process.env.CONVERT_API_TOKEN;
+    const secret = process.env.CONVERT_API_TOKEN;
 
     if (!secret) {
       return res.status(500).json({
