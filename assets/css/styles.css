@@ -339,7 +339,7 @@ a {
 }
 
 label {
-  font-size: 0.7rem;
+  font-size: 1rem;
   font-weight: 700;
   display: block;
   margin-bottom: 10px;
@@ -475,16 +475,41 @@ label {
 /* Target size row: input + select */
 #comp-target-settings .input-with-unit {
   display: flex;
+  align-items: stretch;
   gap: 10px;
   width: 100%;
-  align-items: stretch;
+  max-width: 400px;    
+  margin: 0 auto;      
+  flex-wrap: nowrap;   
 }
 
 #comp-target-settings .input-with-unit .simple-input {
-  flex: 1;
-  min-width: 190px;
+  flex: 1 1 auto;
+  min-width: 0;
   height: 48px;
   padding: 0 14px;
+  box-sizing: border-box;
+}
+
+#comp-target-settings .input-with-unit .unit-dd {
+  flex: 0 0 110px;     
+  min-width: 90px;
+  height: 48px;
+}
+
+#comp-target-settings .input-with-unit .unit-dd .select-trigger {
+  height: 48px;
+  padding: 0 14px;                
+  margin-bottom: 0;             
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  box-sizing: border-box;
+}
+
+#comp-target-settings .input-with-unit .unit-dd .options-container {
+  width: 100%;
 }
 
 /* Radio cards (Auto / Target) */
@@ -1273,10 +1298,6 @@ label {
     font-size: 0.8rem;
   }
 
-  #comp-target-settings .input-with-unit .simple-input {
-    min-width: 132px;
-  }
-
   .support-header p {
     font-size: 0.8rem;
   }
@@ -1357,15 +1378,6 @@ label {
     grid-column: span 1;
   }
 
-  /* Target size row stays aligned */
-  #comp-target-settings .input-with-unit {
-    gap: 8px;
-  }
-
-  #comp-target-settings .input-with-unit .simple-input {
-    min-width: 0;
-  }
-
   /* Footer */
   .site-footer {
     padding: 1.6rem 6%;
@@ -1422,6 +1434,21 @@ label {
     padding: 11px 12px;
   }
 
+  #comp-target-settings .input-with-unit {
+    gap: 6px;
+  }
+
+  #comp-target-settings .input-with-unit .simple-input,
+  #comp-target-settings .input-with-unit .unit-dd .select-trigger {
+    height: 44px;
+  }
+
+  #comp-target-settings .input-with-unit .unit-dd {
+    flex-basis: 92px;
+    min-width: 78px;
+    height: 44px;
+  }
+  
   .legal-consent {
     font-size: 1.2rem;
   }
