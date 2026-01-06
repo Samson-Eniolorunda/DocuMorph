@@ -42,6 +42,8 @@
 
     <!-- Main Stylesheet -->
     <link rel="stylesheet" href="assets/css/styles.css">
+
+    <!-- External Scripts (Wallet Libraries) -->
 </head>
 <body>
     <!-- Background Mesh / Decorative Layer -->
@@ -74,7 +76,7 @@
         <button class="mob-btn" onclick="switchView('resize'); toggleMenu()">Resize</button>
         <button class="mob-btn" onclick="switchView('merge'); toggleMenu()">Merge</button>
         <!-- Support Modal Shortcut -->
-        <button class="mob-btn support-highlight" onclick="openModal('support'); toggleMenu()">❤️ Support</button>
+        <button class="mob-btn support-highlight" onclick="openModal('support'); toggleMenu()">Donate</button>
     </div>
 
     <!-- Main App Container -->
@@ -143,9 +145,26 @@
                     <!-- Target Mode Settings -->
                     <div id="comp-target-settings" class="hidden">
                         <label>Max Size:</label>
+
                         <div class="input-with-unit">
-                            <input type="number" class="simple-input" placeholder="e.g. 2" id="target-size-input">
-                            <select class="unit-select"><option value="MB">MB</option><option value="KB">KB</option></select>
+                            <input
+                                type="number"
+                                class="simple-input"
+                                placeholder="e.g. 2"
+                                id="target-size-input"
+                        />
+
+                        <!-- dropdown (MB/KB) -->
+                        <div class="custom-select unit-dd" id="size-unit-dropdown" tabindex="0">
+                            <div class="select-trigger">
+                                <span class="trigger-text">MB</span>
+                                <i class="fa-solid fa-chevron-down arrow"></i>
+                            </div>
+
+                            <div class="options-container">
+                                <div class="option" data-value="MB" tabindex="0">MB</div>
+                                <div class="option" data-value="KB" tabindex="0">KB</div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -248,6 +267,8 @@
                 <!-- Success Actions -->
                 <div class="btn-actions">
                     <button class="btn-glow download-btn"><i class="fa-solid fa-download"></i> Download</button>
+
+                    <button class="btn-outline" type="button" onclick="openModal('support')">❤️ Donate</button>
                     <button class="btn-outline" onclick="resetApp()">Start Over</button>
                 </div>
             </section>
@@ -267,7 +288,7 @@
                     <button onclick="openModal('terms')">Terms of Service</button><span class="sep">•</span>
                     <button onclick="openModal('privacy')">Privacy Policy</button><span class="sep">•</span>
                     <button onclick="openModal('request')">Request Feature</button><span class="sep">•</span>
-                    <button onclick="openModal('support')" class="support-link">❤️ Support</button>
+                    <button onclick="openModal('support')" class="support-link">❤️ Donate</button>
                 </div>
 
                 <!-- Attribution -->
@@ -426,17 +447,17 @@
                             <div class="custom-select" id="network-dropdown" tabindex="0">
                                 <!-- Selected network trigger -->
                                 <div class="select-trigger">
-                                    <span class="trigger-text">ERC-20 (Ethereum)</span>
+                                    <span class="trigger-text">ERC-20</span>
                                     <i class="fa-solid fa-chevron-down arrow"></i>
                                 </div>
 
                                 <!-- Network options -->
                                 <div class="options-container">
-                                    <div class="option" data-value="usdt-eth" tabindex="0">ERC-20 (Ethereum)</div>
-                                    <div class="option" data-value="usdt-bnb" tabindex="0">BEP-20 (BNB Chain)</div>
-                                    <div class="option" data-value="usdt-trc" tabindex="0">TRC-20 (Tron)</div>
-                                    <div class="option" data-value="usdt-sol" tabindex="0">SOL (Solana)</div>
-                                    <div class="option" data-value="usdt-ton" tabindex="0">TON (The Open Network)</div>
+                                    <div class="option" data-value="usdt-eth" tabindex="0">ERC-20</div>
+                                    <div class="option" data-value="usdt-bnb" tabindex="0">BEP-20</div>
+                                    <div class="option" data-value="usdt-trc" tabindex="0">TRC-20</div>
+                                    <div class="option" data-value="usdt-sol" tabindex="0">SOL</div>
+                                    <div class="option" data-value="usdt-ton" tabindex="0">TON</div>
                                     <div class="option" data-value="usdt-arb" tabindex="0">Arbitrum One</div>
                                 </div>
                             </div>

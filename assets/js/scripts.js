@@ -466,10 +466,7 @@
         link.click();
       };
     }
-
-    // Keep your support flow
-    setTimeout(() => openModal("support"), 1500);
-  }
+}
 
   // =========================================================
   // 17) CONVERT/COMPRESS/RESIZE/MERGE PIPELINE (POST -> /api/convert)
@@ -494,18 +491,27 @@
       const mode = qs('input[name="comp-mode"]:checked')?.value || "auto";
 
       if (mode === "auto") {
-        const s = Number(qs("#compression-range")?.value || 4);
+      const s = Number(qs("#compression-range")?.value || 4);
 
         if (s <= 3) formData.append("Preset", "screen");
-        else if (s <= 6) formData.append("Preset", "ebook");
-        else formData.append("Preset", "printer");
+          else if (s <= 6) formData.append("Preset", "ebook");
+          else formData.append("Preset", "printer");
 
         if (type === "jpg/to/compress") formData.append("Quality", String(s * 10));
       } else {
-        // Keep simple (ConvertAPI handles presets better than manual target sizes)
-        formData.append("Preset", "screen");
+      // Target size mode (MB/KB)
+      const sizeVal = Number(qs("#target-size-input")?.value || 0);
+      const unit = (qs("#size-unit-dropdown .trigger-text")?.textContent || "MB").trim().toUpperCase();
+
+        if (!sizeVal || sizeVal <= 0) {
+          formData.append("Preset", "screen");
+        } else {
+          const sizeKb = unit === "MB" ? Math.round(sizeVal * 1024) : Math.round(sizeVal);
+          formData.append("MaxSize", String(sizeKb));
+          formData.append("Preset", "screen");
+        }
       }
-    }
+    } 
 
     // Resize
     if (appState.view === "resize") {

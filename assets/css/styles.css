@@ -133,7 +133,7 @@ body {
 
 /* Base typography */
 h1 {
-  font-size: 2.5rem;
+  font-size: 3rem;
   margin-bottom: 0.5rem;
   letter-spacing: -1px;
 }
@@ -344,6 +344,7 @@ label {
   border-radius: 12px;
   padding: 14px 20px;
   font-weight: 600;
+  margin-bottom: 20px;
   color: var(--text-main);
   transition: 0.3s;
 }
@@ -434,7 +435,7 @@ label {
 .input-group input,
 .simple-input {
   width: 100%;
-  padding: 12px;
+  padding: 14px 20px;
   background: var(--input-bg);
   border: 1px solid var(--input-border);
   border-radius: 10px;
@@ -455,25 +456,34 @@ label {
   grid-column: span 2;
 }
 
-/* Target size input + unit select */
-.input-with-unit {
+/* Target size row: input + select */
+#comp-target-settings .input-with-unit{
   display: flex;
   gap: 10px;
+  width: 100%;
+  align-items: stretch;
 }
 
-.input-with-unit input {
-  flex: 2;
-}
-
-.unit-select {
+/* e.g 2 input */
+#comp-target-settings .input-with-unit .simple-input{
   flex: 1;
-  padding: 0 10px;
+  min-width: 190px;
+  height: 48px;
+  padding: 0 14px;
+}
+
+/* MB/KB select */
+#comp-target-settings .input-with-unit .unit-select{
+  flex: 1;
+  height: 48px;
+  padding: 0 12px;
   border-radius: 10px;
   background: var(--input-bg);
   border: 1px solid var(--input-border);
   color: var(--text-main);
   font-weight: 600;
   outline: none;
+  appearance: none;
 }
 
 /* Radio cards (Auto / Target) */
@@ -612,17 +622,17 @@ label {
 /* Terms/Privacy consent row */
 .legal-consent {
   display: flex;
-  align-items: center;
   justify-content: center;
   gap: 10px;
+  margin-top: 20px;
   margin-bottom: 20px;
-  font-size: 0.9rem;
+  font-size: 1.5rem;
   color: var(--text-light);
 }
 
 .legal-consent input[type="checkbox"] {
-  width: 18px;
-  height: 18px;
+  width: 20px;
+  height: 20px;
   cursor: pointer;
   accent-color: var(--primary);
 }
@@ -693,8 +703,8 @@ label {
 /* Close button (top-right) */
 .close-btn {
   position: absolute;
-  top: 20px;
-  right: 20px;
+  top: 10px;
+  right: 10px;
   background: rgba(0, 0, 0, 0.05);
   border: none;
   width: 36px;
@@ -808,6 +818,7 @@ label {
 }
 
 .tab-btn.active {
+  font-size: 1.5rem;
   background: var(--card-bg);
   color: var(--primary);
   border-bottom-color: var(--primary);
@@ -1126,8 +1137,47 @@ label {
     display: none;
   }
 
+  /* Base typography */
+  h1 {
+    font-size: 2.5rem;
+  }
+
+  /* support header */
+  .support-header p {
+    font-size: 0.8rem;
+  }
+
   .menu-toggle {
     display: flex;
+  }
+
+  p {
+    font-size: 0.53rem;
+  }
+
+  /* upload zone */
+  .upload-zone h3 {
+    font-size: 1rem;
+  }
+
+  /* Buttons */
+  .btn-actions {
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .btn-actions button {
+    width: 100%;
+  }
+
+  .btn-glow {
+    font-size: 0.63rem;
+  }
+
+  /* e.g 2 input */
+  #comp-target-settings .input-with-unit .simple-input{
+    flex: 1;
+    min-width: 132px;
   }
 
   /* Footer stacks vertically on mobile */
@@ -1141,18 +1191,7 @@ label {
     justify-content: center;
   }
 
-  /* Buttons become full width */
-  .btn-actions {
-    flex-direction: column;
-    width: 100%;
-  }
-
-  .btn-actions button {
-    width: 100%;
-  }
-
-  /* Keep input + unit aligned */
-  .input-with-unit {
-    flex-direction: row;
+  .legal-links button {
+    font-size: 0.58rem;
   }
 }
