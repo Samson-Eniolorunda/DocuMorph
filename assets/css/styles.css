@@ -654,7 +654,6 @@ label {
   margin-bottom: 20px;
   font-size: 1.05rem;
   color: var(--text-light);
-  align-items: center;
 }
 
 .legal-consent input[type="checkbox"] {
