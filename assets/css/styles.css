@@ -1170,7 +1170,7 @@ label {
   }
 
   .btn-glow {
-    font-size: 0.7rem;
+    font-size: 0.65rem;
   }
 
   /* e.g 2 input */
@@ -1191,6 +1191,6 @@ label {
   }
 
   .legal-links button {
-    font-size: 0.58rem;
+    font-size: 0.9rem;
   }
 }
