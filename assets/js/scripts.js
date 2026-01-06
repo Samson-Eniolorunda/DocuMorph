@@ -20,12 +20,13 @@
   // 1) CONFIG
   // =========================================================
   const DAILY_LIMIT = 5;
+  const MAX_UPLOAD_MB = 50;
 
   // =========================================================
   // 2) APP STATE
   // =========================================================
   const appState = {
-    view: "convert",
+    view: "convert",       // convert | compress | resize | merge
     subTool: "word-to-pdf",
     files: [],
     resultUrl: null,
@@ -141,6 +142,29 @@
     return (el?.innerText || "").trim().toLowerCase();
   }
 
+  function clampFileSize(files) {
+    const maxBytes = MAX_UPLOAD_MB * 1024 * 1024;
+    const tooBig = files.find((f) => f.size > maxBytes);
+    if (tooBig) {
+      alert(`"${tooBig.name}" is above ${MAX_UPLOAD_MB}MB. Please upload a smaller file.`);
+      return false;
+    }
+    return true;
+  }
+
+  function normalizeImageExt(ext) {
+    const e = String(ext || "").toLowerCase();
+    if (e === "jpeg") return "jpg";
+    if (["jpg", "png", "webp", "tiff", "bmp"].includes(e)) return e;
+    return "jpg";
+  }
+
+  function getFileExt(file) {
+    const name = file?.name || "";
+    const parts = name.split(".");
+    return parts.length > 1 ? parts.pop().toLowerCase() : "";
+  }
+
   // =========================================================
   // 7) LEGAL CLICKWRAP
   // =========================================================
@@ -167,9 +191,7 @@
     try {
       data = JSON.parse(localStorage.getItem("documorph_usage")) || data;
       if (data.date !== today) data = { date: today, count: 0 };
-    } catch (_) {
-      // fail-open
-    }
+    } catch (_) {}
 
     return data;
   }
@@ -211,8 +233,12 @@
 
     resetApp();
 
+    // Pick default tool option inside the view, and set context
     const firstOption = views[viewName]?.querySelector(".option");
     updateContext(viewName, firstOption ? firstOption.getAttribute("data-value") : null);
+
+    // Ensure compress mode UI is correct on view switch
+    if (viewName === "compress") toggleCompMode();
   }
 
   // =========================================================
@@ -261,6 +287,14 @@
   // 12) TOOL CONTEXT (accept + label)
   // =========================================================
   function updateContext(view, val) {
+    // Default fallback per view
+    if (!val) {
+      if (view === "convert") val = "word-to-pdf";
+      if (view === "compress") val = "comp-pdf";
+      if (view === "resize") val = "resize-img";
+      if (view === "merge") val = "merge-pdf";
+    }
+
     appState.subTool = val;
 
     let accept = "*";
@@ -293,7 +327,8 @@
           limitText = "PNG Images";
           break;
         default:
-          break;
+          accept = "*";
+          limitText = "Files";
       }
     } else if (view === "compress") {
       if (val === "comp-pdf") {
@@ -312,7 +347,7 @@
     }
 
     if (fileInput) fileInput.setAttribute("accept", accept);
-    if (fileLimits) fileLimits.innerText = `Supported: ${limitText} • Max 50MB`;
+    if (fileLimits) fileLimits.innerText = `Supported: ${limitText} • Max ${MAX_UPLOAD_MB}MB`;
   }
 
   // =========================================================
@@ -349,8 +384,20 @@
   }
 
   function handleFiles(fileList) {
-    appState.files = Array.from(fileList || []);
-    if (!appState.files.length) return;
+    const files = Array.from(fileList || []);
+    if (!files.length) return;
+
+    if (!clampFileSize(files)) {
+      if (fileInput) fileInput.value = "";
+      return;
+    }
+
+    // Merge should allow multiple, others use only first file
+    if (appState.view !== "merge") {
+      appState.files = [files[0]];
+    } else {
+      appState.files = files;
+    }
 
     dropZone?.classList.add("hidden");
     uploadUI?.classList.remove("hidden");
@@ -430,7 +477,7 @@
 
   function updateRangeLabel() {
     const labels = ["Smallest", "Small", "Compact", "Balanced", "Balanced", "Better", "Good", "Great", "Best Quality"];
-    const v = Number(qs("#compression-range")?.value || 4);
+    const v = Number(qs("#compression-range")?.value || 5);
     const out = qs("#compression-text");
     if (out) out.innerText = labels[v - 1] || "Balanced";
   }
@@ -466,16 +513,18 @@
         link.click();
       };
     }
-}
+  }
 
   // =========================================================
   // 17) CONVERT/COMPRESS/RESIZE/MERGE PIPELINE (POST -> /api/convert)
   // =========================================================
   function resolveConvertTypeAndParams(formData, file) {
-    const ext = file.name.split(".").pop().toLowerCase();
+    const ext = getFileExt(file);
     let type = "";
 
+    // -------------------------
     // Convert
+    // -------------------------
     if (appState.view === "convert") {
       if (appState.subTool === "word-to-pdf") type = ext === "doc" ? "doc/to/pdf" : "docx/to/pdf";
       else if (appState.subTool === "pdf-to-word") type = "pdf/to/docx";
@@ -485,54 +534,87 @@
       else if (appState.subTool === "png-to-jpg") type = "png/to/jpg";
     }
 
+    // -------------------------
     // Compress
+    // -------------------------
     if (appState.view === "compress") {
-      type = appState.subTool === "comp-pdf" ? "pdf/to/compress" : "jpg/to/compress";
       const mode = qs('input[name="comp-mode"]:checked')?.value || "auto";
 
-      if (mode === "auto") {
-      const s = Number(qs("#compression-range")?.value || 4);
+      if (appState.subTool === "comp-pdf") {
+        type = "pdf/to/compress";
 
-        if (s <= 3) formData.append("Preset", "screen");
+        // Use slider presets (best-effort) for PDF
+        if (mode === "auto") {
+          const s = Number(qs("#compression-range")?.value || 5);
+          // Keep your original feel: map to presets
+          if (s <= 3) formData.append("Preset", "screen");
           else if (s <= 6) formData.append("Preset", "ebook");
           else formData.append("Preset", "printer");
-
-        if (type === "jpg/to/compress") formData.append("Quality", String(s * 10));
-      } else {
-      // Target size mode (MB/KB)
-      const sizeVal = Number(qs("#target-size-input")?.value || 0);
-      const unit = (qs("#size-unit-dropdown .trigger-text")?.textContent || "MB").trim().toUpperCase();
-
-        if (!sizeVal || sizeVal <= 0) {
-          formData.append("Preset", "screen");
         } else {
-          const sizeKb = unit === "MB" ? Math.round(sizeVal * 1024) : Math.round(sizeVal);
-          formData.append("MaxSize", String(sizeKb));
+          // PDF "exact target size" is not reliable via preset-only flows,
+          // so we still use a preset fallback to avoid 404/bad params.
+          formData.append("Preset", "ebook");
+        }
+      } else {
+        // Image compress — MUST match actual extension (png/to/compress etc.)
+        const imgExt = normalizeImageExt(ext);
+        type = `${imgExt}/to/compress`;
+
+        if (mode === "auto") {
+          const s = Number(qs("#compression-range")?.value || 5);
+          // For JPG compress quality can help; for other types ConvertAPI may ignore.
+          if (imgExt === "jpg") {
+            formData.append("Quality", String(Math.max(10, Math.min(95, s * 10))));
+          }
+          // Also keep a sensible preset fallback
+          if (s <= 3) formData.append("Preset", "screen");
+          else if (s <= 6) formData.append("Preset", "ebook");
+          else formData.append("Preset", "printer");
+        } else {
+          const sizeVal = Number(qs("#target-size-input")?.value || 0);
+          const unit = (qs("#size-unit-dropdown .trigger-text")?.textContent || "MB").trim().toUpperCase();
+
+          if (sizeVal > 0) {
+            const sizeKb = unit === "MB" ? Math.round(sizeVal * 1024) : Math.round(sizeVal);
+            // Best-effort target size param (works well for JPG; may be ignored for others)
+            formData.append("CompressionFileSize", String(sizeKb));
+          }
+
           formData.append("Preset", "screen");
         }
       }
-    } 
+    }
 
+    // -------------------------
     // Resize
+    // -------------------------
     if (appState.view === "resize") {
-      type = "jpg/to/jpg";
+      const imgExt = normalizeImageExt(ext);
+      type = `${imgExt}/to/${imgExt}`;
 
-      const w = qs("#resize-w")?.value;
-      const h = qs("#resize-h")?.value;
+      const w = (qs("#resize-w")?.value || "").trim();
+      const h = (qs("#resize-h")?.value || "").trim();
 
       if (w) formData.append("ImageWidth", w);
       if (h) formData.append("ImageHeight", h);
 
+      // Only use scale if width/height not provided
       if (!w && !h) {
-        const label = qs("#resize-scale-dropdown .trigger-text")?.innerText || "";
+        const label = (qs("#resize-scale-dropdown .trigger-text")?.innerText || "").trim();
         if (label.includes("75")) formData.append("ScaleImage", "75");
         else if (label.includes("50")) formData.append("ScaleImage", "50");
         else if (label.includes("25")) formData.append("ScaleImage", "25");
+        // 100% (Original) -> send nothing
       }
     }
 
+    // -------------------------
     // Merge
-    if (appState.view === "merge") type = "pdf/to/merge";
+    // -------------------------
+    if (appState.view === "merge") {
+      // Your merge dropdown uses data-value="merge-pdf"
+      type = "pdf/to/merge";
+    }
 
     return type;
   }
@@ -555,6 +637,7 @@
     }
 
     const type = resolveConvertTypeAndParams(formData, first);
+
     if (!type) {
       alert("Tool type not recognized. Please reselect your tool.");
       resetApp();
@@ -573,6 +656,8 @@
 
     xhr.onload = () => {
       if (xhr.status !== 200) {
+        // ConvertAPI returns 404 when "type" route doesn't exist for the file,
+        // or when parameters are invalid for that endpoint.
         alert("Failed: " + xhr.status);
         resetApp();
         return;
@@ -640,7 +725,9 @@
           const val = opt.getAttribute("data-value");
           if (!val) return;
 
-          // Support coin dropdown
+          // -------------------------
+          // SUPPORT DROPDOWNS (do not touch tool context)
+          // -------------------------
           if (dd.id === "crypto-dropdown") {
             if (triggerText) triggerText.innerHTML = opt.innerHTML;
 
@@ -652,24 +739,49 @@
               usdtGroup?.classList.add("hidden");
               updateWalletDisplay(val);
             }
+
+            dd.classList.remove("open");
+            dd.focus();
+            return;
           }
-          // USDT network dropdown
-          else if (dd.id === "network-dropdown") {
+
+          if (dd.id === "network-dropdown") {
             if (triggerText) triggerText.innerHTML = opt.innerHTML;
             updateWalletDisplay(val);
+
+            dd.classList.remove("open");
+            dd.focus();
+            return;
           }
-          // Tool dropdowns (convert/compress/merge)
-          else if (dd.id !== "resize-scale-dropdown") {
+
+          // MB/KB dropdown (unit only; do not call updateContext)
+          if (dd.id === "size-unit-dropdown") {
+            if (triggerText) triggerText.textContent = val; // MB / KB
+            dd.classList.remove("open");
+            dd.focus();
+            return;
+          }
+
+          // -------------------------
+          // TOOL DROPDOWNS
+          // -------------------------
+          if (dd.id === "resize-scale-dropdown") {
+            // UI-only scale selection
             if (triggerText) triggerText.innerHTML = opt.innerHTML;
-            updateContext(appState.view, val);
+            dd.classList.remove("open");
+            dd.focus();
+            return;
           }
-          // Resize scale dropdown is UI-only
-          else {
-            if (triggerText) triggerText.innerHTML = opt.innerHTML;
-          }
+
+          // convert-dropdown | compress-dropdown | merge-dropdown
+          if (triggerText) triggerText.innerHTML = opt.innerHTML;
+          updateContext(appState.view, val);
 
           dd.classList.remove("open");
           dd.focus();
+
+          // Ensure compress mode UI stays correct
+          if (appState.view === "compress") toggleCompMode();
         };
 
         opt.addEventListener("click", (e) => {
@@ -755,15 +867,12 @@
 
     if (!value || value === "Loading...") return;
 
-    // Clipboard
     navigator.clipboard?.writeText(value).catch(() => {
-      // Fallback (older browsers)
       walletInput.select();
       walletInput.setSelectionRange(0, 99999);
       document.execCommand("copy");
     });
 
-    // UI feedback
     if (copyFeedback) {
       copyFeedback.classList.add("visible");
       setTimeout(() => copyFeedback.classList.remove("visible"), 2000);

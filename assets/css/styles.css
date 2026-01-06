@@ -140,6 +140,7 @@ h1 {
 
 p {
   color: var(--text-light);
+  margin-bottom: 10px;
 }
 
 /* Utility: hide elements (used heavily by JS view toggles) */
@@ -319,7 +320,7 @@ p {
 
 /* Labels */
 label {
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   font-weight: 700;
   display: block;
   margin-bottom: 10px;
