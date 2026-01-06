@@ -1,8 +1,10 @@
 /* ==========================================================================
-   DOCUMORPH - MAIN STYLESHEET
-   Purpose: Core styling for the DocuMorph UI (navbar, tool panels, forms,
-   upload/progress states, modals, footer, and responsive behavior).
-   Notes: Uses CSS variables for theme tokens + prefers-color-scheme for dark mode.
+   DOCUMORPH - MAIN STYLESHEET (FULL)
+   Purpose: Core styling for DocuMorph UI (navbar, panels, forms, upload flow,
+   progress states, modals, footer, responsive behavior).
+   Notes:
+   - Uses CSS variables for theme tokens + prefers-color-scheme for dark mode.
+   - Includes inline drop-zone error message + shake animation for rejections.
    ========================================================================== */
 
 /* ==========================================================================
@@ -143,7 +145,11 @@ p {
   margin-bottom: 10px;
 }
 
-/* Utility: hide elements (used heavily by JS view toggles) */
+a {
+  color: inherit;
+}
+
+/* Utility: hide elements (used heavily by JS view toggles + UI states) */
 .hidden {
   display: none !important;
 }
@@ -159,7 +165,6 @@ p {
   flex-grow: 1;
 }
 
-/* Glass main panel card */
 .glass-card {
   background: var(--glass-bg);
   backdrop-filter: blur(25px);
@@ -169,6 +174,16 @@ p {
   text-align: center;
   border: var(--glass-border);
   min-height: 500px;
+}
+
+/* View headers */
+.header-content {
+  text-align: center;
+  margin-bottom: 10px;
+}
+
+.header-content p {
+  margin-bottom: 0;
 }
 
 /* ==========================================================================
@@ -187,7 +202,6 @@ p {
   z-index: 100;
 }
 
-/* Brand / Logo */
 .logo {
   font-size: 1.5rem;
   font-weight: 800;
@@ -201,7 +215,7 @@ p {
 }
 
 .logo:hover {
-  opacity: 0.8;
+  opacity: 0.85;
 }
 
 .logo-icon {
@@ -258,7 +272,6 @@ p {
   transform-origin: left;
 }
 
-/* Hamburger -> X animation (JS toggles .open) */
 .menu-toggle.open span:nth-child(1) {
   transform: rotate(45deg);
 }
@@ -290,7 +303,6 @@ p {
   gap: 2rem;
 }
 
-/* JS toggles .active to open the mobile menu */
 .mobile-menu.active {
   height: 100vh;
 }
@@ -305,11 +317,19 @@ p {
   transition: 0.2s;
 }
 
+.mob-btn:hover {
+  color: var(--primary);
+  transform: translateY(-2px);
+}
+
+/* Optional highlight class used for donate/feedback items */
+.mob-btn.support-highlight {
+  color: var(--primary);
+}
+
 /* ==========================================================================
    5) FORMS / INPUTS / DROPDOWNS
    ========================================================================== */
-
-/* General form blocks */
 .tool-wrapper,
 .settings-box {
   margin-top: 2rem;
@@ -318,7 +338,6 @@ p {
   margin: 2rem auto 0;
 }
 
-/* Labels */
 label {
   font-size: 0.8rem;
   font-weight: 700;
@@ -335,7 +354,6 @@ label {
   outline: none;
 }
 
-/* Selected row / trigger */
 .select-trigger {
   display: flex;
   justify-content: space-between;
@@ -350,13 +368,11 @@ label {
   transition: 0.3s;
 }
 
-/* Focus ring (keyboard accessibility) */
 .custom-select:focus .select-trigger {
   border-color: var(--primary);
   box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
 }
 
-/* Dropdown list container */
 .options-container {
   position: absolute;
   top: 100%;
@@ -378,7 +394,6 @@ label {
   overflow-y: auto;
 }
 
-/* Dropdown scrollbar */
 .options-container::-webkit-scrollbar {
   width: 6px;
 }
@@ -388,14 +403,12 @@ label {
   border-radius: 3px;
 }
 
-/* Open state */
 .custom-select.open .options-container {
   opacity: 1;
   pointer-events: all;
   transform: translateY(10px);
 }
 
-/* Dropdown option row */
 .option {
   padding: 12px 15px;
   border-radius: 8px;
@@ -414,7 +427,6 @@ label {
   color: #ffffff;
 }
 
-/* Icons in options */
 .option i,
 .coin-icon {
   width: 20px;
@@ -424,7 +436,6 @@ label {
   vertical-align: middle;
 }
 
-/* Icon color inversion on hover/focus */
 .option:hover i,
 .option:hover .coin-icon,
 .option:focus .coin-icon {
@@ -434,7 +445,10 @@ label {
 
 /* Standard inputs */
 .input-group input,
-.simple-input {
+.simple-input,
+.request-form input,
+.request-form textarea,
+.request-form select {
   width: 100%;
   padding: 14px 20px;
   background: var(--input-bg);
@@ -442,6 +456,7 @@ label {
   border-radius: 10px;
   outline: none;
   color: var(--text-main);
+  font-family: inherit;
 }
 
 /* Resize layout */
@@ -458,33 +473,18 @@ label {
 }
 
 /* Target size row: input + select */
-#comp-target-settings .input-with-unit{
+#comp-target-settings .input-with-unit {
   display: flex;
   gap: 10px;
   width: 100%;
   align-items: stretch;
 }
 
-/* e.g 2 input */
-#comp-target-settings .input-with-unit .simple-input{
+#comp-target-settings .input-with-unit .simple-input {
   flex: 1;
   min-width: 190px;
   height: 48px;
   padding: 0 14px;
-}
-
-/* MB/KB select */
-#comp-target-settings .input-with-unit .unit-select{
-  flex: 1;
-  height: 48px;
-  padding: 0 12px;
-  border-radius: 10px;
-  background: var(--input-bg);
-  border: 1px solid var(--input-border);
-  color: var(--text-main);
-  font-weight: 600;
-  outline: none;
-  appearance: none;
 }
 
 /* Radio cards (Auto / Target) */
@@ -549,7 +549,7 @@ label {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 1.5rem;
+  gap: 1.1rem;
 }
 
 .upload-zone:hover {
@@ -565,6 +565,33 @@ label {
 
 .upload-zone h3 {
   margin: 0;
+}
+
+.meta-text {
+  font-size: 0.9rem;
+  color: var(--text-light);
+}
+
+/* Inline drop error (Best UX: inside drop zone) */
+.drop-error {
+  margin-top: 10px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #ef4444;
+  text-align: center;
+}
+
+/* Shake animation for rejected files */
+@keyframes dmShake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-6px); }
+  40% { transform: translateX(6px); }
+  60% { transform: translateX(-4px); }
+  80% { transform: translateX(4px); }
+}
+
+.upload-zone.shake {
+  animation: dmShake 0.35s ease;
 }
 
 /* Primary button */
@@ -610,7 +637,6 @@ label {
   flex-wrap: wrap;
 }
 
-/* Disabled state (used for "Start Conversion") */
 .btn-glow.disabled {
   background: #cbd5e1;
   cursor: not-allowed;
@@ -619,15 +645,16 @@ label {
   opacity: 0.7;
 }
 
-/* Terms/Privacy consent row */
+/* Consent row */
 .legal-consent {
   display: flex;
   justify-content: center;
   gap: 10px;
   margin-top: 20px;
   margin-bottom: 20px;
-  font-size: 1.5rem;
+  font-size: 1.05rem;
   color: var(--text-light);
+  align-items: center;
 }
 
 .legal-consent input[type="checkbox"] {
@@ -644,7 +671,76 @@ label {
 }
 
 /* ==========================================================================
-   7) MODALS
+   7) PROCESS / READY / SUCCESS UI
+   ========================================================================== */
+.process-ui,
+.ready-ui,
+.success-ui {
+  margin-top: 2.5rem;
+  animation: fadeIn 0.3s ease;
+}
+
+.file-card {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 1rem 1.2rem;
+  border-radius: 14px;
+  background: var(--card-bg);
+  border: 1px solid var(--input-border);
+  max-width: 520px;
+  margin: 0 auto 1rem;
+}
+
+.file-icon {
+  font-size: 1.6rem;
+  color: var(--primary);
+}
+
+.file-info {
+  text-align: left;
+}
+
+.file-info h3 {
+  margin: 0;
+  font-size: 1.05rem;
+  color: var(--text-main);
+}
+
+.file-info p {
+  margin: 0.2rem 0 0;
+  font-size: 0.9rem;
+}
+
+/* Success check circle */
+.check-circle {
+  width: 70px;
+  height: 70px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 1rem;
+  background: rgba(16, 185, 129, 0.12);
+  border: 2px solid rgba(16, 185, 129, 0.35);
+  color: #10b981;
+  font-size: 1.8rem;
+}
+
+.success-ui h2 {
+  margin-bottom: 0.2rem;
+}
+
+.highlight-text {
+  font-weight: 800;
+  color: var(--primary);
+  text-align: center;
+  margin: 6px 0 0;
+}
+
+/* ==========================================================================
+   8) MODALS
    ========================================================================== */
 .modal {
   position: fixed;
@@ -659,14 +755,12 @@ label {
   transition: 0.3s;
 }
 
-/* Hidden modal state (JS toggles .hidden on the container) */
 .modal.hidden {
   opacity: 0;
   visibility: hidden;
   pointer-events: none;
 }
 
-/* Dark overlay behind modal */
 .modal-overlay {
   position: absolute;
   inset: 0;
@@ -676,7 +770,6 @@ label {
   backdrop-filter: blur(8px);
 }
 
-/* Modal panel */
 .modal-content {
   background: var(--card-bg);
   width: 95%;
@@ -695,12 +788,10 @@ label {
   max-height: 90vh;
 }
 
-/* Entry/exit motion for modal panel */
 .modal.hidden .modal-content {
   transform: translateY(30px) scale(0.95);
 }
 
-/* Close button (top-right) */
 .close-btn {
   position: absolute;
   top: 10px;
@@ -724,7 +815,6 @@ label {
   color: #ef4444;
 }
 
-/* Modal header (title area) */
 .modal-header {
   background: linear-gradient(135deg, #f8fafc 0%, #eff6ff 100%);
   padding: 2rem 2rem 1.5rem;
@@ -745,7 +835,6 @@ label {
   color: var(--text-main);
 }
 
-/* Modal content wrapper */
 .modal-body {
   display: flex;
   flex-direction: column;
@@ -753,7 +842,6 @@ label {
   flex: 1;
 }
 
-/* Modal scrollbar */
 .modal-body::-webkit-scrollbar {
   width: 6px;
 }
@@ -763,7 +851,6 @@ label {
   border-radius: 3px;
 }
 
-/* Generic scrollable content */
 .scroll-box {
   padding: 2rem;
   text-align: left;
@@ -772,7 +859,18 @@ label {
   color: var(--text-light);
 }
 
-/* Styled bullet list (if used inside modals) */
+/* Headings inside modals */
+.scroll-box h3 {
+  color: var(--text-main);
+  margin-top: 1.2rem;
+  margin-bottom: 0.4rem;
+}
+
+.scroll-box p {
+  margin-bottom: 0.8rem;
+}
+
+/* Styled list (optional) */
 .styled-list {
   list-style: none;
   padding: 0;
@@ -810,7 +908,7 @@ label {
   padding: 1rem;
   border: none;
   background: transparent;
-  font-weight: 600;
+  font-weight: 700;
   color: var(--text-light);
   cursor: pointer;
   border-bottom: 2px solid transparent;
@@ -818,7 +916,7 @@ label {
 }
 
 .tab-btn.active {
-  font-size: 1.5rem;
+  font-size: 1.1rem;
   background: var(--card-bg);
   color: var(--primary);
   border-bottom-color: var(--primary);
@@ -863,6 +961,23 @@ label {
   display: flex;
   flex-direction: column;
   align-items: center;
+}
+
+/* QR code display */
+.qr-box {
+  margin-bottom: 15px;
+  text-align: center;
+  background: #ffffff;
+  padding: 10px;
+  border-radius: 12px;
+  display: inline-block;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+}
+
+.qr-box img {
+  width: 140px;
+  height: 140px;
+  display: block;
 }
 
 /* Wallet address + copy UI */
@@ -915,24 +1030,7 @@ label {
   opacity: 1;
 }
 
-/* QR code display */
-.qr-box {
-  margin-bottom: 15px;
-  text-align: center;
-  background: #ffffff;
-  padding: 10px;
-  border-radius: 12px;
-  display: inline-block;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
-}
-
-.qr-box img {
-  width: 140px;
-  height: 140px;
-  display: block;
-}
-
-/* Feature request form controls */
+/* Feature/Feedback form controls */
 .request-form .form-group {
   margin-bottom: 1rem;
   text-align: left;
@@ -941,25 +1039,17 @@ label {
 .request-form label {
   display: block;
   font-size: 0.85rem;
-  font-weight: 700;
+  font-weight: 800;
   margin-bottom: 5px;
   color: var(--text-main);
 }
 
-.request-form input,
-.request-form textarea,
-.request-form select {
-  width: 100%;
-  padding: 10px;
-  border: 1px solid var(--input-border);
-  border-radius: 8px;
-  background: var(--bg-body);
-  color: var(--text-main);
-  font-family: inherit;
-  outline: none;
+.request-form textarea {
+  resize: vertical;
+  min-height: 120px;
 }
 
-/* Custom dropdown arrow for select */
+/* Custom dropdown arrow for native select */
 .request-form select {
   appearance: none;
   background-image: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%2364748b%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E");
@@ -968,7 +1058,7 @@ label {
   background-size: 0.65rem auto;
 }
 
-/* Utility for full width elements (buttons, blocks) */
+/* Utility: full width */
 .full-width {
   width: 100%;
   display: block;
@@ -977,7 +1067,7 @@ label {
 }
 
 /* ==========================================================================
-   8) FOOTER
+   9) FOOTER
    ========================================================================== */
 .site-footer {
   background: #ffffff;
@@ -992,11 +1082,17 @@ label {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 20px;
+}
+
+.footer-left {
+  display: flex;
+  flex-direction: column;
 }
 
 .copyright {
   font-size: 0.9rem;
-  font-weight: 600;
+  font-weight: 700;
   color: var(--text-main);
   margin-bottom: 5px;
 }
@@ -1026,7 +1122,7 @@ label {
 
 .support-link {
   color: var(--primary) !important;
-  font-weight: 700;
+  font-weight: 800;
   text-decoration: none !important;
 }
 
@@ -1042,7 +1138,7 @@ label {
 
 .attribution a {
   color: var(--primary);
-  font-weight: 600;
+  font-weight: 700;
   text-decoration: none;
 }
 
@@ -1063,7 +1159,7 @@ label {
 }
 
 /* ==========================================================================
-   9) PROGRESS / LOADERS
+   10) PROGRESS / LOADERS
    ========================================================================== */
 .loader-ring {
   width: 60px;
@@ -1075,14 +1171,12 @@ label {
   animation: spin 1s linear infinite;
 }
 
-/* Smaller loader variant */
-.simple {
+.loader-ring.simple {
   width: 40px;
   height: 40px;
   border-width: 4px;
 }
 
-/* Progress bar */
 .progress-track {
   width: 100%;
   height: 8px;
@@ -1099,17 +1193,17 @@ label {
   transition: width 0.3s;
 }
 
-/* Percent labels */
 #progress-percent,
-#upload-percent {
-  font-weight: 700;
+#upload-percent,
+#process-percent {
+  font-weight: 800;
   color: var(--primary);
   margin-bottom: 10px;
   font-size: 1.1rem;
 }
 
 /* ==========================================================================
-   10) ANIMATIONS
+   11) ANIMATIONS
    ========================================================================== */
 @keyframes spin {
   100% {
@@ -1129,38 +1223,33 @@ label {
 }
 
 /* ==========================================================================
-   11) RESPONSIVE (MOBILE)
+   12) RESPONSIVE (MOBILE)
    ========================================================================== */
 @media (max-width: 768px) {
-  /* Hide desktop nav and show hamburger */
   .desktop-only {
     display: none;
-  }
-
-  /* Base typography */
-  h1 {
-    font-size: 2.5rem;
-  }
-
-  /* support header */
-  .support-header p {
-    font-size: 0.8rem;
   }
 
   .menu-toggle {
     display: flex;
   }
 
-  p {
-    font-size: 0.7rem;
+  h1 {
+    font-size: 2.5rem;
   }
 
-  /* upload zone */
+  p {
+    font-size: 0.75rem;
+  }
+
+  .upload-zone {
+    padding: 2.2rem 1.5rem;
+  }
+
   .upload-zone h3 {
     font-size: 1rem;
   }
 
-  /* Buttons */
   .btn-actions {
     flex-direction: column;
     width: 100%;
@@ -1171,16 +1260,17 @@ label {
   }
 
   .btn-glow {
-    font-size: 0.65rem;
+    font-size: 0.8rem;
   }
 
-  /* e.g 2 input */
-  #comp-target-settings .input-with-unit .simple-input{
-    flex: 1;
+  #comp-target-settings .input-with-unit .simple-input {
     min-width: 132px;
   }
 
-  /* Footer stacks vertically on mobile */
+  .support-header p {
+    font-size: 0.8rem;
+  }
+
   .footer-content {
     flex-direction: column;
     gap: 20px;

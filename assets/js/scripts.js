@@ -2,15 +2,11 @@
    DocuMorph — Main Frontend Logic (scripts.js)
    Author: Samson Eniolorunda
    ---------------------------------------------------------
-   Purpose:
-   - Runs the DocuMorph UI (Convert / Compress / Resize / Merge).
-   - Handles file selection + drag & drop, progress UI, and downloads.
-   - Enforces a daily usage limit via localStorage.
-   - Uses your Vercel API routes:
-     1) /api/convert  (ConvertAPI proxy)
-     2) /api/wallets  (wallet address loader)
-     3) /api/form     (feature request form proxy)
-   - Support/Donate is COPY-ONLY for all coins (no wallet connect).
+   Updated:
+   - Feedback menu label + modal title: "Feedback" / "Feedback & Requests"
+   - Strict "supported file only" validation for BOTH choose-file + drag-drop
+   - Inline drop-zone error text + escalation modal on repeated mistakes
+   - Resize Scale % fixed (no 404): reads original size in browser and sends px
    ========================================================= */
 
 (() => {
@@ -22,14 +18,20 @@
   const DAILY_LIMIT = 5;
   const MAX_UPLOAD_MB = 50;
 
+  // Error escalation
+  const REJECT_ESCALATE_COUNT = 3;     // show modal after repeated invalid attempts
+  const MULTI_REJECT_ESCALATE = 2;     // show modal when multiple files rejected at once
+
   // =========================================================
   // 2) APP STATE
   // =========================================================
   const appState = {
-    view: "convert",       // convert | compress | resize | merge
+    view: "convert", // convert | compress | resize | merge
     subTool: "word-to-pdf",
     files: [],
     resultUrl: null,
+
+    rejectCount: 0, // repeated invalid attempts
   };
 
   // Wallet addresses returned from /api/wallets
@@ -69,6 +71,7 @@
   const fileInput = qs("#file-input");
   const fileLimits = qs("#file-limits");
   const fileNameDisplay = qs("#file-name-display");
+  const dropError = qs("#drop-error"); // inline message inside drop zone
 
   const uploadUI = qs("#upload-ui");
   const readyUI = qs("#ready-ui");
@@ -104,23 +107,19 @@
   initFileInputs();
   updateContext("convert", "word-to-pdf");
   fetchSecureWallets();
-
-  // Set initial compression label + mode UI (if user loads on compress section via hash etc.)
   updateRangeLabel();
   toggleCompMode();
 
-  // Footer year
   const yearEl = qs("#year");
   if (yearEl) yearEl.textContent = String(new Date().getFullYear());
 
-  // Ensure support button is copy-only
   if (connectBtn) {
     connectBtn.innerHTML = '<i class="fa-solid fa-copy"></i> Copy Address';
     connectBtn.onclick = copyWallet;
   }
 
   // =========================================================
-  // 5) EXPOSED HANDLERS (used by inline onclick in HTML)
+  // 5) EXPOSED HANDLERS (inline onclick in HTML)
   // =========================================================
   window.switchView = switchView;
   window.toggleMenu = toggleMenu;
@@ -156,7 +155,6 @@
     const e = String(ext || "").toLowerCase();
     if (e === "jpeg") return "jpg";
     if (["jpg", "png", "webp", "tiff", "bmp"].includes(e)) return e;
-    // If unknown image ext, default to jpg (ConvertAPI still needs a route)
     return "jpg";
   }
 
@@ -164,13 +162,13 @@
     const maxBytes = MAX_UPLOAD_MB * 1024 * 1024;
     const tooBig = files.find((f) => f.size > maxBytes);
     if (tooBig) {
-      alert(`"${tooBig.name}" is above ${MAX_UPLOAD_MB}MB. Please upload a smaller file.`);
+      showInlineDropError(`"${tooBig.name}" is above ${MAX_UPLOAD_MB}MB. Please upload a smaller file.`);
       return false;
     }
     return true;
   }
 
-  // Read original image dimensions locally in the browser
+  // read original image dimensions locally in browser (you asked who reads it: the website/browser does)
   function getImageDimensions(file) {
     return new Promise((resolve, reject) => {
       try {
@@ -199,14 +197,78 @@
 
   function getSelectedScalePercent() {
     const label = (qs("#resize-scale-dropdown .trigger-text")?.innerText || "").trim();
-    // Your labels contain 75% / 50% / 25% / 100%
     if (label.includes("75")) return 75;
     if (label.includes("50")) return 50;
     if (label.includes("25")) return 25;
     if (label.includes("100")) return 100;
-    // If user never touched it, your UI shows "Original (100%)"
-    // But just in case:
     return 100;
+  }
+
+  function showInlineDropError(message) {
+    if (!dropZone) return;
+
+    if (dropError) {
+      dropError.classList.remove("hidden");
+      dropError.textContent = message;
+    }
+
+    // shake feedback
+    dropZone.classList.remove("shake");
+    // force reflow so animation restarts
+    // eslint-disable-next-line no-unused-expressions
+    dropZone.offsetHeight;
+    dropZone.classList.add("shake");
+
+    // auto-hide after a bit
+    setTimeout(() => {
+      dropError?.classList.add("hidden");
+      if (dropError) dropError.textContent = "";
+    }, 3500);
+  }
+
+  function escalateIfNeeded(rejectedCount = 1) {
+    appState.rejectCount += 1;
+
+    if (rejectedCount >= MULTI_REJECT_ESCALATE || appState.rejectCount >= REJECT_ESCALATE_COUNT) {
+      // Use your existing modal system - show Feedback modal to report/learn
+      openModal("feedback");
+    }
+  }
+
+  function isTypeAllowed(file) {
+    if (!file) return false;
+
+    // accept attribute is our single source of truth
+    const accept = (fileInput?.getAttribute("accept") || "*").trim();
+    if (!accept || accept === "*") return true;
+
+    const ext = getFileExt(file);
+    const mime = (file.type || "").toLowerCase();
+
+    const rules = accept
+      .split(",")
+      .map((s) => s.trim().toLowerCase())
+      .filter(Boolean);
+
+    // handle patterns: ".pdf", "image/*", "image/png", "image/jpeg"
+    return rules.some((r) => {
+      if (r === "image/*") return mime.startsWith("image/");
+      if (r.startsWith(".")) return `.${ext}` === r;
+      // mime exact
+      return mime === r;
+    });
+  }
+
+  function filterSupportedFiles(files) {
+    const supported = [];
+    const rejected = [];
+
+    files.forEach((f) => {
+      if (isTypeAllowed(f)) supported.push(f);
+      else rejected.push(f);
+    });
+
+    return { supported, rejected };
   }
 
   // =========================================================
@@ -277,7 +339,6 @@
 
     resetApp();
 
-    // Default tool inside the view
     const firstOption = views[viewName]?.querySelector(".option");
     updateContext(viewName, firstOption ? firstOption.getAttribute("data-value") : null);
 
@@ -319,7 +380,7 @@
       });
 
       if (r.ok) {
-        setText(status, "Thanks! Request sent.");
+        setText(status, "Thanks! Message sent.");
         e.target.reset();
       } else {
         setText(status, "Oops! Server error.");
@@ -333,7 +394,6 @@
   // 12) TOOL CONTEXT (accept + label)
   // =========================================================
   function updateContext(view, val) {
-    // Default fallback per view
     if (!val) {
       if (view === "convert") val = "word-to-pdf";
       if (view === "compress") val = "comp-pdf";
@@ -394,6 +454,10 @@
 
     if (fileInput) fileInput.setAttribute("accept", accept);
     if (fileLimits) fileLimits.innerText = `Supported: ${limitText} • Max ${MAX_UPLOAD_MB}MB`;
+
+    // clear old error
+    dropError?.classList.add("hidden");
+    if (dropError) dropError.textContent = "";
   }
 
   // =========================================================
@@ -402,7 +466,21 @@
   function initFileInputs() {
     if (fileInput) {
       fileInput.addEventListener("change", () => {
-        if (fileInput.files?.length) handleFiles(fileInput.files);
+        const chosen = Array.from(fileInput.files || []);
+        if (!chosen.length) return;
+
+        // CHOOSE FILE: strictly enforce supported ONLY
+        const { supported, rejected } = filterSupportedFiles(chosen);
+
+        if (rejected.length) {
+          // On choose-file, browsers may still allow; we hard-reject and reset input
+          showInlineDropError(`Not supported: ${rejected.map((f) => f.name).join(", ")}`);
+          escalateIfNeeded(rejected.length);
+          fileInput.value = "";
+          return;
+        }
+
+        handleFiles(supported, { source: "choose" });
       });
     }
 
@@ -424,22 +502,36 @@
         dropZone.style.borderColor = "#cbd5e1";
         dropZone.style.background = "rgba(255,255,255,0.6)";
 
-        if (e.dataTransfer?.files?.length) handleFiles(e.dataTransfer.files);
+        const dropped = Array.from(e.dataTransfer?.files || []);
+        if (!dropped.length) return;
+
+        // DRAG & DROP: show inline "not supported" for rejected; keep supported (if any)
+        const { supported, rejected } = filterSupportedFiles(dropped);
+
+        if (rejected.length) {
+          showInlineDropError(`Not supported: ${rejected.map((f) => f.name).join(", ")}`);
+          escalateIfNeeded(rejected.length);
+        }
+
+        if (!supported.length) return;
+
+        handleFiles(supported, { source: "drop" });
       });
     }
   }
 
-  function handleFiles(fileList) {
-    const files = Array.from(fileList || []);
+  function handleFiles(files, meta = { source: "drop" }) {
     if (!files.length) return;
 
     if (!clampFileSize(files)) {
       if (fileInput) fileInput.value = "";
+      escalateIfNeeded(1);
       return;
     }
 
-    // Merge allows multiple; others use only first
+    // Merge allows multiple; others use first only
     appState.files = appState.view === "merge" ? files : [files[0]];
+    appState.rejectCount = 0; // reset after successful selection
 
     dropZone?.classList.add("hidden");
     uploadUI?.classList.remove("hidden");
@@ -493,6 +585,9 @@
     if (uploadPercent) uploadPercent.innerText = "0%";
     if (processBar) processBar.style.width = "0%";
     if (processPercent) processPercent.innerText = "0%";
+
+    dropError?.classList.add("hidden");
+    if (dropError) dropError.textContent = "";
 
     const legal = qs("#legal-check");
     if (legal) legal.checked = false;
@@ -570,9 +665,7 @@
     const ext = getFileExt(file);
     let type = "";
 
-    // -------------------------
     // Convert
-    // -------------------------
     if (appState.view === "convert") {
       if (appState.subTool === "word-to-pdf") type = ext === "doc" ? "doc/to/pdf" : "docx/to/pdf";
       else if (appState.subTool === "pdf-to-word") type = "pdf/to/docx";
@@ -582,13 +675,10 @@
       else if (appState.subTool === "png-to-jpg") type = "png/to/jpg";
     }
 
-    // -------------------------
     // Compress
-    // -------------------------
     if (appState.view === "compress") {
       const mode = qs('input[name="comp-mode"]:checked')?.value || "auto";
 
-      // PDF compress endpoint
       if (appState.subTool === "comp-pdf") {
         type = "pdf/to/compress";
 
@@ -598,20 +688,19 @@
           else if (s <= 6) formData.append("Preset", "ebook");
           else formData.append("Preset", "printer");
         } else {
-          // PDF exact size is not reliably supported across providers;
-          // use a stable preset to avoid invalid params/404
           formData.append("Preset", "ebook");
         }
       } else {
-        // Image compress must match the real extension to avoid 404
         const imgExt = normalizeImageExt(ext);
         type = `${imgExt}/to/compress`;
 
         if (mode === "auto") {
           const s = Number(qs("#compression-range")?.value || 5);
+
           if (imgExt === "jpg") {
             formData.append("Quality", String(Math.max(10, Math.min(95, s * 10))));
           }
+
           if (s <= 3) formData.append("Preset", "screen");
           else if (s <= 6) formData.append("Preset", "ebook");
           else formData.append("Preset", "printer");
@@ -621,19 +710,15 @@
 
           if (sizeVal > 0) {
             const sizeKb = unit === "MB" ? Math.round(sizeVal * 1024) : Math.round(sizeVal);
-            // Best-effort for images; provider may ignore for some formats
             formData.append("CompressionFileSize", String(sizeKb));
           }
 
-          // Always add a safe preset fallback
           formData.append("Preset", "screen");
         }
       }
     }
 
-    // -------------------------
     // Resize
-    // -------------------------
     if (appState.view === "resize") {
       const imgExt = normalizeImageExt(ext);
       type = `${imgExt}/to/${imgExt}`;
@@ -641,15 +726,11 @@
       const wRaw = (qs("#resize-w")?.value || "").trim();
       const hRaw = (qs("#resize-h")?.value || "").trim();
 
-      // If user typed width/height, use them directly
       if (wRaw || hRaw) {
         if (wRaw) formData.append("ImageWidth", wRaw);
         if (hRaw) formData.append("ImageHeight", hRaw);
       } else {
-        // Scale mode: compute NEW px from ORIGINAL px (prevents 404 and makes it accurate)
         const pct = getSelectedScalePercent();
-
-        // 100% = original => no params
         if (pct !== 100) {
           const { w, h } = await getImageDimensions(file);
           const newW = Math.max(1, Math.round((w * pct) / 100));
@@ -660,12 +741,8 @@
       }
     }
 
-    // -------------------------
     // Merge
-    // -------------------------
-    if (appState.view === "merge") {
-      type = "pdf/to/merge";
-    }
+    if (appState.view === "merge") type = "pdf/to/merge";
 
     return type;
   }
@@ -770,9 +847,7 @@
           const val = opt.getAttribute("data-value");
           if (!val) return;
 
-          // -------------------------
           // SUPPORT DROPDOWNS
-          // -------------------------
           if (dd.id === "crypto-dropdown") {
             if (triggerText) triggerText.innerHTML = opt.innerHTML;
 
@@ -801,7 +876,7 @@
 
           // Unit dropdown (MB/KB)
           if (dd.id === "size-unit-dropdown") {
-            if (triggerText) triggerText.textContent = val; // MB / KB
+            if (triggerText) triggerText.textContent = val;
             dd.classList.remove("open");
             dd.focus();
             return;
@@ -886,7 +961,6 @@
     const address = mapWalletAddressForKey(key) || "Address Not Set";
     if (walletInput) walletInput.value = address;
 
-    // QR code (copy-only)
     if (qrBox && qrImg && address !== "Address Not Set" && address !== "Loading...") {
       qrBox.classList.remove("hidden");
       qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(address)}`;
@@ -894,7 +968,6 @@
       qrBox?.classList.add("hidden");
     }
 
-    // Always copy-only
     if (connectBtn) {
       connectBtn.innerHTML = '<i class="fa-solid fa-copy"></i> Copy Address';
       connectBtn.onclick = copyWallet;

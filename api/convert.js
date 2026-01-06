@@ -1,9 +1,9 @@
 /**
- * /api/convert  (Vercel Serverless Function)
+ * /api/convert (Vercel / Next.js API Route - Node runtime)
  * ---------------------------------------------------------
  * Purpose:
  * - Proxy multipart uploads from the browser to ConvertAPI securely.
- * - Keeps your ConvertAPI Secret on the server (ENV).
+ * - Keep ConvertAPI secret on the server (ENV).
  *
  * Frontend calls:
  *   POST /api/convert?type=<convertapi-route>
@@ -13,59 +13,86 @@
  * Env required:
  *   CONVERTAPI_SECRET
  */
+
 const https = require("https");
 
+// IMPORTANT (Next.js): disable body parsing so req stays a readable stream
+module.exports.config = {
+  api: {
+    bodyParser: false,
+  },
+};
+
+function isValidConvertType(type) {
+  // Basic hardening: allow only letters/numbers + dashes and "/to/" pattern.
+  // Examples allowed: docx/to/pdf, pdf/to/docx, jpg/to/png, xlsx/to/pdf, pdf/to/merge, pdf/to/compress
+  return /^[a-z0-9-]+\/to\/[a-z0-9-]+$/i.test(type);
+}
+
 module.exports = async (req, res) => {
-  // Only allow POST (browser sends multipart/form-data)
+  // Allow only POST (browser sends multipart/form-data)
   if (req.method !== "POST") {
-    res.statusCode = 405;
-    res.setHeader("Allow", "POST");
+    res.status(405).setHeader("Allow", "POST");
     return res.end("Method Not Allowed");
   }
 
   const secret = process.env.CONVERTAPI_SECRET;
-  const type = (req.query && req.query.type) ? String(req.query.type) : "";
+  const type = req.query?.type ? String(req.query.type).trim() : "";
 
-  if (!secret) {
-    res.statusCode = 500;
-    return res.end("Missing CONVERTAPI_SECRET");
+  if (!secret) return res.status(500).end("Missing CONVERTAPI_SECRET");
+  if (!type) return res.status(400).end("Missing type query param");
+
+  // Security: block weird paths
+  if (!isValidConvertType(type)) {
+    return res.status(400).end("Invalid type format. Expected like: docx/to/pdf");
   }
 
-  if (!type) {
-    res.statusCode = 400;
-    return res.end("Missing type query param");
-  }
+  const targetUrl = new URL(
+    `https://v2.convertapi.com/convert/${type}?Secret=${encodeURIComponent(secret)}`
+  );
 
-  const targetUrl = new URL(`https://v2.convertapi.com/convert/${type}?Secret=${encodeURIComponent(secret)}`);
+  // Build headers safely (never send undefined)
+  const headers = {
+    "content-type": req.headers["content-type"] || "application/octet-stream",
+    "user-agent": "DocuMorph-Proxy/1.0",
+  };
+
+  // Only forward content-length if present
+  if (req.headers["content-length"]) {
+    headers["content-length"] = req.headers["content-length"];
+  }
 
   const proxyReq = https.request(
     {
       method: "POST",
       hostname: targetUrl.hostname,
       path: targetUrl.pathname + targetUrl.search,
-      headers: {
-        // Forward content-type + length for multipart boundary
-        "content-type": req.headers["content-type"] || "application/octet-stream",
-        "content-length": req.headers["content-length"] || undefined,
-        "user-agent": "DocuMorph-Proxy/1.0",
-      },
+      headers,
+      timeout: 120000, // 120s safety timeout
     },
     (proxyRes) => {
-      res.statusCode = proxyRes.statusCode || 500;
+      // Forward status
+      res.statusCode = proxyRes.statusCode || 502;
 
-      // ConvertAPI returns JSON
+      // Forward content type (ConvertAPI usually returns JSON)
       const ct = proxyRes.headers["content-type"] || "application/json";
       res.setHeader("Content-Type", ct);
 
-      // Stream response back to client
-      proxyRes.on("data", (chunk) => res.write(chunk));
-      proxyRes.on("end", () => res.end());
+      // Optional: forward ConvertAPI request id headers if they exist
+      if (proxyRes.headers["x-request-id"]) res.setHeader("x-request-id", proxyRes.headers["x-request-id"]);
+
+      // Stream ConvertAPI response back to client
+      proxyRes.pipe(res);
     }
   );
 
+  proxyReq.on("timeout", () => {
+    proxyReq.destroy(new Error("Proxy timeout"));
+  });
+
   proxyReq.on("error", (err) => {
     console.error("ConvertAPI proxy error:", err);
-    res.statusCode = 502;
+    if (!res.headersSent) res.statusCode = 502;
     res.end("Bad Gateway");
   });
 
