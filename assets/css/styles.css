@@ -961,7 +961,7 @@ label {
 }
 
 .tab-btn.active {
-  font-size: 1.1rem;
+  font-size: 1.5rem;
   background: var(--card-bg);
   color: var(--primary);
   border-bottom-color: var(--primary);
@@ -1035,10 +1035,13 @@ label {
   display: flex;
   gap: 8px;
   margin-top: 5px;
+  width: 100%;         
+  align-items: stretch; 
 }
 
 .wallet-box input {
   flex: 1;
+  min-width: 0;    
   padding: 10px;
   border: 1px solid var(--input-border);
   background: var(--card-bg);
@@ -1049,7 +1052,14 @@ label {
 }
 
 .copy-btn {
-  padding: 0 15px;
+  flex: 0 0 44px;       
+  width: 44px;          
+  height: 44px;        
+  padding: 0;           
+  display: inline-flex; 
+  align-items: center;  
+  justify-content: center;
+
   border: 1px solid var(--input-border);
   background: var(--card-bg);
   border-radius: 8px;
@@ -1312,7 +1322,7 @@ label {
   }
 
   .support-header p {
-    font-size: 0.8rem;
+    font-size: 0.7rem;
   }
 
   .footer-content {
