@@ -105,11 +105,15 @@
   updateContext("convert", "word-to-pdf");
   fetchSecureWallets();
 
+  // Set initial compression label + mode UI (if user loads on compress section via hash etc.)
+  updateRangeLabel();
+  toggleCompMode();
+
   // Footer year
   const yearEl = qs("#year");
   if (yearEl) yearEl.textContent = String(new Date().getFullYear());
 
-  // Ensure button is copy-only
+  // Ensure support button is copy-only
   if (connectBtn) {
     connectBtn.innerHTML = '<i class="fa-solid fa-copy"></i> Copy Address';
     connectBtn.onclick = copyWallet;
@@ -142,6 +146,20 @@
     return (el?.innerText || "").trim().toLowerCase();
   }
 
+  function getFileExt(file) {
+    const name = file?.name || "";
+    const parts = name.split(".");
+    return parts.length > 1 ? parts.pop().toLowerCase() : "";
+  }
+
+  function normalizeImageExt(ext) {
+    const e = String(ext || "").toLowerCase();
+    if (e === "jpeg") return "jpg";
+    if (["jpg", "png", "webp", "tiff", "bmp"].includes(e)) return e;
+    // If unknown image ext, default to jpg (ConvertAPI still needs a route)
+    return "jpg";
+  }
+
   function clampFileSize(files) {
     const maxBytes = MAX_UPLOAD_MB * 1024 * 1024;
     const tooBig = files.find((f) => f.size > maxBytes);
@@ -152,17 +170,43 @@
     return true;
   }
 
-  function normalizeImageExt(ext) {
-    const e = String(ext || "").toLowerCase();
-    if (e === "jpeg") return "jpg";
-    if (["jpg", "png", "webp", "tiff", "bmp"].includes(e)) return e;
-    return "jpg";
+  // Read original image dimensions locally in the browser
+  function getImageDimensions(file) {
+    return new Promise((resolve, reject) => {
+      try {
+        const img = new Image();
+        const url = URL.createObjectURL(file);
+
+        img.onload = () => {
+          const w = img.naturalWidth || 0;
+          const h = img.naturalHeight || 0;
+          URL.revokeObjectURL(url);
+          if (!w || !h) return reject(new Error("Could not read image size"));
+          resolve({ w, h });
+        };
+
+        img.onerror = () => {
+          URL.revokeObjectURL(url);
+          reject(new Error("Could not read image size"));
+        };
+
+        img.src = url;
+      } catch (e) {
+        reject(e);
+      }
+    });
   }
 
-  function getFileExt(file) {
-    const name = file?.name || "";
-    const parts = name.split(".");
-    return parts.length > 1 ? parts.pop().toLowerCase() : "";
+  function getSelectedScalePercent() {
+    const label = (qs("#resize-scale-dropdown .trigger-text")?.innerText || "").trim();
+    // Your labels contain 75% / 50% / 25% / 100%
+    if (label.includes("75")) return 75;
+    if (label.includes("50")) return 50;
+    if (label.includes("25")) return 25;
+    if (label.includes("100")) return 100;
+    // If user never touched it, your UI shows "Original (100%)"
+    // But just in case:
+    return 100;
   }
 
   // =========================================================
@@ -233,12 +277,14 @@
 
     resetApp();
 
-    // Pick default tool option inside the view, and set context
+    // Default tool inside the view
     const firstOption = views[viewName]?.querySelector(".option");
     updateContext(viewName, firstOption ? firstOption.getAttribute("data-value") : null);
 
-    // Ensure compress mode UI is correct on view switch
-    if (viewName === "compress") toggleCompMode();
+    if (viewName === "compress") {
+      toggleCompMode();
+      updateRangeLabel();
+    }
   }
 
   // =========================================================
@@ -392,12 +438,8 @@
       return;
     }
 
-    // Merge should allow multiple, others use only first file
-    if (appState.view !== "merge") {
-      appState.files = [files[0]];
-    } else {
-      appState.files = files;
-    }
+    // Merge allows multiple; others use only first
+    appState.files = appState.view === "merge" ? files : [files[0]];
 
     dropZone?.classList.add("hidden");
     uploadUI?.classList.remove("hidden");
@@ -485,7 +527,7 @@
   // =========================================================
   // 15) START PROCESS
   // =========================================================
-  function executeProcess() {
+  async function executeProcess() {
     if (!checkDailyLimit()) return;
 
     readyUI?.classList.add("hidden");
@@ -494,7 +536,13 @@
     const title = qs("#process-title");
     if (title) title.innerText = "Processing...";
 
-    processFilesWithProxy();
+    try {
+      await processFilesWithProxy();
+    } catch (e) {
+      console.error(e);
+      alert("Processing failed. Please try again.");
+      resetApp();
+    }
   }
 
   // =========================================================
@@ -518,7 +566,7 @@
   // =========================================================
   // 17) CONVERT/COMPRESS/RESIZE/MERGE PIPELINE (POST -> /api/convert)
   // =========================================================
-  function resolveConvertTypeAndParams(formData, file) {
+  async function buildConvertTypeAndParams(formData, file) {
     const ext = getFileExt(file);
     let type = "";
 
@@ -540,33 +588,30 @@
     if (appState.view === "compress") {
       const mode = qs('input[name="comp-mode"]:checked')?.value || "auto";
 
+      // PDF compress endpoint
       if (appState.subTool === "comp-pdf") {
         type = "pdf/to/compress";
 
-        // Use slider presets (best-effort) for PDF
         if (mode === "auto") {
           const s = Number(qs("#compression-range")?.value || 5);
-          // Keep your original feel: map to presets
           if (s <= 3) formData.append("Preset", "screen");
           else if (s <= 6) formData.append("Preset", "ebook");
           else formData.append("Preset", "printer");
         } else {
-          // PDF "exact target size" is not reliable via preset-only flows,
-          // so we still use a preset fallback to avoid 404/bad params.
+          // PDF exact size is not reliably supported across providers;
+          // use a stable preset to avoid invalid params/404
           formData.append("Preset", "ebook");
         }
       } else {
-        // Image compress — MUST match actual extension (png/to/compress etc.)
+        // Image compress must match the real extension to avoid 404
         const imgExt = normalizeImageExt(ext);
         type = `${imgExt}/to/compress`;
 
         if (mode === "auto") {
           const s = Number(qs("#compression-range")?.value || 5);
-          // For JPG compress quality can help; for other types ConvertAPI may ignore.
           if (imgExt === "jpg") {
             formData.append("Quality", String(Math.max(10, Math.min(95, s * 10))));
           }
-          // Also keep a sensible preset fallback
           if (s <= 3) formData.append("Preset", "screen");
           else if (s <= 6) formData.append("Preset", "ebook");
           else formData.append("Preset", "printer");
@@ -576,10 +621,11 @@
 
           if (sizeVal > 0) {
             const sizeKb = unit === "MB" ? Math.round(sizeVal * 1024) : Math.round(sizeVal);
-            // Best-effort target size param (works well for JPG; may be ignored for others)
+            // Best-effort for images; provider may ignore for some formats
             formData.append("CompressionFileSize", String(sizeKb));
           }
 
+          // Always add a safe preset fallback
           formData.append("Preset", "screen");
         }
       }
@@ -592,19 +638,25 @@
       const imgExt = normalizeImageExt(ext);
       type = `${imgExt}/to/${imgExt}`;
 
-      const w = (qs("#resize-w")?.value || "").trim();
-      const h = (qs("#resize-h")?.value || "").trim();
+      const wRaw = (qs("#resize-w")?.value || "").trim();
+      const hRaw = (qs("#resize-h")?.value || "").trim();
 
-      if (w) formData.append("ImageWidth", w);
-      if (h) formData.append("ImageHeight", h);
+      // If user typed width/height, use them directly
+      if (wRaw || hRaw) {
+        if (wRaw) formData.append("ImageWidth", wRaw);
+        if (hRaw) formData.append("ImageHeight", hRaw);
+      } else {
+        // Scale mode: compute NEW px from ORIGINAL px (prevents 404 and makes it accurate)
+        const pct = getSelectedScalePercent();
 
-      // Only use scale if width/height not provided
-      if (!w && !h) {
-        const label = (qs("#resize-scale-dropdown .trigger-text")?.innerText || "").trim();
-        if (label.includes("75")) formData.append("ScaleImage", "75");
-        else if (label.includes("50")) formData.append("ScaleImage", "50");
-        else if (label.includes("25")) formData.append("ScaleImage", "25");
-        // 100% (Original) -> send nothing
+        // 100% = original => no params
+        if (pct !== 100) {
+          const { w, h } = await getImageDimensions(file);
+          const newW = Math.max(1, Math.round((w * pct) / 100));
+          const newH = Math.max(1, Math.round((h * pct) / 100));
+          formData.append("ImageWidth", String(newW));
+          formData.append("ImageHeight", String(newH));
+        }
       }
     }
 
@@ -612,20 +664,15 @@
     // Merge
     // -------------------------
     if (appState.view === "merge") {
-      // Your merge dropdown uses data-value="merge-pdf"
       type = "pdf/to/merge";
     }
 
     return type;
   }
 
-  function processFilesWithProxy() {
+  async function processFilesWithProxy() {
     const first = appState.files[0];
-    if (!first) {
-      alert("No file selected!");
-      resetApp();
-      return;
-    }
+    if (!first) throw new Error("No file selected");
 
     const formData = new FormData();
     formData.append("StoreFile", "true");
@@ -636,57 +683,55 @@
       formData.append("File", first);
     }
 
-    const type = resolveConvertTypeAndParams(formData, first);
+    const type = await buildConvertTypeAndParams(formData, first);
+    if (!type) throw new Error("Tool type not recognized");
 
-    if (!type) {
-      alert("Tool type not recognized. Please reselect your tool.");
-      resetApp();
-      return;
-    }
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open("POST", `/api/convert?type=${encodeURIComponent(type)}`, true);
 
-    const xhr = new XMLHttpRequest();
-    xhr.open("POST", `/api/convert?type=${encodeURIComponent(type)}`, true);
+      xhr.upload.onprogress = (e) => {
+        if (!e.lengthComputable) return;
+        const p = Math.round((e.loaded / e.total) * 100);
+        if (processBar) processBar.style.width = `${p}%`;
+        if (processPercent) processPercent.innerText = `${p}%`;
+      };
 
-    xhr.upload.onprogress = (e) => {
-      if (!e.lengthComputable) return;
-      const p = Math.round((e.loaded / e.total) * 100);
-      if (processBar) processBar.style.width = `${p}%`;
-      if (processPercent) processPercent.innerText = `${p}%`;
-    };
-
-    xhr.onload = () => {
-      if (xhr.status !== 200) {
-        // ConvertAPI returns 404 when "type" route doesn't exist for the file,
-        // or when parameters are invalid for that endpoint.
-        alert("Failed: " + xhr.status);
-        resetApp();
-        return;
-      }
-
-      try {
-        const d = JSON.parse(xhr.responseText);
-
-        if (d?.Files?.length) {
-          appState.resultUrl = d.Files[0].Url;
-          incrementUsage();
-          showSuccess(d.Files[0].FileName);
-          return;
+      xhr.onload = () => {
+        if (xhr.status !== 200) {
+          alert("Failed: " + xhr.status);
+          resetApp();
+          return reject(new Error("HTTP " + xhr.status));
         }
 
-        alert("Conversion returned no file.");
-        resetApp();
-      } catch (_) {
-        alert("Error parsing response.");
-        resetApp();
-      }
-    };
+        try {
+          const d = JSON.parse(xhr.responseText);
 
-    xhr.onerror = () => {
-      alert("Network Error");
-      resetApp();
-    };
+          if (d?.Files?.length) {
+            appState.resultUrl = d.Files[0].Url;
+            incrementUsage();
+            showSuccess(d.Files[0].FileName);
+            return resolve(d);
+          }
 
-    xhr.send(formData);
+          alert("Conversion returned no file.");
+          resetApp();
+          reject(new Error("No file in response"));
+        } catch (e) {
+          alert("Error parsing response.");
+          resetApp();
+          reject(e);
+        }
+      };
+
+      xhr.onerror = () => {
+        alert("Network Error");
+        resetApp();
+        reject(new Error("Network Error"));
+      };
+
+      xhr.send(formData);
+    });
   }
 
   // =========================================================
@@ -726,7 +771,7 @@
           if (!val) return;
 
           // -------------------------
-          // SUPPORT DROPDOWNS (do not touch tool context)
+          // SUPPORT DROPDOWNS
           // -------------------------
           if (dd.id === "crypto-dropdown") {
             if (triggerText) triggerText.innerHTML = opt.innerHTML;
@@ -754,7 +799,7 @@
             return;
           }
 
-          // MB/KB dropdown (unit only; do not call updateContext)
+          // Unit dropdown (MB/KB)
           if (dd.id === "size-unit-dropdown") {
             if (triggerText) triggerText.textContent = val; // MB / KB
             dd.classList.remove("open");
@@ -762,26 +807,25 @@
             return;
           }
 
-          // -------------------------
-          // TOOL DROPDOWNS
-          // -------------------------
+          // Resize scale dropdown (UI only)
           if (dd.id === "resize-scale-dropdown") {
-            // UI-only scale selection
             if (triggerText) triggerText.innerHTML = opt.innerHTML;
             dd.classList.remove("open");
             dd.focus();
             return;
           }
 
-          // convert-dropdown | compress-dropdown | merge-dropdown
+          // Tool dropdowns
           if (triggerText) triggerText.innerHTML = opt.innerHTML;
           updateContext(appState.view, val);
 
           dd.classList.remove("open");
           dd.focus();
 
-          // Ensure compress mode UI stays correct
-          if (appState.view === "compress") toggleCompMode();
+          if (appState.view === "compress") {
+            toggleCompMode();
+            updateRangeLabel();
+          }
         };
 
         opt.addEventListener("click", (e) => {
@@ -840,10 +884,9 @@
     donationState.selectedKey = key;
 
     const address = mapWalletAddressForKey(key) || "Address Not Set";
-
     if (walletInput) walletInput.value = address;
 
-    // QR code for address (copy-only)
+    // QR code (copy-only)
     if (qrBox && qrImg && address !== "Address Not Set" && address !== "Loading...") {
       qrBox.classList.remove("hidden");
       qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(address)}`;
@@ -864,7 +907,6 @@
   function copyWallet() {
     if (!walletInput) return;
     const value = walletInput.value;
-
     if (!value || value === "Loading...") return;
 
     navigator.clipboard?.writeText(value).catch(() => {
