@@ -157,6 +157,15 @@ a {
 /* ==========================================================================
    3) LAYOUT / MAIN WRAPPERS
    ========================================================================== */
+.shell {
+  width: min(1200px, 100%);
+  margin: 0 auto;
+  padding: 0 5%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+   
 .container {
   max-width: 850px;
   width: 100%;
@@ -193,7 +202,7 @@ a {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 1rem 5%;
+  padding: 1rem 0%;
   background: var(--glass-bg);
   backdrop-filter: blur(12px);
   border-bottom: var(--glass-border);
@@ -229,13 +238,14 @@ a {
 }
 
 .nav-btn {
+  font-size: 1rem;
   background: transparent;
   border: none;
-  padding: 0.6rem 1.2rem;
+  padding: 0.5rem 1rem;
   font-weight: 600;
   color: var(--text-light);
   cursor: pointer;
-  border-radius: 8px;
+  border-radius: 10px;
   transition: 0.3s;
 }
 
@@ -1107,22 +1117,22 @@ label {
 .site-footer {
   background: #ffffff;
   border-top: 1px solid var(--input-border);
-  padding: 2rem 5%;
+  padding: 2rem 0%;
   margin-top: auto;
 }
 
 .footer-content {
   max-width: 1200px;
+  width: 100%;
   margin: 0 auto;
   display: flex;
-  justify-content: space-between;
   align-items: center;
   gap: 20px;
 }
 
 .footer-left {
-  display: flex;
-  flex-direction: column;
+  flex: 1;
+  min-width: 0;
 }
 
 .copyright {
@@ -1180,6 +1190,9 @@ label {
 .footer-socials {
   display: flex;
   gap: 20px;
+  margin-left: auto;
+  justify-content: flex-end;
+  align-items: center;
 }
 
 .footer-socials a {
@@ -1306,6 +1319,11 @@ label {
     flex-direction: column;
     gap: 20px;
     text-align: center;
+  }
+
+  .footer-socials {
+    margin-left: 0;
+    justify-content: center;
   }
 
   .legal-links {
@@ -1448,7 +1466,7 @@ label {
     min-width: 78px;
     height: 44px;
   }
-  
+
   .legal-consent {
     font-size: 1.2rem;
   }

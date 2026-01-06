@@ -51,25 +51,29 @@
 
   <!-- Main Navigation Bar -->
   <nav class="navbar glass">
-    <!-- Brand Logo / Home Link -->
-    <a href="index.html" class="logo">
-      <div class="logo-icon"><i class="fa-solid fa-cube"></i></div>
-      <span>DocuMorph</span>
-    </a>
+    <div class="shell">
+      <!-- Brand Logo / Home Link -->
+      <a href="index.html" class="logo">
+        <div class="logo-icon"><i class="fa-solid fa-cube"></i></div>
+        <span>DocuMorph</span>
+      </a>
 
-    <!-- Desktop Navigation (View Switch Buttons) -->
-    <div class="nav-links desktop-only">
-      <button class="nav-btn active" onclick="switchView('convert')">Convert</button>
-      <button class="nav-btn" onclick="switchView('compress')">Compress</button>
-      <button class="nav-btn" onclick="switchView('resize')">Resize</button>
-      <button class="nav-btn" onclick="switchView('merge')">Merge</button>
+      <!-- Desktop Navigation (View Switch Buttons) -->
+      <div class="nav-links desktop-only">
+        <button class="nav-btn active" onclick="switchView('convert')">Convert</button>
+        <button class="nav-btn" onclick="switchView('compress')">Compress</button>
+        <button class="nav-btn" onclick="switchView('resize')">Resize</button>
+        <button class="nav-btn" onclick="switchView('merge')">Merge</button>
 
-      <!-- NEW: Feedback menu label (desktop) -->
-      <button class="nav-btn" onclick="openModal('feedback')">Feedback</button>
+        <!-- Feedback (Menu label) -->
+        <button class="nav-btn" onclick="openModal('feedback')">Feedback</button>
+      </div>
+
+      <!-- Mobile Menu Toggle -->
+      <button class="menu-toggle" onclick="toggleMenu()" aria-label="Open menu" type="button">
+        <span></span><span></span><span></span>
+      </button>
     </div>
-
-    <!-- Mobile Menu Toggle -->
-    <button class="menu-toggle" onclick="toggleMenu()"><span></span><span></span><span></span></button>
   </nav>
 
   <!-- Mobile Navigation Drawer -->
@@ -281,12 +285,15 @@
         <div class="legal-consent">
           <input type="checkbox" id="legal-check" onchange="toggleStartButton()" />
           <label for="legal-check">
-            I agree to the <span onclick="openModal('terms')">Terms</span> &amp; <span onclick="openModal('privacy')">Privacy Policy</span>
+            I agree to the <span onclick="openModal('terms')">Terms</span> &amp; 
+            <span onclick="openModal('privacy')">Privacy Policy</span>
           </label>
         </div>
 
         <div class="btn-actions">
-          <button class="btn-glow disabled" id="start-btn" type="button" onclick="executeProcess()" disabled>Start Conversion</button>
+          <button class="btn-glow disabled" id="start-btn" type="button" onclick="executeProcess()" 
+            disabled>Start Conversion
+          </button>
           <button class="btn-outline" type="button" onclick="resetApp()">Cancel</button>
         </div>
       </section>
@@ -317,27 +324,44 @@
 
   <!-- Site Footer -->
   <footer class="site-footer">
-    <div class="footer-content">
-      <div class="footer-left">
-        <p class="copyright">&copy; <span id="year"></span> DocuMorph. All rights reserved.</p>
+    <div class="shell">
+      <div class="footer-content">
+        <div class="footer-left">
+          <p class="copyright">
+            &copy; <span id="year"></span> DocuMorph. All rights reserved.
+          </p>
 
-        <div class="legal-links">
-          <button onclick="openModal('terms')">Terms of Service</button><span class="sep">•</span>
-          <button onclick="openModal('privacy')">Privacy Policy</button><span class="sep">•</span>
+          <div class="legal-links">
+            <button type="button" onclick="openModal('terms')">Terms of Service</button>
+            <span class="sep">•</span>
 
-          <!-- NEW: Feedback label everywhere -->
-          <button onclick="openModal('feedback')">Feedback</button><span class="sep">•</span>
+            <button type="button" onclick="openModal('privacy')">Privacy Policy</button>
+            <span class="sep">•</span>
 
-          <button onclick="openModal('support')" class="support-link">❤️ Donate</button>
+            <!-- Feedback -->
+            <button type="button" onclick="openModal('feedback')">Feedback</button>
+            <span class="sep">•</span>
+
+            <button type="button" onclick="openModal('support')" class="support-link">❤️ Donate</button>
+          </div>
+
+          <p class="attribution">
+            Powered by
+            <a href="https://www.convertapi.com" target="_blank" rel="noopener">ConvertAPI</a>
+          </p>
         </div>
 
-        <p class="attribution">Powered by <a href="https://www.convertapi.com" target="_blank" rel="noopener">ConvertAPI</a></p>
-      </div>
-
-      <div class="footer-socials">
-        <a href="https://www.linkedin.com/in/samson-eniolorunda" target="_blank" rel="noopener"><i class="fa-brands fa-linkedin-in"></i></a>
-        <a href="https://github.com/Samson-Eniolorunda" target="_blank" rel="noopener"><i class="fa-brands fa-github"></i></a>
-        <a href="https://x.com/s_eniolorunda_" target="_blank" rel="noopener"><i class="fa-brands fa-x-twitter"></i></a>
+        <div class="footer-socials">
+          <a href="https://www.linkedin.com/in/samson-eniolorunda" target="_blank" rel="noopener" aria-label="LinkedIn">
+            <i class="fa-brands fa-linkedin-in"></i>
+          </a>
+          <a href="https://github.com/Samson-Eniolorunda" target="_blank" rel="noopener" aria-label="GitHub">
+            <i class="fa-brands fa-github"></i>
+          </a>
+          <a href="https://x.com/s_eniolorunda_" target="_blank" rel="noopener" aria-label="X">
+            <i class="fa-brands fa-x-twitter"></i>
+          </a>
+        </div>
       </div>
     </div>
   </footer>
