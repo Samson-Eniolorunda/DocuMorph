@@ -685,9 +685,13 @@
   // =========================================================
   // 17) CONVERT/COMPRESS/RESIZE/MERGE PIPELINE (POST -> /api/convert)
   // =========================================================
-  async function buildConvertTypeAndParams(formData, file) {
+  // =========================================================
+  // 17) BUILD CONVERT TYPE + PARAMS (for URL-based ConvertAPI calls)
+  // =========================================================
+  async function buildConvertTypeAndParams(file) {
     const ext = getFileExt(file);
     let type = "";
+    const params = {};
 
     // Convert
     if (appState.view === "convert") {
@@ -708,11 +712,11 @@
 
         if (mode === "auto") {
           const s = Number(qs("#compression-range")?.value || 5);
-          if (s <= 3) formData.append("Preset", "screen");
-          else if (s <= 6) formData.append("Preset", "ebook");
-          else formData.append("Preset", "printer");
+          if (s <= 3) params.Preset = "screen";
+          else if (s <= 6) params.Preset = "ebook";
+          else params.Preset = "printer";
         } else {
-          formData.append("Preset", "ebook");
+          params.Preset = "ebook";
         }
       } else {
         const imgExt = normalizeImageExt(ext);
@@ -722,22 +726,22 @@
           const s = Number(qs("#compression-range")?.value || 5);
 
           if (imgExt === "jpg") {
-            formData.append("Quality", String(Math.max(10, Math.min(95, s * 10))));
+            params.Quality = String(Math.max(10, Math.min(95, s * 10)));
           }
 
-          if (s <= 3) formData.append("Preset", "screen");
-          else if (s <= 6) formData.append("Preset", "ebook");
-          else formData.append("Preset", "printer");
+          if (s <= 3) params.Preset = "screen";
+          else if (s <= 6) params.Preset = "ebook";
+          else params.Preset = "printer";
         } else {
           const sizeVal = Number(qs("#target-size-input")?.value || 0);
           const unit = (qs("#size-unit-dropdown .trigger-text")?.textContent || "MB").trim().toUpperCase();
 
           if (sizeVal > 0) {
             const sizeKb = unit === "MB" ? Math.round(sizeVal * 1024) : Math.round(sizeVal);
-            formData.append("CompressionFileSize", String(sizeKb));
+            params.CompressionFileSize = String(sizeKb);
           }
 
-          formData.append("Preset", "screen");
+          params.Preset = "screen";
         }
       }
     }
@@ -751,16 +755,16 @@
       const hRaw = (qs("#resize-h")?.value || "").trim();
 
       if (wRaw || hRaw) {
-        if (wRaw) formData.append("ImageWidth", wRaw);
-        if (hRaw) formData.append("ImageHeight", hRaw);
+        if (wRaw) params.ImageWidth = wRaw;
+        if (hRaw) params.ImageHeight = hRaw;
       } else {
         const pct = getSelectedScalePercent();
         if (pct !== 100) {
           const { w, h } = await getImageDimensions(file);
           const newW = Math.max(1, Math.round((w * pct) / 100));
           const newH = Math.max(1, Math.round((h * pct) / 100));
-          formData.append("ImageWidth", String(newW));
-          formData.append("ImageHeight", String(newH));
+          params.ImageWidth = String(newW);
+          params.ImageHeight = String(newH);
         }
       }
     }
@@ -768,73 +772,102 @@
     // Merge
     if (appState.view === "merge") type = "pdf/to/merge";
 
-    return type;
+    return { type, params };
+  }
+
+  // =========================================================
+  // 17b) BLOB UPLOAD + CONVERTAPI (URL-based)
+  // =========================================================
+  function setProcessProgress(pct) {
+    const p = Math.max(0, Math.min(100, Math.round(Number(pct) || 0)));
+    if (processBar) processBar.style.width = `${p}%`;
+    if (processPercent) processPercent.innerText = `${p}%`;
+  }
+
+  async function uploadToBlob(file, progressOffset = 0, progressSpan = 70) {
+    // Dynamic import so this works in a plain HTML/CSS/JS project (no bundler)
+    const { upload } = await import("https://esm.sh/@vercel/blob/client");
+
+    const safeName = String(file?.name || "upload.bin").replace(/[^a-z0-9_.-]/gi, "_");
+
+    return upload(`uploads/${Date.now()}-${safeName}`, file, {
+      access: "public",
+      handleUploadUrl: "/api/blob-upload",
+      multipart: file.size > 4.5 * 1024 * 1024, // recommended for large phone photos
+      onUploadProgress: ({ percentage }) => {
+        const scaled = progressOffset + (Number(percentage || 0) * progressSpan) / 100;
+        setProcessProgress(scaled);
+      },
+    });
   }
 
   async function processFilesWithProxy() {
     const first = appState.files[0];
     if (!first) throw new Error("No file selected");
 
-    const formData = new FormData();
-    formData.append("StoreFile", "true");
+    setProcessProgress(0);
 
+    // 1) Upload to Vercel Blob (direct from browser -> Blob)
+    let fileUrls = [];
     if (appState.view === "merge") {
-      appState.files.forEach((f, i) => formData.append(`Files[${i}]`, f));
+      // Upload sequentially so progress feels stable and we can show combined progress
+      const step = appState.files.length ? 70 / appState.files.length : 70;
+      for (let i = 0; i < appState.files.length; i++) {
+        const blob = await uploadToBlob(appState.files[i], i * step, step);
+        fileUrls.push(blob.url);
+      }
     } else {
-      formData.append("File", first);
+      const blob = await uploadToBlob(first, 0, 70);
+      fileUrls = [blob.url];
     }
 
-    const type = await buildConvertTypeAndParams(formData, first);
+    // 2) Build ConvertAPI type + params
+    const { type, params } = await buildConvertTypeAndParams(first);
     if (!type) throw new Error("Tool type not recognized");
 
-    return new Promise((resolve, reject) => {
-      const xhr = new XMLHttpRequest();
-      xhr.open("POST", `/api/convert?type=${encodeURIComponent(type)}`, true);
+    // 3) Call your serverless proxy (no raw file upload -> much less WAF issues)
+    setProcessProgress(75);
+    const ramp = setInterval(() => {
+      // Slow ramp while ConvertAPI does the work
+      const current = Number(processPercent?.innerText?.replace("%", "") || 75);
+      if (current < 92) setProcessProgress(current + 1);
+    }, 180);
 
-      xhr.upload.onprogress = (e) => {
-        if (!e.lengthComputable) return;
-        const p = Math.round((e.loaded / e.total) * 100);
-        if (processBar) processBar.style.width = `${p}%`;
-        if (processPercent) processPercent.innerText = `${p}%`;
-      };
-
-      xhr.onload = () => {
-if (xhr.status !== 200) {
-  const raw = (xhr.responseText || "").trim();
-  console.error("API error:", xhr.status, raw);
-  alert(`Failed: ${xhr.status}\n\n${raw.slice(0, 300)}`);
-  resetApp();
-  return reject(new Error("HTTP " + xhr.status));
-}
-
-        try {
-          const d = JSON.parse(xhr.responseText);
-
-          if (d?.Files?.length) {
-            appState.resultUrl = d.Files[0].Url;
-            incrementUsage();
-            showSuccess(d.Files[0].FileName);
-            return resolve(d);
-          }
-
-          alert("Conversion returned no file.");
-          resetApp();
-          reject(new Error("No file in response"));
-        } catch (e) {
-          alert("Error parsing response.");
-          resetApp();
-          reject(e);
-        }
-      };
-
-      xhr.onerror = () => {
-        alert("Network Error");
-        resetApp();
-        reject(new Error("Network Error"));
-      };
-
-      xhr.send(formData);
+    const resp = await fetch(`/api/convert?type=${encodeURIComponent(type)}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        // single-file tools
+        fileUrl: appState.view === "merge" ? null : fileUrls[0],
+        // merge tool
+        files: appState.view === "merge" ? fileUrls : null,
+        params,
+        storeFile: true,
+      }),
     });
+
+    clearInterval(ramp);
+
+    if (!resp.ok) {
+      const raw = (await resp.text()).trim();
+      console.error("Convert proxy error:", resp.status, raw);
+      alert(`Failed: ${resp.status}\n\n${raw.slice(0, 600)}`);
+      resetApp();
+      throw new Error("HTTP " + resp.status);
+    }
+
+    const d = await resp.json();
+    if (d?.Files?.length) {
+      setProcessProgress(100);
+      appState.resultUrl = d.Files[0].Url;
+      incrementUsage();
+      showSuccess(d.Files[0].FileName);
+      return d;
+    }
+
+    alert("Conversion returned no file.");
+    resetApp();
+    throw new Error("No file in response");
   }
 
   // =========================================================

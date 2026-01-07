@@ -5,5 +5,10 @@
   "scripts": {
     "start": "serve"
   },
-  "dependencies": {}
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "@vercel/blob": "^1.0.0"
+  }
 }
