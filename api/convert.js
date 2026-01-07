@@ -1,6 +1,8 @@
 /**
  * /api/convert (Vercel / Next.js API Route - Node runtime)
- * Proxy multipart uploads -> ConvertAPI securely (keeps secret on server).
+ * ---------------------------------------------------------
+ * Proxies uploads to ConvertAPI while keeping CONVERTAPI_SECRET server-side.
+ * Fixes mobile 403 by avoiding chunked uploads when Content-Length is missing.
  */
 
 const https = require("https");
@@ -11,6 +13,26 @@ module.exports.config = {
 
 function isValidConvertType(type) {
   return /^[a-z0-9-]+\/to\/[a-z0-9-]+$/i.test(type);
+}
+
+function readStream(req, maxBytes = 55 * 1024 * 1024) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    let total = 0;
+
+    req.on("data", (chunk) => {
+      total += chunk.length;
+      if (total > maxBytes) {
+        reject(new Error("Upload too large for proxy buffer"));
+        req.destroy();
+        return;
+      }
+      chunks.push(chunk);
+    });
+
+    req.on("end", () => resolve(Buffer.concat(chunks)));
+    req.on("error", reject);
+  });
 }
 
 module.exports = async (req, res) => {
@@ -28,41 +50,28 @@ module.exports = async (req, res) => {
     return res.status(400).end("Invalid type format. Expected like: docx/to/pdf");
   }
 
-  // ✅ use lowercase 'secret' param (per ConvertAPI docs)
   const targetUrl = new URL(`https://v2.convertapi.com/convert/${type}`);
-  targetUrl.searchParams.set("secret", secret);
+  targetUrl.searchParams.set("Secret", secret);
 
-  // Buffer multipart body so we can set Content-Length
-  const MAX_BYTES = 55 * 1024 * 1024;
-  const chunks = [];
-  let total = 0;
+  const contentType = req.headers["content-type"] || "application/octet-stream";
+  const contentLength = req.headers["content-length"]; // may be missing on some mobile flows
 
-  try {
-    await new Promise((resolve, reject) => {
-      req.on("data", (chunk) => {
-        total += chunk.length;
-        if (total > MAX_BYTES) {
-          reject(new Error("Payload too large"));
-          req.destroy();
-          return;
-        }
-        chunks.push(chunk);
-      });
-      req.on("end", resolve);
-      req.on("error", reject);
-    });
-  } catch (_) {
-    res.status(413).end("File too large");
-    return;
+  // If Content-Length exists, stream normally. If not, buffer and set it (avoids chunked upstream).
+  let bufferedBody = null;
+  if (!contentLength) {
+    try {
+      bufferedBody = await readStream(req);
+    } catch (e) {
+      console.error("Proxy buffer error:", e);
+      return res.status(413).end("Upload too large or stream read failed");
+    }
   }
 
-  const body = Buffer.concat(chunks);
-
   const headers = {
-    "content-type": req.headers["content-type"] || "application/octet-stream",
-    "content-length": String(body.length),
-    "user-agent": "DocuMorph-Proxy/1.2",
-    accept: "application/json",
+    "content-type": contentType,
+    "user-agent": "DocuMorph-Proxy/1.1",
+    "accept": "application/json",
+    ...(contentLength ? { "content-length": contentLength } : { "content-length": String(bufferedBody.length) }),
   };
 
   const proxyReq = https.request(
@@ -74,29 +83,23 @@ module.exports = async (req, res) => {
       timeout: 120000,
     },
     (proxyRes) => {
-      const status = proxyRes.statusCode || 502;
       const ct = proxyRes.headers["content-type"] || "application/json";
-      res.statusCode = status;
+      res.status(proxyRes.statusCode || 502);
       res.setHeader("Content-Type", ct);
 
-      // ✅ If ConvertAPI returns an error (403/401/400/500 etc), log the body to Vercel logs
-      if (status !== 200) {
-        let raw = "";
-        proxyRes.on("data", (c) => (raw += c.toString("utf8")));
-        proxyRes.on("end", () => {
-          console.error("ConvertAPI error:", {
-            status,
-            type,
-            body: raw.slice(0, 2000), // log first 2k chars
-          });
-          // still return it to the client (even though your JS only shows the status)
-          res.end(raw || `ConvertAPI failed with status ${status}`);
-        });
-        return;
-      }
+      // Buffer ConvertAPI error response so you can actually see it in DevTools / response body
+      const respChunks = [];
+      proxyRes.on("data", (c) => respChunks.push(c));
+      proxyRes.on("end", () => {
+        const body = Buffer.concat(respChunks);
 
-      // Success: stream through
-      proxyRes.pipe(res);
+        // Helpful server log (visible in Vercel logs)
+        if ((proxyRes.statusCode || 0) >= 400) {
+          console.error("ConvertAPI error:", proxyRes.statusCode, body.toString("utf8").slice(0, 2000));
+        }
+
+        res.end(body);
+      });
     }
   );
 
@@ -108,5 +111,9 @@ module.exports = async (req, res) => {
     res.end("Bad Gateway");
   });
 
-  proxyReq.end(body);
+  if (bufferedBody) {
+    proxyReq.end(bufferedBody);
+  } else {
+    req.pipe(proxyReq);
+  }
 };

@@ -799,11 +799,13 @@
       };
 
       xhr.onload = () => {
-        if (xhr.status !== 200) {
-          alert("Failed: " + xhr.status);
-          resetApp();
-          return reject(new Error("HTTP " + xhr.status));
-        }
+if (xhr.status !== 200) {
+  const raw = (xhr.responseText || "").trim();
+  console.error("API error:", xhr.status, raw);
+  alert(`Failed: ${xhr.status}\n\n${raw.slice(0, 300)}`);
+  resetApp();
+  return reject(new Error("HTTP " + xhr.status));
+}
 
         try {
           const d = JSON.parse(xhr.responseText);
