@@ -461,12 +461,29 @@
           <form id="feedback-form" class="request-form" onsubmit="submitToFormspree(event)">
             <div class="form-group">
               <label>Category:</label>
-              <select name="type" required>
-                <option value="New Tool">New Tool</option>
-                <option value="Bug Report">Bug Report</option>
-                <option value="Feedback">Feedback</option>
-                <option value="Other">Other</option>
-              </select>
+              <input type="hidden" id="feedback-category" name="type" value="New Tool" />
+
+              <div class="custom-select" id="feedback-category-dropdown" tabindex="0">
+                <div class="select-trigger">
+                  <span class="trigger-text"><i class="fa-solid fa-wand-magic-sparkles"></i> New Tool</span>
+                    <i class="fa-solid fa-chevron-down arrow"></i>
+                </div>
+
+                <div class="options-container">
+                  <div class="option" data-value="New Tool" tabindex="0">
+                    <i class="fa-solid fa-wand-magic-sparkles"></i> New Tool
+                  </div>
+                  <div class="option" data-value="Bug Report" tabindex="0">
+                    <i class="fa-solid fa-bug"></i> Bug Report
+                  </div>
+                  <div class="option" data-value="Feedback" tabindex="0">
+                    <i class="fa-solid fa-comment-dots"></i> Feedback
+                  </div>
+                  <div class="option" data-value="Other" tabindex="0">
+                    <i class="fa-solid fa-ellipsis"></i> Other
+                  </div>
+                </div>
+              </div>
             </div>
 
             <div class="form-group">

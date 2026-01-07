@@ -148,7 +148,27 @@
   function getFileExt(file) {
     const name = file?.name || "";
     const parts = name.split(".");
-    return parts.length > 1 ? parts.pop().toLowerCase() : "";
+    const ext = parts.length > 1 ? parts.pop().toLowerCase() : "";
+
+    if (ext) return ext;
+
+    const mime = (file?.type || "").toLowerCase();
+
+    const map = {
+      "image/jpeg": "jpg",
+      "image/jpg": "jpg",
+      "image/png": "png",
+      "image/webp": "webp",
+      "image/bmp": "bmp",
+      "image/tiff": "tiff",
+      "application/pdf": "pdf",
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx",
+      "application/msword": "doc",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "xlsx",
+      "application/vnd.ms-excel": "xls",
+    };
+
+    return map[mime] || "";
   }
 
   function normalizeImageExt(ext) {
@@ -436,18 +456,22 @@
           accept = "*";
           limitText = "Files";
       }
-    } else if (view === "compress") {
+    } 
+    else if (view === "compress") {
       if (val === "comp-pdf") {
         accept = ".pdf";
         limitText = "PDF Files";
-      } else {
-        accept = "image/*";
-        limitText = "Images";
+      } 
+      else {
+          accept = "image/jpeg,image/png,image/webp,image/bmp,image/tiff";
+          limitText = "JPG/PNG/WebP Images";
       }
-    } else if (view === "resize") {
-      accept = "image/*";
-      limitText = "Images";
-    } else if (view === "merge") {
+    }
+    else if (view === "resize") {
+      accept = "image/jpeg,image/png,image/webp,image/bmp,image/tiff";
+      limitText = "JPG/PNG/WebP Images";
+    } 
+    else if (view === "merge") {
       accept = ".pdf";
       limitText = "PDF Files";
     }
@@ -885,6 +909,18 @@
           // Resize scale dropdown (UI only)
           if (dd.id === "resize-scale-dropdown") {
             if (triggerText) triggerText.innerHTML = opt.innerHTML;
+            dd.classList.remove("open");
+            dd.focus();
+            return;
+          }
+
+          // Feedback modal category dropdown
+          if (dd.id === "feedback-category-dropdown") {
+            if (triggerText) triggerText.innerHTML = opt.innerHTML;
+
+            const hidden = qs("#feedback-category");
+            if (hidden) hidden.value = val;
+
             dd.classList.remove("open");
             dd.focus();
             return;
