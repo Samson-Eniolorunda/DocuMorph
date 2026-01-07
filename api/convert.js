@@ -12,6 +12,11 @@
  *
  * Env required:
  *   CONVERTAPI_SECRET
+ *
+ * Why this version:
+ * - Buffers the incoming multipart body and forwards it with Content-Length.
+ * - Fixes mobile/Safari cases where uploads may be chunked (no Content-Length),
+ *   which can cause ConvertAPI to reject requests (e.g., 403).
  */
 
 const https = require("https");
@@ -24,8 +29,8 @@ module.exports.config = {
 };
 
 function isValidConvertType(type) {
-  // Basic hardening: allow only letters/numbers + dashes and "/to/" pattern.
-  // Examples allowed: docx/to/pdf, pdf/to/docx, jpg/to/png, xlsx/to/pdf, pdf/to/merge, pdf/to/compress
+  // allow only letters/numbers/dashes and "/to/" pattern.
+  // examples: docx/to/pdf, pdf/to/docx, jpg/to/png, xlsx/to/pdf, pdf/to/merge, pdf/to/compress
   return /^[a-z0-9-]+\/to\/[a-z0-9-]+$/i.test(type);
 }
 
@@ -51,16 +56,45 @@ module.exports = async (req, res) => {
     `https://v2.convertapi.com/convert/${type}?Secret=${encodeURIComponent(secret)}`
   );
 
-  // Build headers safely (never send undefined)
+  // ---------------------------------------------------------
+  // 1) Buffer multipart body so we can ALWAYS send Content-Length
+  // ---------------------------------------------------------
+  const MAX_BYTES = 55 * 1024 * 1024; // ~55MB safety (UI limit is 50MB)
+  const chunks = [];
+  let total = 0;
+
+  try {
+    await new Promise((resolve, reject) => {
+      req.on("data", (chunk) => {
+        total += chunk.length;
+
+        if (total > MAX_BYTES) {
+          reject(new Error("Payload too large"));
+          req.destroy();
+          return;
+        }
+
+        chunks.push(chunk);
+      });
+
+      req.on("end", resolve);
+      req.on("error", reject);
+    });
+  } catch (_) {
+    res.status(413).end("File too large");
+    return;
+  }
+
+  const body = Buffer.concat(chunks);
+
+  // ---------------------------------------------------------
+  // 2) Forward request to ConvertAPI with stable headers
+  // ---------------------------------------------------------
   const headers = {
     "content-type": req.headers["content-type"] || "application/octet-stream",
-    "user-agent": "DocuMorph-Proxy/1.0",
+    "content-length": String(body.length),
+    "user-agent": "DocuMorph-Proxy/1.1",
   };
-
-  // Only forward content-length if present
-  if (req.headers["content-length"]) {
-    headers["content-length"] = req.headers["content-length"];
-  }
 
   const proxyReq = https.request(
     {
@@ -71,15 +105,16 @@ module.exports = async (req, res) => {
       timeout: 120000, // 120s safety timeout
     },
     (proxyRes) => {
-      // Forward status
+      // Forward status code from ConvertAPI
       res.statusCode = proxyRes.statusCode || 502;
 
       // Forward content type (ConvertAPI usually returns JSON)
-      const ct = proxyRes.headers["content-type"] || "application/json";
-      res.setHeader("Content-Type", ct);
+      res.setHeader("Content-Type", proxyRes.headers["content-type"] || "application/json");
 
-      // Optional: forward ConvertAPI request id headers if they exist
-      if (proxyRes.headers["x-request-id"]) res.setHeader("x-request-id", proxyRes.headers["x-request-id"]);
+      // Optional: forward ConvertAPI request id if present
+      if (proxyRes.headers["x-request-id"]) {
+        res.setHeader("x-request-id", proxyRes.headers["x-request-id"]);
+      }
 
       // Stream ConvertAPI response back to client
       proxyRes.pipe(res);
@@ -92,10 +127,12 @@ module.exports = async (req, res) => {
 
   proxyReq.on("error", (err) => {
     console.error("ConvertAPI proxy error:", err);
-    if (!res.headersSent) res.statusCode = 502;
+    if (!res.headersSent) res.status(502);
     res.end("Bad Gateway");
   });
 
-  // Pipe multipart body to ConvertAPI
-  req.pipe(proxyReq);
+  // ---------------------------------------------------------
+  // 3) Send buffered body (not piping) to avoid chunked uploads
+  // ---------------------------------------------------------
+  proxyReq.end(body);
 };
