@@ -3,82 +3,96 @@
  * ---------------------------------------------------------
  * Vercel Blob: Client Upload Route (Node runtime)
  *
- * Why this exists:
- * - Lets the browser upload files DIRECTLY to Vercel Blob (no serverless body-size limit)
- * - Avoids WAF/403 issues that can happen when uploading big phone photos through /api/*
- *
  * Frontend uses:
- *   upload(pathname, file, { handleUploadUrl: '/api/blob-upload' })
- * from @vercel/blob/client (loaded via esm.sh in scripts.js).
+ *   upload(pathname, file, { handleUploadUrl: '/api/blob-upload', multipart: true })
+ * from @vercel/blob/client
  */
 
 const MAX_BYTES = 50 * 1024 * 1024; // 50MB
 
 module.exports = async (req, res) => {
-  if (req.method !== 'POST') {
+  // CORS (safe even on same-origin; helps debugging)
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+
+  if (req.method === "OPTIONS") {
+    res.statusCode = 200;
+    return res.end();
+  }
+
+  if (req.method !== "POST") {
     res.statusCode = 405;
-    res.setHeader('Allow', 'POST');
-    return res.end('Method Not Allowed');
+    res.setHeader("Allow", "POST, OPTIONS");
+    return res.end("Method Not Allowed");
+  }
+
+  const token =
+    process.env.BLOB_READ_WRITE_TOKEN || process.env.VERCEL_BLOB_READ_WRITE_TOKEN;
+
+  if (!token) {
+    res.statusCode = 500;
+    return res.end("Missing BLOB_READ_WRITE_TOKEN");
   }
 
   try {
-    // Read JSON body
+    // Read JSON body sent by @vercel/blob/client upload()
     const chunks = [];
     for await (const chunk of req) chunks.push(chunk);
-    const raw = Buffer.concat(chunks).toString('utf8') || '{}';
+    const raw = Buffer.concat(chunks).toString("utf8") || "{}";
     const body = JSON.parse(raw);
 
-    // Dynamic import (package is ESM-friendly; keeps this file CommonJS)
-    const { handleUpload } = await import('@vercel/blob/client');
+    // Optional: basic size guard if the client provides it
+    const contentLength = Number(body?.contentLength || 0);
+    if (contentLength && contentLength > MAX_BYTES) {
+      res.statusCode = 413;
+      res.setHeader("Content-Type", "application/json");
+      return res.end(JSON.stringify({ error: "File too large (max 50MB)" }));
+    }
 
-    // Rebuild a WHATWG Request (Node 18+ provides Request globally)
-    const proto = req.headers['x-forwarded-proto'] || 'https';
-    const host = req.headers['x-forwarded-host'] || req.headers.host;
-    const url = `${proto}://${host}${req.url}`;
+    const { handleUpload } = await import("@vercel/blob/client");
 
-    const request = new Request(url, {
-      method: 'POST',
-      headers: req.headers,
-    });
-
-    const response = await handleUpload({
-      request,
+    const jsonResponse = await handleUpload({
+      request: req,
       body,
+      token,
 
-      // Runs before the token is generated (good place for size/type restrictions)
-      onBeforeGenerateToken: async (_pathname, _clientPayload) => {
+      onBeforeGenerateToken: async () => {
         return {
-          maximumSizeInBytes: MAX_BYTES,
-          // Keep this list aligned with what your UI accepts
           allowedContentTypes: [
-            'image/*',
-            'application/pdf',
-            'application/msword',
-            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-            'application/vnd.ms-excel',
-            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            // images
+            "image/jpeg",
+            "image/png",
+            "image/webp",
+            "image/bmp",
+            "image/tiff",
+
+            // pdf
+            "application/pdf",
+
+            // office
+            "application/msword",
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            "application/vnd.ms-excel",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
           ],
           addRandomSuffix: true,
         };
       },
 
-      // Optional callback after upload completes (fires from Vercel)
       onUploadCompleted: async ({ blob }) => {
-        console.log('Blob upload completed:', blob?.url);
+        console.log("Blob upload completed:", blob?.url);
       },
     });
 
-    // Forward the Response back to the browser
-    res.statusCode = response.status;
-    res.setHeader('Content-Type', response.headers.get('content-type') || 'application/json');
-    res.setHeader('Cache-Control', 'no-store');
-
-    const text = await response.text();
-    return res.end(text);
+    res.statusCode = 200;
+    res.setHeader("Content-Type", "application/json");
+    res.setHeader("Cache-Control", "no-store");
+    return res.end(JSON.stringify(jsonResponse));
   } catch (err) {
-    console.error('Blob upload route error:', err);
-    res.statusCode = 500;
-    res.setHeader('Content-Type', 'text/plain');
-    return res.end('Blob upload route failed');
+    console.error("Blob upload route error:", err);
+    res.statusCode = 400;
+    res.setHeader("Content-Type", "application/json");
+    return res.end(JSON.stringify({ error: err?.message || "Blob upload route failed" }));
   }
 };
