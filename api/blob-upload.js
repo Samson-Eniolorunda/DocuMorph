@@ -66,6 +66,11 @@ module.exports = async (req, res) => {
             "image/webp",
             "image/bmp",
             "image/tiff",
+            "image/heic",
+            "image/heif",
+
+            // generic binary
+            "application/octet-stream",
 
             // pdf
             "application/pdf",
