@@ -683,9 +683,6 @@
   }
 
   // =========================================================
-  // 17) CONVERT/COMPRESS/RESIZE/MERGE PIPELINE (POST -> /api/convert)
-  // =========================================================
-  // =========================================================
   // 17) BUILD CONVERT TYPE + PARAMS (for URL-based ConvertAPI calls)
   // =========================================================
   async function buildConvertTypeAndParams(file) {
@@ -776,87 +773,141 @@
   }
 
   // =========================================================
-  // 17b) BLOB UPLOAD + CONVERTAPI (URL-based)
-  // =========================================================
-  function setProcessProgress(pct) {
-    const p = Math.max(0, Math.min(100, Math.round(Number(pct) || 0)));
-    if (processBar) processBar.style.width = `${p}%`;
-    if (processPercent) processPercent.innerText = `${p}%`;
+// 17b) BLOB UPLOAD + CONVERTAPI (URL-based) — iOS-safe
+// =========================================================
+
+function setProcessProgress(pct) {
+  const n = Number(pct);
+  const p = Number.isFinite(n) ? Math.max(0, Math.min(100, Math.round(n))) : 0;
+  if (processBar) processBar.style.width = `${p}%`;
+  if (processPercent) processPercent.textContent = `${p}%`;
+}
+
+// Helps iOS Safari: pin a slightly older target build + cache the import
+const BLOB_CLIENT_URL = "https://esm.sh/@vercel/blob/client?target=es2020";
+let blobUploadFnPromise = null;
+
+function isIOSSafari() {
+  const ua = navigator.userAgent;
+  const isIOS = /iP(hone|od|ad)/.test(ua);
+  const isSafari = /Safari/.test(ua) && !/CriOS|FxiOS|EdgiOS/.test(ua);
+  return isIOS && isSafari;
+}
+
+async function getBlobUploadFn() {
+  if (!blobUploadFnPromise) {
+    blobUploadFnPromise = import(BLOB_CLIENT_URL).then((m) => m.upload);
+  }
+  return blobUploadFnPromise;
+}
+
+async function uploadToBlob(file, progressOffset = 0, progressSpan = 70) {
+  if (!file) throw new Error("Missing file for upload");
+
+  let upload;
+  try {
+    upload = await getBlobUploadFn();
+  } catch (err) {
+    console.error("Blob client import failed:", err);
+    throw new Error("Blob uploader failed to load (iPhone/Safari).");
   }
 
-  async function uploadToBlob(file, progressOffset = 0, progressSpan = 70) {
-    // Dynamic import so this works in a plain HTML/CSS/JS project (no bundler)
-    const { upload } = await import("https://esm.sh/@vercel/blob/client");
+  const safeName = String(file.name || "upload.bin").replace(/[^a-z0-9_.-]/gi, "_");
+  const pathname = `uploads/${Date.now()}-${safeName}`;
 
-    const safeName = String(file?.name || "upload.bin").replace(/[^a-z0-9_.-]/gi, "_");
+  // iOS Safari can hang on multipart; keep it OFF for iOS Safari
+  const useMultipart = !isIOSSafari() && file.size > 4.5 * 1024 * 1024;
 
-    return upload(`uploads/${Date.now()}-${safeName}`, file, {
+  // Safety: if progress events don’t fire on iOS, still keep UI moving a bit
+  let lastProgress = progressOffset;
+  const gentleTick = setInterval(() => {
+    // never exceed the upload span (keeps it realistic)
+    if (lastProgress < progressOffset + progressSpan * 0.9) {
+      lastProgress += 1;
+      setProcessProgress(lastProgress);
+    }
+  }, 900);
+
+  try {
+    const res = await upload(pathname, file, {
       access: "public",
       handleUploadUrl: "/api/blob-upload",
-      multipart: file.size > 4.5 * 1024 * 1024, // recommended for large phone photos
+      multipart: useMultipart,
       onUploadProgress: ({ percentage }) => {
-        const scaled = progressOffset + (Number(percentage || 0) * progressSpan) / 100;
+        const pct = Number(percentage);
+        const scaled = progressOffset + ((Number.isFinite(pct) ? pct : 0) * progressSpan) / 100;
+        lastProgress = scaled;
         setProcessProgress(scaled);
       },
     });
+
+    // ensure we end the upload span cleanly
+    setProcessProgress(progressOffset + progressSpan);
+    return res;
+  } finally {
+    clearInterval(gentleTick);
+  }
+}
+
+async function processFilesWithProxy() {
+  const first = appState.files?.[0];
+  if (!first) throw new Error("No file selected");
+
+  setProcessProgress(0);
+
+  // 1) Upload to Blob
+  let fileUrls = [];
+
+  if (appState.view === "merge") {
+    const total = appState.files.length || 1;
+    const step = 70 / total;
+
+    for (let i = 0; i < total; i++) {
+      const blob = await uploadToBlob(appState.files[i], i * step, step);
+      fileUrls.push(blob.url);
+    }
+  } else {
+    const blob = await uploadToBlob(first, 0, 70);
+    fileUrls = [blob.url];
   }
 
-  async function processFilesWithProxy() {
-    const first = appState.files[0];
-    if (!first) throw new Error("No file selected");
+  // 2) Build ConvertAPI type + params
+  const { type, params } = await buildConvertTypeAndParams(first);
+  if (!type) throw new Error("Tool type not recognized");
 
-    setProcessProgress(0);
+  // 3) Call serverless proxy
+  setProcessProgress(75);
 
-    // 1) Upload to Vercel Blob (direct from browser -> Blob)
-    let fileUrls = [];
-    if (appState.view === "merge") {
-      // Upload sequentially so progress feels stable and we can show combined progress
-      const step = appState.files.length ? 70 / appState.files.length : 70;
-      for (let i = 0; i < appState.files.length; i++) {
-        const blob = await uploadToBlob(appState.files[i], i * step, step);
-        fileUrls.push(blob.url);
-      }
-    } else {
-      const blob = await uploadToBlob(first, 0, 70);
-      fileUrls = [blob.url];
-    }
+  const ramp = setInterval(() => {
+    const current = Number(processPercent?.textContent?.replace("%", "")) || 75;
+    if (current < 92) setProcessProgress(current + 1);
+  }, 220);
 
-    // 2) Build ConvertAPI type + params
-    const { type, params } = await buildConvertTypeAndParams(first);
-    if (!type) throw new Error("Tool type not recognized");
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 180000); // 3 mins
 
-    // 3) Call your serverless proxy (no raw file upload -> much less WAF issues)
-    setProcessProgress(75);
-    const ramp = setInterval(() => {
-      // Slow ramp while ConvertAPI does the work
-      const current = Number(processPercent?.innerText?.replace("%", "") || 75);
-      if (current < 92) setProcessProgress(current + 1);
-    }, 180);
-
+  try {
     const resp = await fetch(`/api/convert?type=${encodeURIComponent(type)}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      signal: controller.signal,
       body: JSON.stringify({
-        // single-file tools
         fileUrl: appState.view === "merge" ? null : fileUrls[0],
-        // merge tool
         files: appState.view === "merge" ? fileUrls : null,
         params,
         storeFile: true,
       }),
     });
 
-    clearInterval(ramp);
-
     if (!resp.ok) {
       const raw = (await resp.text()).trim();
       console.error("Convert proxy error:", resp.status, raw);
-      alert(`Failed: ${resp.status}\n\n${raw.slice(0, 600)}`);
       resetApp();
-      throw new Error("HTTP " + resp.status);
+      throw new Error(`Convert failed (${resp.status}): ${raw.slice(0, 400)}`);
     }
 
     const d = await resp.json();
+
     if (d?.Files?.length) {
       setProcessProgress(100);
       appState.resultUrl = d.Files[0].Url;
@@ -865,10 +916,18 @@
       return d;
     }
 
-    alert("Conversion returned no file.");
     resetApp();
-    throw new Error("No file in response");
+    throw new Error("Conversion returned no file.");
+  } catch (err) {
+    // iPhone will now actually show a real failure instead of “stuck processing”
+    console.error("Process failed:", err);
+    resetApp();
+    throw err;
+  } finally {
+    clearInterval(ramp);
+    clearTimeout(timeoutId);
   }
+}
 
   // =========================================================
   // 18) DROPDOWNS (custom-select)
