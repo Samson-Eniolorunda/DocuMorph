@@ -772,157 +772,133 @@
     return { type, params };
   }
 
-// =========================================================
-// 17b) BLOB UPLOAD + CONVERTAPI (URL-based) — iPhone-safe
-// =========================================================
+  // =========================================================
+  // 17b) BLOB UPLOAD + CONVERTAPI (URL-based) — iOS safe
+  // =========================================================
 
-function setProcessProgress(pct) {
-  const p = Math.max(0, Math.min(100, Math.round(Number(pct || 0))));
-  if (processBar) processBar.style.width = `${p}%`;
-  if (processPercent) processPercent.innerText = `${p}%`;
-}
-
-/** iOS sometimes gives file.type = "" so we guess from extension */
-function guessMimeFromName(name = "") {
-  const ext = String(name).split(".").pop()?.toLowerCase() || "";
-  const map = {
-    pdf: "application/pdf",
-    doc: "application/msword",
-    docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    xls: "application/vnd.ms-excel",
-    xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    ppt: "application/vnd.ms-powerpoint",
-    pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-    txt: "text/plain",
-    csv: "text/csv",
-    jpg: "image/jpeg",
-    jpeg: "image/jpeg",
-    png: "image/png",
-    webp: "image/webp",
-    gif: "image/gif",
-    heic: "image/heic",
-    heif: "image/heif",
-  };
-  return map[ext] || "";
-}
-
-/** Cache blob client import so iPhone doesn’t re-download it */
-let _blobUploadPromise = null;
-async function getBlobUploadFn() {
-  if (!_blobUploadPromise) {
-    _blobUploadPromise = import("https://esm.sh/@vercel/blob/client?bundle").then(
-      (m) => m.upload
-    );
+  function setProcessProgress(pct) {
+    const p = Math.max(0, Math.min(100, Math.round(Number(pct) || 0)));
+    if (processBar) processBar.style.width = `${p}%`;
+    if (processPercent) processPercent.textContent = `${p}%`;
   }
-  return _blobUploadPromise;
-}
 
-/** Upload to Vercel Blob with timeout + progress fallback */
-async function uploadToBlob(file, progressOffset = 0, progressSpan = 70) {
-  const upload = await getBlobUploadFn();
+  function isIOSWebKit() {
+    const ua = navigator.userAgent;
+    const iOS = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+    return iOS;
+  }
 
-  const safeName = String(file?.name || "upload.bin").replace(/[^a-z0-9_.-]/gi, "_");
-  const pathname = `uploads/${Date.now()}-${safeName}`;
+  function promiseTimeout(promise, ms, label = "Operation") {
+    let t;
+    const timeout = new Promise((_, reject) => {
+      t = setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms);
+    });
+    return Promise.race([promise, timeout]).finally(() => clearTimeout(t));
+  }
 
-  // iPhone often gives file.type empty — use best available value
-  const contentType =
-    (file && file.type ? file.type : "") ||
-    guessMimeFromName(safeName) ||
-    "application/octet-stream";
+  // Cache the module so iPhone doesn’t re-import repeatedly
+  let _blobUploadFn = null;
+  async function getBlobUpload() {
+    if (_blobUploadFn) return _blobUploadFn;
 
-  // Timeout protection (Safari can “hang” on long uploads)
-  const controller = new AbortController();
-  const UPLOAD_TIMEOUT_MS = 180000; // 3 mins
-  const timeoutId = setTimeout(() => controller.abort(), UPLOAD_TIMEOUT_MS);
+    // Pin + cache-friendly import (less iOS drama than re-importing every click)
+    const mod = await import("https://esm.sh/@vercel/blob/client@0.10.0");
+    _blobUploadFn = mod.upload;
+    return _blobUploadFn;
+  }
 
-  // Progress fallback (helps iPhone Chrome where progress events can be flaky)
-  let lastSet = progressOffset;
-  let lastRealTs = Date.now();
+  async function uploadToBlob(file, progressOffset = 0, progressSpan = 70) {
+    const upload = await getBlobUpload();
 
-  const fallbackId = setInterval(() => {
-    const now = Date.now();
-    // only drift forward if we haven't received real progress recently
-    if (now - lastRealTs > 900) {
-      const cap = progressOffset + progressSpan - 3; // don’t reach 70 until upload finishes
-      lastSet = Math.min(cap, lastSet + 1);
-      setProcessProgress(lastSet);
-    }
-  }, 300);
+    const safeName = String(file?.name || "upload.bin").replace(/[^a-z0-9_.-]/gi, "_");
+    const pathname = `uploads/${Date.now()}-${safeName}`;
 
-  try {
-    const result = await upload(pathname, file, {
+    // iOS fix: disable multipart (WebKit can hang mid-upload)
+    const useMultipart = !isIOSWebKit() && file.size > 4.5 * 1024 * 1024;
+
+    const uploadPromise = upload(pathname, file, {
       access: "public",
-      handleUploadUrl: "/api/blob-upload",
-      contentType,
-      multipart: file.size > 4.5 * 1024 * 1024,
-      abortSignal: controller.signal,
-      onUploadProgress: ({ percentage }) => {
-        const scaled =
-          progressOffset + (Number(percentage || 0) * progressSpan) / 100;
-        lastRealTs = Date.now();
-        lastSet = scaled;
+      // iOS fix: make it absolute (no weird relative resolution)
+      handleUploadUrl: new URL("/api/blob-upload", location.origin).toString(),
+      multipart: useMultipart,
+
+      // iOS fix: always send a content type
+      contentType: file.type || "application/octet-stream",
+
+      onUploadProgress: (evt) => {
+        const percentage = Number(evt?.percentage);
+        if (!Number.isFinite(percentage)) return;
+        const scaled = progressOffset + (percentage * progressSpan) / 100;
         setProcessProgress(scaled);
       },
     });
 
-    // Ensure we “complete” upload phase even if iOS never reports 100%
-    setProcessProgress(progressOffset + progressSpan);
-    return result;
-  } finally {
-    clearTimeout(timeoutId);
-    clearInterval(fallbackId);
+    // iOS fix: if it hangs, stop spinning forever
+    return promiseTimeout(uploadPromise, 120000, "Upload");
   }
-}
 
-async function processFilesWithProxy() {
-  const first = appState.files[0];
-  if (!first) throw new Error("No file selected");
+  async function fetchWithTimeout(url, options = {}, ms = 180000) {
+    const controller = new AbortController();
+    const t = setTimeout(() => controller.abort(), ms);
 
-  setProcessProgress(0);
-
-  // 1) Upload to Blob
-  let fileUrls = [];
-  if (appState.view === "merge") {
-    const step = appState.files.length ? 70 / appState.files.length : 70;
-    for (let i = 0; i < appState.files.length; i++) {
-      const blob = await uploadToBlob(appState.files[i], i * step, step);
-      fileUrls.push(blob.url);
+    try {
+      return await fetch(url, { ...options, signal: controller.signal, cache: "no-store" });
+    } finally {
+      clearTimeout(t);
     }
-  } else {
-    const blob = await uploadToBlob(first, 0, 70);
-    fileUrls = [blob.url];
   }
 
-  // 2) Build ConvertAPI type + params
-  const { type, params } = await buildConvertTypeAndParams(first);
-  if (!type) throw new Error("Tool type not recognized");
+  async function processFilesWithProxy() {
+    const first = appState.files[0];
+    if (!first) throw new Error("No file selected");
 
-  // 3) Call proxy
-  setProcessProgress(75);
+    setProcessProgress(0);
 
-  const ramp = setInterval(() => {
-    const current = Number(processPercent?.innerText?.replace("%", "") || 75);
-    if (current < 92) setProcessProgress(current + 1);
-  }, 180);
+    // 1) Upload to Vercel Blob
+    let fileUrls = [];
+    if (appState.view === "merge") {
+      const step = appState.files.length ? 70 / appState.files.length : 70;
+      for (let i = 0; i < appState.files.length; i++) {
+        const blob = await uploadToBlob(appState.files[i], i * step, step);
+        fileUrls.push(blob.url);
+      }
+    } else {
+      const blob = await uploadToBlob(first, 0, 70);
+      fileUrls = [blob.url];
+    }
 
-  try {
-    const resp = await fetch(`/api/convert?type=${encodeURIComponent(type)}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        fileUrl: appState.view === "merge" ? null : fileUrls[0],
-        files: appState.view === "merge" ? fileUrls : null,
-        params,
-        storeFile: true,
-      }),
-    });
+    // 2) Build ConvertAPI type + params
+    const { type, params } = await buildConvertTypeAndParams(first);
+    if (!type) throw new Error("Tool type not recognized");
 
+    // 3) Call proxy
+    setProcessProgress(75);
+
+    const ramp = setInterval(() => {
+      const current = Number(String(processPercent?.textContent || "75").replace("%", "")) || 75;
+      if (current < 92) setProcessProgress(current + 1);
+    }, 180);
+
+    let resp;
+    try {
+      resp = await fetchWithTimeout(`/api/convert?type=${encodeURIComponent(type)}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({
+          fileUrl: appState.view === "merge" ? null : fileUrls[0],
+          files: appState.view === "merge" ? fileUrls : null,
+          params,
+          storeFile: true,
+        }),
+      }, 180000);
+    } finally {
+      clearInterval(ramp);
+    }
     if (!resp.ok) {
       const raw = (await resp.text()).trim();
       console.error("Convert proxy error:", resp.status, raw);
-      alert(`Failed: ${resp.status}\n\n${raw.slice(0, 600)}`);
       resetApp();
-      throw new Error("HTTP " + resp.status);
+      throw new Error(`Convert failed: ${resp.status} - ${raw.slice(0, 400)}`);
     }
 
     const d = await resp.json();
@@ -934,13 +910,9 @@ async function processFilesWithProxy() {
       return d;
     }
 
-    alert("Conversion returned no file.");
     resetApp();
-    throw new Error("No file in response");
-  } finally {
-    clearInterval(ramp);
+    throw new Error("Conversion returned no file.");
   }
-}
 
   // =========================================================
   // 18) DROPDOWNS (custom-select)
