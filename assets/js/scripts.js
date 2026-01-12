@@ -813,28 +813,41 @@
     const safeName = String(file?.name || "upload.bin").replace(/[^a-z0-9_.-]/gi, "_");
     const pathname = `uploads/${Date.now()}-${safeName}`;
 
-    // iOS fix: disable multipart (WebKit can hang mid-upload)
-    const useMultipart = !isIOSWebKit() && file.size > 4.5 * 1024 * 1024;
-
-    const uploadPromise = upload(pathname, file, {
+    const baseOpts = {
       access: "public",
-      // iOS fix: make it absolute (no weird relative resolution)
       handleUploadUrl: new URL("/api/blob-upload", location.origin).toString(),
-      multipart: useMultipart,
 
-      // iOS fix: always send a content type
-      contentType: file.type || "application/octet-stream",
+      // ✅ IMPORTANT: only set contentType if browser provides it (iOS often doesn't)
+      ...(file?.type ? { contentType: file.type } : {}),
 
-      onUploadProgress: (evt) => {
-        const percentage = Number(evt?.percentage);
-        if (!Number.isFinite(percentage)) return;
-        const scaled = progressOffset + (percentage * progressSpan) / 100;
+      onUploadProgress: ({ percentage }) => {
+        const pct = Number(percentage);
+        if (!Number.isFinite(pct)) return;
+        const scaled = progressOffset + (pct * progressSpan) / 100;
         setProcessProgress(scaled);
       },
-    });
+    };
+    // iOS WebKit can hang on multipart sometimes, so:
+    // 1) try non-multipart first
+    // 2) if it fails on iOS, retry with multipart
+    const tryUpload = (multipart) =>
+      promiseTimeout(
+        upload(pathname, file, {
+          ...baseOpts,
+          multipart,
+        }),
+        multipart ? 180000 : 120000,
+        multipart ? "Upload (multipart)" : "Upload"
+      );
 
-    // iOS fix: if it hangs, stop spinning forever
-    return promiseTimeout(uploadPromise, 120000, "Upload");
+    try {
+      return await tryUpload(false);
+    } catch (err) {
+      // retry only on iOS
+      if (!isIOSWebKit()) throw err;
+      console.warn("Upload failed (non-multipart). Retrying multipart…", err);
+      return await tryUpload(true);
+    }
   }
 
   async function fetchWithTimeout(url, options = {}, ms = 180000) {
