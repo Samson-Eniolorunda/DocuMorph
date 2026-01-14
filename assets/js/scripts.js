@@ -2,11 +2,11 @@
    DocuMorph — Main Frontend Logic (scripts.js)
    Author: Samson Eniolorunda
    ---------------------------------------------------------
-   FIXES (UX Polish):
-   - Resize Tool: Now displays Dimensions (px) instead of Size (MB) on upload.
+   FIXES (Final Polish):
+   - Resize Stats: Now shows "Original" stats immediately.
+   - Resize Stats: "New" stats load asynchronously (doesn't block UI).
    - Crash Fix: Solved "null is not an object" crash on iOS.
    - Android Stuck: Uses latest Blob library for compatibility.
-   - Speed: Removed heavy previews, instant stats only.
    - Logic: Prevents auto-download using background fetch.
    ========================================================= */
 
@@ -457,14 +457,12 @@
         const f = appState.files[0];
         let infoText = "";
         
-        // FIXED: Differentiate between Compress (Size) and Resize (Px)
         if (f) {
             if (appState.view === 'compress') {
                 infoText = ` (${formatBytes(f.size)})`;
             } else if (appState.view === 'resize') {
                 // Calculate dims immediately for display
                 getImageDimensions(f).then(({w, h}) => {
-                    // Only update if user hasn't switched views
                     if(appState.view === 'resize' && appState.files[0] === f) {
                         fileNameDisplay.innerText = f.name + ` (${w} x ${h} px)`;
                     }
@@ -597,20 +595,27 @@
     const ext = String(filename).split('.').pop().toLowerCase();
     const isImg = ['jpg', 'jpeg', 'png', 'webp', 'gif'].includes(ext);
 
-    // Fetch resize stats (dimensions) in background without showing preview image
+    // FIXED: Show stats box immediately with "Original" data, load "New" async
     if (isImg && appState.view === "resize") {
+        resizeBox.classList.remove("hidden");
+        const loading = qs("#resize-loading");
+        const dataRow = qs("#resize-data");
+        
+        // Setup initial display with known Original
+        loading.classList.remove("hidden"); // Shows "Calculating..."
+        dataRow.classList.add("hidden"); 
+        
+        // Fill original immediately
+        qs("#resize-old").textContent = `${appState.originalStats.width} x ${appState.originalStats.height} px`;
+
         fetch(url)
           .then(res => res.blob())
           .then(blob => {
              const tempImg = new Image();
              const objectUrl = URL.createObjectURL(blob);
              tempImg.onload = () => {
-                 resizeBox.classList.remove("hidden");
-                 const loading = qs("#resize-loading");
-                 const dataRow = qs("#resize-data");
                  loading.classList.add("hidden");
                  dataRow.classList.remove("hidden");
-                 qs("#resize-old").textContent = `${appState.originalStats.width} x ${appState.originalStats.height} px`;
                  qs("#resize-new").textContent = `${tempImg.naturalWidth} x ${tempImg.naturalHeight} px`;
                  URL.revokeObjectURL(objectUrl);
              };
@@ -618,6 +623,7 @@
           })
           .catch(e => {
              console.log("Stats load failed", e);
+             loading.textContent = "See download for new size";
           });
     }
 
@@ -845,7 +851,7 @@
   }
 
   // =========================================================
-  // DROPDOWNS & WALLETS
+  // DROPDOWNS & WALLETS (Unchanged Logic)
   // =========================================================
   function initCustomDropdowns() {
     const dropdowns = qsa(".custom-select");
