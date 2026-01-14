@@ -783,7 +783,7 @@
   }
 
   function isIOSDevice() {
-    // covers iPhone/iPad + iPadOS masquerading as Mac
+    // Covers iPhone/iPad + iPadOS that presents as Mac
     return (
       /iPhone|iPad|iPod/i.test(navigator.userAgent) ||
       (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1)
@@ -791,8 +791,7 @@
   }
 
   function guessMimeFromName(name = "") {
-    const ext = name.split(".").pop()?.toLowerCase();
-
+    const ext = String(name).split(".").pop()?.toLowerCase() || "";
     const map = {
       pdf: "application/pdf",
       doc: "application/msword",
@@ -808,35 +807,36 @@
       tif: "image/tiff",
       tiff: "image/tiff",
     };
-
     return map[ext] || "application/octet-stream";
   }
 
   function normalizeFileForIOS(file) {
-    // iOS sometimes gives file.type === ""
+    // On iOS Safari file.type may be empty — re-wrap the File with guessed mime
     const mime = file?.type && String(file.type).trim() ? file.type : guessMimeFromName(file?.name || "");
     const safeName = String(file?.name || "upload.bin");
-
-    // Re-wrap to ensure the blob has a real content-type
-    return new File([file], safeName, {
-      type: mime,
-      lastModified: file?.lastModified || Date.now(),
-    });
+    // Re-wrap (this preserves content bytes but ensures file.type exists)
+    try {
+      return new File([file], safeName, {
+        type: mime,
+        lastModified: file?.lastModified || Date.now(),
+      });
+    } catch (err) {
+      // Some older WebViews may fail with new File([...]) — fallback to original
+      console.warn("[normalizeFileForIOS] rewrap failed, using original file", err);
+      return file;
+    }
   }
 
   function withTimeout(promise, ms, label = "Operation") {
-    let t;
+    let timer;
     const timeout = new Promise((_, reject) => {
-      t = setTimeout(() => reject(new Error(`${label} timed out`)), ms);
+      timer = setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms);
     });
-
-    return Promise.race([
-      promise.finally(() => clearTimeout(t)),
-      timeout
-    ]);
+    return Promise.race([promise.finally(() => clearTimeout(timer)), timeout]);
   }
 
   async function uploadToBlob(file, progressOffset = 0, progressSpan = 70) {
+    // Dynamic import of official client
     const { upload } = await import("https://esm.sh/@vercel/blob/client");
 
     const ios = isIOSDevice();
@@ -845,98 +845,167 @@
     const safeName = String(normalized?.name || "upload.bin").replace(/[^a-z0-9_.-]/gi, "_");
     const pathname = `uploads/${Date.now()}-${safeName}`;
 
-    const uploadPromise = upload(pathname, normalized, {
-      access: "public",
-      handleUploadUrl: "/api/blob-upload",
+    // If upload stalls on iOS with multipart true, set multipart=false for iOS
+    const multipartDecision = ios ? false : normalized.size > 4.5 * 1024 * 1024;
 
-      // iOS Safari can stall on multipart/chunked uploads → disable on iOS
-      multipart: ios ? false : normalized.size > 4.5 * 1024 * 1024,
+    let attempt = 0;
+    const maxAttempts = 2;
 
-      onUploadProgress: ({ percentage } = {}) => {
-        // Some browsers may not report percentage reliably
-        const pct = Number(percentage);
-        if (!Number.isFinite(pct)) return;
+    while (attempt < maxAttempts) {
+      attempt++;
+      try {
+        // Note: the upload() returns an object with .url on success — library internals may vary across versions
+        const uploadPromise = upload(pathname, normalized, {
+          access: "public",
+          handleUploadUrl: "/api/blob-upload",
+          multipart: multipartDecision,
+          onUploadProgress: ({ percentage } = {}) => {
+            const pct = Number(percentage);
+            if (!Number.isFinite(pct)) return;
+            const scaled = progressOffset + (pct * progressSpan) / 100;
+            setProcessProgress(scaled);
+          },
+        });
 
-        const scaled = progressOffset + (pct * progressSpan) / 100;
-        setProcessProgress(scaled);
-      },
-    });
+        // iOS networks can be slow — increase timeout to 180s
+        const result = await withTimeout(uploadPromise, 180000, "BlobUpload");
 
-    // avoid infinite “stuck processing” on iOS networks
-    return withTimeout(uploadPromise, 120000, "Upload");
+        // validate shape
+        if (!result || !(result.url || result?.blob?.url)) {
+          // Sometimes library returns nested object, check common shapes then throw to retry
+          console.warn("[uploadToBlob] unexpected upload result", result);
+          throw new Error("Invalid upload result");
+        }
+
+        // pick the URL
+        const url = result.url || result?.blob?.url;
+        console.log("[uploadToBlob] uploaded:", url);
+        // ensure progress shows something near completion
+        setProcessProgress(progressOffset + progressSpan);
+        return { url, raw: result };
+      } catch (err) {
+        console.error(`[uploadToBlob] attempt ${attempt} failed:`, err && (err.message || err));
+        // retry once if it is a network error on iOS, otherwise bubble up
+        if (attempt < maxAttempts) {
+          // small delay before retry
+          await new Promise((r) => setTimeout(r, 600));
+          // on retry, force multipart=false (safer for iOS)
+          multipartDecision = false;
+          continue;
+        }
+        // include useful message for the UI
+        throw new Error(`Blob upload failed: ${err?.message || err}`);
+      }
+    }
   }
 
   async function processFilesWithProxy() {
-    const first = appState.files[0];
-    if (!first) throw new Error("No file selected");
+    try {
+      const first = appState.files[0];
+      if (!first) throw new Error("No file selected");
+      setProcessProgress(0);
 
-    setProcessProgress(0);
+      // 1) Upload to Vercel Blob (URL-mode)
+      let fileUrls = [];
 
-    // 1) Upload to Vercel Blob
-    let fileUrls = [];
-
-    if (appState.view === "merge") {
-      const step = appState.files.length ? 70 / appState.files.length : 70;
-
-      for (let i = 0; i < appState.files.length; i++) {
-        const blob = await uploadToBlob(appState.files[i], i * step, step);
-        fileUrls.push(blob.url);
+      if (appState.view === "merge") {
+        const step = appState.files.length ? 70 / appState.files.length : 70;
+        for (let i = 0; i < appState.files.length; i++) {
+          const blob = await uploadToBlob(appState.files[i], i * step, step);
+          fileUrls.push(blob.url);
+        }
+      } else {
+        const blob = await uploadToBlob(first, 0, 70);
+        fileUrls = [blob.url];
       }
-    } else {
-      const blob = await uploadToBlob(first, 0, 70);
-      fileUrls = [blob.url];
-    }
 
-    // 2) Build ConvertAPI type + params
-    const { type, params } = await buildConvertTypeAndParams(first);
-    if (!type) throw new Error("Tool type not recognized");
+      // 2) Build ConvertAPI type + params
+      const { type, params } = await buildConvertTypeAndParams(first);
+      if (!type) throw new Error("Tool type not recognized");
 
-    // 3) Convert via your proxy
-    setProcessProgress(75);
+      // 3) Call convert proxy (URL mode)
+      setProcessProgress(75);
 
-    const ramp = setInterval(() => {
-      const current = Number(processPercent?.innerText?.replace("%", "")) || 75;
-      if (current < 92) setProcessProgress(current + 1);
-    }, 180);
+      // Ramp progress while server side processing occurs
+      const ramp = setInterval(() => {
+        const current = Number(processPercent?.innerText?.replace("%", "")) || 75;
+        if (current < 92) setProcessProgress(current + 1);
+      }, 180);
 
-    const convertPromise = fetch(`/api/convert?type=${encodeURIComponent(type)}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
+      // Increase convert timeout on iOS (ConvertAPI sometimes slow). 300s = 5 minutes
+      const convertTimeout = isIOSDevice() ? 300000 : 180000;
+
+      const convertBody = {
         fileUrl: appState.view === "merge" ? null : fileUrls[0],
         files: appState.view === "merge" ? fileUrls : null,
         params,
         storeFile: true,
-      }),
-    });
+      };
 
-    const resp = await withTimeout(convertPromise, 120000, "Convert");
+      const convertPromise = fetch(`/api/convert?type=${encodeURIComponent(type)}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(convertBody),
+      });
 
-    clearInterval(ramp);
+      const resp = await withTimeout(convertPromise, convertTimeout, "Convert");
 
-    if (!resp.ok) {
-      const raw = (await resp.text()).trim();
-      console.error("Convert proxy error:", resp.status, raw);
-      alert(`Failed: ${resp.status}\n\n${raw.slice(0, 600)}`);
+      clearInterval(ramp);
+
+      // If the proxy returned non-JSON body or non-OK, read text to surface server error
+      const contentType = resp.headers.get("content-type") || "";
+      const rawText = await resp.text().catch(() => null);
+
+      if (!resp.ok) {
+        // try parse JSON message from body if possible
+        let parsed;
+        try {
+          parsed = rawText ? JSON.parse(rawText) : null;
+        } catch (e) {
+          parsed = null;
+        }
+        console.error("[processFilesWithProxy] convert proxy non-ok:", resp.status, parsed || rawText);
+        alert(`Conversion failed (HTTP ${resp.status}).\n\n${parsed?.error || parsed?.message || rawText || "See console/network tab."}`);
+        resetApp();
+        throw new Error("Convert proxy HTTP " + resp.status);
+      }
+
+      // parse JSON response
+      let d;
+      try {
+        d = contentType.includes("application/json") ? JSON.parse(rawText || "{}") : null;
+      } catch (err) {
+        console.error("[processFilesWithProxy] Invalid JSON from convert proxy:", rawText);
+        resetApp();
+        throw new Error("Invalid response from convert proxy");
+      }
+
+      if (d?.Files?.length) {
+        setProcessProgress(100);
+        appState.resultUrl = d.Files[0].Url;
+        incrementUsage();
+        showSuccess(d.Files[0].FileName);
+        return d;
+      }
+
+      // Not ok: show server-returned message if present
+      console.error("[processFilesWithProxy] convert returned no file:", d || rawText);
+      alert(`Conversion returned no file. ${d?.error || d?.message || ""}`);
       resetApp();
-      throw new Error("HTTP " + resp.status);
+      throw new Error("No file in response");
+    } catch (err) {
+      // Present friendly message to the user and log details to console
+      console.error("[processFilesWithProxy] error:", err);
+      // if err.message contains "timed out" show specific message
+      if (/timed out/i.test(err.message || "")) {
+        alert("Operation timed out. Try again on a stronger connection or use a smaller file.");
+      } else {
+        alert(err.message || "Processing failed. Please try again.");
+      }
+      resetApp();
+      throw err;
     }
-
-    const d = await resp.json();
-
-    if (d?.Files?.length) {
-      setProcessProgress(100);
-      appState.resultUrl = d.Files[0].Url;
-      incrementUsage();
-      showSuccess(d.Files[0].FileName);
-      return d;
-    }
-
-    alert("Conversion returned no file.");
-    resetApp();
-    throw new Error("No file in response");
   }
-
 
   // =========================================================
   // 18) DROPDOWNS (custom-select)
