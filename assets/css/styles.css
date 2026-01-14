@@ -1490,7 +1490,7 @@ label {
   }
 
   h1 {
-    font-size: 2rem;
+    font-size: 1.8rem;
     letter-spacing: -0.5px;
   }
 
@@ -1603,8 +1603,8 @@ label {
     height: 44px;
   }
 
-  .legal-consent {
-    font-size: 1.2rem;
+   .legal-consent label {
+    font-size: 0.85rem;
   }
 
   .legal-consent input[type="checkbox"] {
