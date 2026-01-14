@@ -836,17 +836,26 @@
   }
 
   async function uploadToBlob(file, progressOffset = 0, progressSpan = 70) {
-    // Dynamic import of official client
-    const { upload } = await import("https://esm.sh/@vercel/blob/client");
 
+    const { upload } = await import("https://esm.sh/@vercel/blob@0.22.1/client");
     const ios = isIOSDevice();
-    const normalized = ios ? normalizeFileForIOS(file) : file;
+    let normalized = file;
 
-    const safeName = String(normalized?.name || "upload.bin").replace(/[^a-z0-9_.-]/gi, "_");
+    // If iOS, ensure we are sending a Blob, not a potentially broken File ref
+    if (ios) {
+      const safeName = String(file?.name || "upload.bin").replace(/[^a-z0-9_.-]/gi, "_");
+      const mime = file?.type || guessMimeFromName(safeName);
+      // Slicing the file into a Blob often fixes the Safari "stuck" upload bug
+      normalized = file.slice(0, file.size, mime);
+      // Re-attach name property for the uploader
+      normalized.name = safeName;
+    }
+
+    const safeName = String(file?.name || "upload.bin").replace(/[^a-z0-9_.-]/gi, "_");
     const pathname = `uploads/${Date.now()}-${safeName}`;
 
-    // If upload stalls on iOS with multipart true, set multipart=false for iOS
-    const multipartDecision = ios ? false : normalized.size > 4.5 * 1024 * 1024;
+    // iOS Safari typically works best with multipart: false for smaller files, 
+    let multipartDecision = ios ? false : normalized.size > 4.5 * 1024 * 1024;
 
     let attempt = 0;
     const maxAttempts = 2;
@@ -854,7 +863,6 @@
     while (attempt < maxAttempts) {
       attempt++;
       try {
-        // Note: the upload() returns an object with .url on success — library internals may vary across versions
         const uploadPromise = upload(pathname, normalized, {
           access: "public",
           handleUploadUrl: "/api/blob-upload",
@@ -867,33 +875,23 @@
           },
         });
 
-        // iOS networks can be slow — increase timeout to 180s
         const result = await withTimeout(uploadPromise, 180000, "BlobUpload");
 
-        // validate shape
         if (!result || !(result.url || result?.blob?.url)) {
-          // Sometimes library returns nested object, check common shapes then throw to retry
-          console.warn("[uploadToBlob] unexpected upload result", result);
           throw new Error("Invalid upload result");
         }
 
-        // pick the URL
         const url = result.url || result?.blob?.url;
-        console.log("[uploadToBlob] uploaded:", url);
-        // ensure progress shows something near completion
         setProcessProgress(progressOffset + progressSpan);
         return { url, raw: result };
       } catch (err) {
-        console.error(`[uploadToBlob] attempt ${attempt} failed:`, err && (err.message || err));
-        // retry once if it is a network error on iOS, otherwise bubble up
+        console.error(`[uploadToBlob] attempt ${attempt} failed:`, err);
         if (attempt < maxAttempts) {
-          // small delay before retry
-          await new Promise((r) => setTimeout(r, 600));
-          // on retry, force multipart=false (safer for iOS)
+          await new Promise((r) => setTimeout(r, 1000));
+          // On retry, force simple upload (no multipart)
           multipartDecision = false;
           continue;
         }
-        // include useful message for the UI
         throw new Error(`Blob upload failed: ${err?.message || err}`);
       }
     }

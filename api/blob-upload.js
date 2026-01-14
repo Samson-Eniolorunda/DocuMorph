@@ -1,14 +1,15 @@
 /**
  * /api/blob-upload
  * Vercel Blob: Client Upload Route (Node runtime)
- *
- * This version:
- * - Reads the (small) JSON body the client sends and passes body to handleUpload().
- * - Avoids consuming any file stream (the file upload itself is done by the client -> blob service).
- * - Always returns HTTP 200 JSON (Safari-friendly). Check server logs for real errors.
  */
 
-const MAX_BODY_BYTES = 2 * 1024 * 1024; // 2MB - safe for the small JSON the client sends
+const MAX_BODY_BYTES = 2 * 1024 * 1024; // 2MB
+
+module.exports.config = {
+  api: {
+    bodyParser: false, // Disables default parsing so readJsonBody works
+  },
+};
 
 async function readJsonBody(req, maxBytes = MAX_BODY_BYTES) {
   const chunks = [];
@@ -25,7 +26,6 @@ async function readJsonBody(req, maxBytes = MAX_BODY_BYTES) {
   try {
     return JSON.parse(raw);
   } catch (err) {
-    // malformed JSON -> return empty object (client.mjs should send valid JSON)
     return {};
   }
 }
