@@ -134,7 +134,7 @@ body {
 
 /* Base typography */
 h1 {
-  font-size: 3rem;
+  font-size: 2.5rem;
   margin-bottom: 0.5rem;
   letter-spacing: -1px;
 }
@@ -1423,7 +1423,7 @@ label {
   }
 
   h1 {
-    font-size: 2.5rem;
+    font-size: 2rem;
   }
 
   p {
@@ -1490,7 +1490,7 @@ label {
   }
 
   h1 {
-    font-size: 1.8rem;
+    font-size: 1.5rem;
     letter-spacing: -0.5px;
   }
 
@@ -1557,7 +1557,7 @@ label {
   }
 
   h1 {
-    font-size: 1.5rem;
+    font-size: 1.2rem;
   }
 
   p {

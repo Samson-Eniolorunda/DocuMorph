@@ -2,16 +2,12 @@
    DocuMorph — Main Frontend Logic (scripts.js)
    Author: Samson Eniolorunda
    ---------------------------------------------------------
-   Updated:
-   - Feedback menu label + modal title: "Feedback" / "Feedback & Requests"
-   - Strict "supported file only" validation for BOTH choose-file + drag-drop
-   - Inline drop-zone error text + escalation modal on repeated mistakes
-   - Resize Scale % fixed (no 404): reads original size in browser and sends px
-   
-   NEW UPDATES:
-   - iOS Fix: Pinned @vercel/blob version + slice() fix for Safari
-   - Early Stats: Show file size on "Ready" screen (Compress/Resize only)
-   - Preview/Stats: Show Before/After + Preview on "Success" screen
+   FIXES (Final Compatibility Update):
+   - Crash Fix: Solved "null is not an object" by querying download button freshly.
+   - Android Stuck: Updated Blob client to latest for better Android support.
+   - Speed: Removed visible previews (Image/PDF) to prevent slow loading.
+   - Logic: Prevents auto-download by using background fetch for stats only.
+   - Word Support: Includes full MIME types for iOS file picker.
    ========================================================= */
 
 (() => {
@@ -24,8 +20,8 @@
   const MAX_UPLOAD_MB = 50;
 
   // Error escalation
-  const REJECT_ESCALATE_COUNT = 3; // show modal after repeated invalid attempts
-  const MULTI_REJECT_ESCALATE = 2; // show modal when multiple files rejected at once
+  const REJECT_ESCALATE_COUNT = 3;
+  const MULTI_REJECT_ESCALATE = 2;
 
   // =========================================================
   // 2) APP STATE
@@ -36,13 +32,13 @@
     files: [],
     resultUrl: null,
 
-    rejectCount: 0, // repeated invalid attempts
+    rejectCount: 0,
 
-    // NEW: Capture stats before upload for comparison
+    // Stats capture
     originalStats: { size: 0, width: 0, height: 0 },
   };
 
-  // Wallet addresses returned from /api/wallets
+  // Wallet addresses
   let CRYPTO_WALLETS = {
     btc: "Loading...",
     eth: "Loading...",
@@ -50,7 +46,6 @@
     sol: "Loading...",
     ton: "Loading...",
     tron: "Loading...",
-
     usdt_eth: "Loading...",
     usdt_bnb: "Loading...",
     usdt_trc: "Loading...",
@@ -74,12 +69,11 @@
     merge: qs("#view-merge"),
   };
 
-  // File UI
   const dropZone = qs("#drop-zone");
   const fileInput = qs("#file-input");
   const fileLimits = qs("#file-limits");
   const fileNameDisplay = qs("#file-name-display");
-  const dropError = qs("#drop-error"); // inline message inside drop zone
+  const dropError = qs("#drop-error");
 
   const uploadUI = qs("#upload-ui");
   const readyUI = qs("#ready-ui");
@@ -92,16 +86,12 @@
   const processPercent = qs("#process-percent");
 
   const startBtn = qs("#start-btn");
-  const downloadBtn = qs(".download-btn");
+  // Note: We do NOT cache .download-btn here anymore to avoid the "null" error
 
-  // Menu
   const menuToggle = qs(".menu-toggle");
   const mobileMenu = qs("#mobile-menu");
-
-  // Modals
   const modalContainer = qs("#modal-container");
 
-  // Wallet UI (COPY-ONLY)
   const walletInput = qs("#wallet-address");
   const copyFeedback = qs("#copy-feedback");
   const connectBtn = qs("#connect-wallet-btn");
@@ -127,7 +117,7 @@
   }
 
   // =========================================================
-  // 5) EXPOSED HANDLERS (inline onclick in HTML)
+  // 5) EXPOSED HANDLERS
   // =========================================================
   window.switchView = switchView;
   window.toggleMenu = toggleMenu;
@@ -138,7 +128,6 @@
   window.toggleCompMode = toggleCompMode;
   window.updateRangeLabel = updateRangeLabel;
   window.toggleStartButton = toggleStartButton;
-
   window.copyWallet = copyWallet;
   window.submitToFormspree = submitToFormspree;
 
@@ -153,7 +142,6 @@
     return (el?.innerText || "").trim().toLowerCase();
   }
 
-  // NEW: Helper to format bytes to readable text
   function formatBytes(bytes, decimals = 2) {
     if (!+bytes) return "0 Bytes";
     const k = 1024;
@@ -167,27 +155,18 @@
     const name = file?.name || "";
     const parts = name.split(".");
     const ext = parts.length > 1 ? parts.pop().toLowerCase() : "";
-
     if (ext) return ext;
-
     const mime = (file?.type || "").toLowerCase();
-
     const map = {
       "image/jpeg": "jpg",
       "image/jpg": "jpg",
       "image/png": "png",
       "image/webp": "webp",
-      "image/bmp": "bmp",
-      "image/tiff": "tiff",
       "application/pdf": "pdf",
       "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
         "docx",
       "application/msword": "doc",
-      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":
-        "xlsx",
-      "application/vnd.ms-excel": "xls",
     };
-
     return map[mime] || "";
   }
 
@@ -202,34 +181,27 @@
     const maxBytes = MAX_UPLOAD_MB * 1024 * 1024;
     const tooBig = files.find((f) => f.size > maxBytes);
     if (tooBig) {
-      showInlineDropError(
-        `"${tooBig.name}" is above ${MAX_UPLOAD_MB}MB. Please upload a smaller file.`
-      );
+      showInlineDropError(`"${tooBig.name}" is above ${MAX_UPLOAD_MB}MB.`);
       return false;
     }
     return true;
   }
 
-  // read original image dimensions locally in browser (you asked who reads it: the website/browser does)
   function getImageDimensions(file) {
     return new Promise((resolve, reject) => {
       try {
         const img = new Image();
         const url = URL.createObjectURL(file);
-
         img.onload = () => {
           const w = img.naturalWidth || 0;
           const h = img.naturalHeight || 0;
           URL.revokeObjectURL(url);
-          if (!w || !h) return reject(new Error("Could not read image size"));
           resolve({ w, h });
         };
-
         img.onerror = () => {
           URL.revokeObjectURL(url);
-          reject(new Error("Could not read image size"));
+          reject(new Error("Img Error"));
         };
-
         img.src = url;
       } catch (e) {
         reject(e);
@@ -244,26 +216,19 @@
     if (label.includes("75")) return 75;
     if (label.includes("50")) return 50;
     if (label.includes("25")) return 25;
-    if (label.includes("100")) return 100;
     return 100;
   }
 
   function showInlineDropError(message) {
     if (!dropZone) return;
-
     if (dropError) {
       dropError.classList.remove("hidden");
       dropError.textContent = message;
     }
-
-    // shake feedback
     dropZone.classList.remove("shake");
-    // force reflow so animation restarts
     // eslint-disable-next-line no-unused-expressions
     dropZone.offsetHeight;
     dropZone.classList.add("shake");
-
-    // auto-hide after a bit
     setTimeout(() => {
       dropError?.classList.add("hidden");
       if (dropError) dropError.textContent = "";
@@ -272,36 +237,29 @@
 
   function escalateIfNeeded(rejectedCount = 1) {
     appState.rejectCount += 1;
-
     if (
       rejectedCount >= MULTI_REJECT_ESCALATE ||
       appState.rejectCount >= REJECT_ESCALATE_COUNT
     ) {
-      // Use your existing modal system - show Feedback modal to report/learn
       openModal("feedback");
     }
   }
 
   function isTypeAllowed(file) {
     if (!file) return false;
-
-    // accept attribute is our single source of truth
     const accept = (fileInput?.getAttribute("accept") || "*").trim();
     if (!accept || accept === "*") return true;
 
     const ext = getFileExt(file);
     const mime = (file.type || "").toLowerCase();
-
     const rules = accept
       .split(",")
       .map((s) => s.trim().toLowerCase())
       .filter(Boolean);
 
-    // handle patterns: ".pdf", "image/*", "image/png", "image/jpeg"
     return rules.some((r) => {
       if (r === "image/*") return mime.startsWith("image/");
       if (r.startsWith(".")) return `.${ext}` === r;
-      // mime exact
       return mime === r;
     });
   }
@@ -309,22 +267,19 @@
   function filterSupportedFiles(files) {
     const supported = [];
     const rejected = [];
-
     files.forEach((f) => {
       if (isTypeAllowed(f)) supported.push(f);
       else rejected.push(f);
     });
-
     return { supported, rejected };
   }
 
   // =========================================================
-  // 7) LEGAL CLICKWRAP
+  // 7) HELPERS
   // =========================================================
   function toggleStartButton() {
     const checkbox = qs("#legal-check");
     if (!checkbox || !startBtn) return;
-
     if (checkbox.checked) {
       startBtn.classList.remove("disabled");
       startBtn.removeAttribute("disabled");
@@ -334,18 +289,13 @@
     }
   }
 
-  // =========================================================
-  // 8) DAILY LIMIT
-  // =========================================================
   function getUsage() {
     const today = new Date().toLocaleDateString();
     let data = { date: today, count: 0 };
-
     try {
       data = JSON.parse(localStorage.getItem("documorph_usage")) || data;
       if (data.date !== today) data = { date: today, count: 0 };
     } catch (_) {}
-
     return data;
   }
 
@@ -366,9 +316,6 @@
     } catch (_) {}
   }
 
-  // =========================================================
-  // 9) NAV + MENU
-  // =========================================================
   function toggleMenu() {
     if (menuToggle) menuToggle.classList.toggle("open");
     if (mobileMenu) mobileMenu.classList.toggle("active");
@@ -376,31 +323,23 @@
 
   function switchView(viewName) {
     appState.view = viewName;
-
-    qsa(".nav-btn").forEach((b) => {
-      b.classList.toggle("active", safeLowerText(b) === viewName);
-    });
-
+    qsa(".nav-btn").forEach((b) =>
+      b.classList.toggle("active", safeLowerText(b) === viewName)
+    );
     Object.values(views).forEach((v) => v && v.classList.add("hidden"));
     if (views[viewName]) views[viewName].classList.remove("hidden");
-
     resetApp();
-
     const firstOption = views[viewName]?.querySelector(".option");
     updateContext(
       viewName,
       firstOption ? firstOption.getAttribute("data-value") : null
     );
-
     if (viewName === "compress") {
       toggleCompMode();
       updateRangeLabel();
     }
   }
 
-  // =========================================================
-  // 10) MODALS
-  // =========================================================
   function openModal(type) {
     qsa(".modal-body").forEach((el) => el.classList.add("hidden"));
     const target = qs(`#modal-${type}`);
@@ -412,37 +351,24 @@
     if (modalContainer) modalContainer.classList.add("hidden");
   }
 
-  // =========================================================
-  // 11) FORM (POST -> /api/form)
-  // =========================================================
   async function submitToFormspree(e) {
     e.preventDefault();
-
     const status = qs("#form-status");
     const data = Object.fromEntries(new FormData(e.target).entries());
     setText(status, "Sending...");
-
     try {
       const r = await fetch("/api/form", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
       });
-
-      if (r.ok) {
-        setText(status, "Thanks! Message sent.");
-        e.target.reset();
-      } else {
-        setText(status, "Oops! Server error.");
-      }
+      setText(status, r.ok ? "Thanks! Message sent." : "Oops! Server error.");
+      if (r.ok) e.target.reset();
     } catch (_) {
       setText(status, "Network Error.");
     }
   }
 
-  // =========================================================
-  // 12) TOOL CONTEXT (accept + label)
-  // =========================================================
   function updateContext(view, val) {
     if (!val) {
       if (view === "convert") val = "word-to-pdf";
@@ -450,7 +376,6 @@
       if (view === "resize") val = "resize-img";
       if (view === "merge") val = "merge-pdf";
     }
-
     appState.subTool = val;
 
     let accept = "*";
@@ -459,7 +384,9 @@
     if (view === "convert") {
       switch (val) {
         case "word-to-pdf":
-          accept = ".doc,.docx";
+          // FIXED: Added full MIME types for iOS Word support
+          accept =
+            ".doc,.docx,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document";
           limitText = "Word Docs";
           break;
         case "pdf-to-word":
@@ -492,11 +419,11 @@
         limitText = "PDF Files";
       } else {
         accept = "image/jpeg,image/png,image/webp,image/bmp,image/tiff";
-        limitText = "JPG/PNG/WebP Images";
+        limitText = "Images";
       }
     } else if (view === "resize") {
       accept = "image/jpeg,image/png,image/webp,image/bmp,image/tiff";
-      limitText = "JPG/PNG/WebP Images";
+      limitText = "Images";
     } else if (view === "merge") {
       accept = ".pdf";
       limitText = "PDF Files";
@@ -505,26 +432,17 @@
     if (fileInput) fileInput.setAttribute("accept", accept);
     if (fileLimits)
       fileLimits.innerText = `Supported: ${limitText} • Max ${MAX_UPLOAD_MB}MB`;
-
-    // clear old error
     dropError?.classList.add("hidden");
     if (dropError) dropError.textContent = "";
   }
 
-  // =========================================================
-  // 13) FILE INPUT + DRAG & DROP
-  // =========================================================
   function initFileInputs() {
     if (fileInput) {
       fileInput.addEventListener("change", () => {
         const chosen = Array.from(fileInput.files || []);
         if (!chosen.length) return;
-
-        // CHOOSE FILE: strictly enforce supported ONLY
         const { supported, rejected } = filterSupportedFiles(chosen);
-
         if (rejected.length) {
-          // On choose-file, browsers may still allow; we hard-reject and reset input
           showInlineDropError(
             `Not supported: ${rejected.map((f) => f.name).join(", ")}`
           );
@@ -532,72 +450,57 @@
           fileInput.value = "";
           return;
         }
-
         handleFiles(supported, { source: "choose" });
       });
     }
-
     if (dropZone) {
       dropZone.addEventListener("dragover", (e) => {
         e.preventDefault();
         dropZone.style.borderColor = "var(--primary)";
         dropZone.style.background = "#e0e7ff";
       });
-
       dropZone.addEventListener("dragleave", (e) => {
         e.preventDefault();
         dropZone.style.borderColor = "#cbd5e1";
         dropZone.style.background = "rgba(255,255,255,0.6)";
       });
-
       dropZone.addEventListener("drop", (e) => {
         e.preventDefault();
         dropZone.style.borderColor = "#cbd5e1";
         dropZone.style.background = "rgba(255,255,255,0.6)";
-
         const dropped = Array.from(e.dataTransfer?.files || []);
         if (!dropped.length) return;
-
-        // DRAG & DROP: show inline "not supported" for rejected; keep supported (if any)
         const { supported, rejected } = filterSupportedFiles(dropped);
-
         if (rejected.length) {
           showInlineDropError(
             `Not supported: ${rejected.map((f) => f.name).join(", ")}`
           );
           escalateIfNeeded(rejected.length);
         }
-
         if (!supported.length) return;
-
         handleFiles(supported, { source: "drop" });
       });
     }
   }
 
-  function handleFiles(files, meta = { source: "drop" }) {
+  function handleFiles(files) {
     if (!files.length) return;
-
     if (!clampFileSize(files)) {
       if (fileInput) fileInput.value = "";
       escalateIfNeeded(1);
       return;
     }
-
-    // Merge allows multiple; others use first only
     appState.files = appState.view === "merge" ? files : [files[0]];
-    appState.rejectCount = 0; // reset after successful selection
+    appState.rejectCount = 0;
 
     dropZone?.classList.add("hidden");
     uploadUI?.classList.remove("hidden");
 
-    // Fake upload animation (UI only)
     let w = 0;
     const timer = setInterval(() => {
       w += 5;
       if (uploadBar) uploadBar.style.width = `${w}%`;
       if (uploadPercent) uploadPercent.innerText = `${w}%`;
-
       if (w >= 100) {
         clearInterval(timer);
         setTimeout(() => {
@@ -610,28 +513,22 @@
 
   function showReadyScreen() {
     readyUI?.classList.remove("hidden");
-
     if (fileNameDisplay) {
-      // NEW UPDATE: Show file size early only for compress/resize
       const f = appState.files[0];
       let sizeText = "";
-
       if (["compress", "resize"].includes(appState.view) && f) {
         sizeText = ` (${formatBytes(f.size)})`;
       }
-
       fileNameDisplay.innerText =
         appState.files.length === 1
           ? appState.files[0].name + sizeText
           : `${appState.files.length} files selected`;
     }
-
     let actionText = "Start";
     if (appState.view === "convert") actionText = "Convert Now";
     if (appState.view === "compress") actionText = "Compress Now";
     if (appState.view === "resize") actionText = "Resize Now";
     if (appState.view === "merge") actionText = "Merge PDFs";
-
     if (startBtn) startBtn.innerText = actionText;
   }
 
@@ -641,37 +538,27 @@
     processUI?.classList.add("hidden");
     successUI?.classList.add("hidden");
     dropZone?.classList.remove("hidden");
-
     appState.files = [];
     appState.resultUrl = null;
-
     if (fileInput) fileInput.value = "";
     if (uploadBar) uploadBar.style.width = "0%";
     if (uploadPercent) uploadPercent.innerText = "0%";
     if (processBar) processBar.style.width = "0%";
     if (processPercent) processPercent.innerText = "0%";
-
     dropError?.classList.add("hidden");
     if (dropError) dropError.textContent = "";
-
-    // Clear Preview/Stats UI
     const wrapper = qs("#preview-wrapper");
     if (wrapper) wrapper.classList.add("hidden");
-
     const legal = qs("#legal-check");
     if (legal) legal.checked = false;
     toggleStartButton();
   }
 
-  // =========================================================
-  // 14) COMPRESS SETTINGS
-  // =========================================================
   function toggleCompMode() {
     const mode = qs('input[name="comp-mode"]:checked')?.value;
     const autoBox = qs("#comp-auto-settings");
     const targetBox = qs("#comp-target-settings");
     if (!mode || !autoBox || !targetBox) return;
-
     if (mode === "auto") {
       autoBox.classList.remove("hidden");
       targetBox.classList.add("hidden");
@@ -698,33 +585,26 @@
     if (out) out.innerText = labels[v - 1] || "Balanced";
   }
 
-  // =========================================================
-  // 15) START PROCESS
-  // =========================================================
   async function executeProcess() {
     if (!checkDailyLimit()) return;
-
     readyUI?.classList.add("hidden");
     processUI?.classList.remove("hidden");
-
     const title = qs("#process-title");
     if (title) title.innerText = "Processing...";
 
-    // NEW: Capture Original Stats before processing starts
     appState.originalStats = {
       size: appState.files[0]?.size || 0,
       width: 0,
       height: 0,
     };
 
-    // If resizing, try to read original dimensions
     if (appState.view === "resize" && appState.files[0]) {
       try {
         const dims = await getImageDimensions(appState.files[0]);
         appState.originalStats.width = dims.w;
         appState.originalStats.height = dims.h;
       } catch (e) {
-        console.log("Could not read original dimensions", e);
+        console.log("Dims error", e);
       }
     }
 
@@ -737,9 +617,6 @@
     }
   }
 
-  // =========================================================
-  // 16) SUCCESS UI (Clean: Logic Only)
-  // =========================================================
   function showSuccess(fileData) {
     processUI?.classList.add("hidden");
     successUI?.classList.remove("hidden");
@@ -748,13 +625,13 @@
     const newSize = fileData.FileSize;
     const url = appState.resultUrl;
 
-    // 1. Setup Download Button (Logic preserved)
-    if (downloadBtn) {
-      const newBtn = downloadBtn.cloneNode(true);
-      downloadBtn.parentNode.replaceChild(newBtn, downloadBtn);
-      const currentDownloadBtn = qs(".download-btn");
+    // FIXED: Query the button freshly every time to avoid "null is not an object" error
+    const oldBtn = qs(".download-btn");
+    if (oldBtn && oldBtn.parentNode) {
+      const newBtn = oldBtn.cloneNode(true);
+      oldBtn.parentNode.replaceChild(newBtn, oldBtn);
 
-      currentDownloadBtn.onclick = () => {
+      newBtn.onclick = () => {
         const link = document.createElement("a");
         link.href = url;
         link.download = filename || "documorph-output";
@@ -763,89 +640,79 @@
       };
     }
 
-    // 2. DOM Elements for Preview/Stats
     const wrapper = qs("#preview-wrapper");
-    const imgEl = qs("#preview-img");
-    const pdfEl = qs("#preview-pdf");
     const fnameEl = qs("#stats-filename");
     const compBox = qs("#stats-compression");
     const resizeBox = qs("#stats-resize");
 
-    // Reset UI state
+    // Clean UI - Remove images/PDFs completely
     wrapper.classList.remove("hidden");
-    imgEl.classList.add("hidden");
-    pdfEl.classList.add("hidden");
     compBox.classList.add("hidden");
     resizeBox.classList.add("hidden");
 
-    // 3. Set Filename
+    // Ensure img/pdf elements are hidden if they exist in HTML
+    const imgEl = qs("#preview-img");
+    const pdfEl = qs("#preview-pdf");
+    if (imgEl) imgEl.classList.add("hidden");
+    if (pdfEl) pdfEl.classList.add("hidden");
+
     if (fnameEl) fnameEl.textContent = filename;
 
-    // 4. Handle Media Preview
     const ext = String(filename).split(".").pop().toLowerCase();
     const isImg = ["jpg", "jpeg", "png", "webp", "gif"].includes(ext);
-    const isPdf = ["pdf"].includes(ext);
 
-    if (isImg) {
-      imgEl.src = url;
-      imgEl.classList.remove("hidden");
-    } else if (isPdf) {
-      pdfEl.src = url + "#toolbar=0&navpanes=0&scrollbar=0";
-      pdfEl.classList.remove("hidden");
+    // FIXED: Background fetch only for Resize Stats (prevents auto-download)
+    if (isImg && appState.view === "resize") {
+      fetch(url)
+        .then((res) => res.blob())
+        .then((blob) => {
+          // Create invisible image to read dims
+          const tempImg = new Image();
+          const objectUrl = URL.createObjectURL(blob);
+          tempImg.onload = () => {
+            resizeBox.classList.remove("hidden");
+            const loading = qs("#resize-loading");
+            const dataRow = qs("#resize-data");
+            loading.classList.add("hidden");
+            dataRow.classList.remove("hidden");
+            qs(
+              "#resize-old"
+            ).textContent = `${appState.originalStats.width} x ${appState.originalStats.height} px`;
+            qs(
+              "#resize-new"
+            ).textContent = `${tempImg.naturalWidth} x ${tempImg.naturalHeight} px`;
+            URL.revokeObjectURL(objectUrl);
+          };
+          tempImg.src = objectUrl;
+        })
+        .catch((e) => {
+          console.log("Stats load failed", e);
+        });
     }
 
-    // 5. Handle Compression Stats (Only show for compress view)
     if (appState.view === "compress") {
       compBox.classList.remove("hidden");
-
       const oldS = appState.originalStats.size;
       const saved = oldS - newSize;
       const savedPct = Math.round((saved / oldS) * 100);
-
       qs("#comp-old").textContent = formatBytes(oldS);
       qs("#comp-new").textContent = formatBytes(newSize);
-
       const msg =
         saved > 0
           ? `Saved ${formatBytes(saved)} (${savedPct}%)!`
           : "Already optimized!";
       qs("#comp-saved").textContent = msg;
     }
-
-    // 6. Handle Resize Stats (Only show for resize view & images)
-    if (appState.view === "resize" && isImg) {
-      resizeBox.classList.remove("hidden");
-      const loading = qs("#resize-loading");
-      const dataRow = qs("#resize-data");
-
-      // Show loading initially
-      loading.classList.remove("hidden");
-      dataRow.classList.add("hidden");
-
-      // Wait for preview image to load to read true dimensions
-      imgEl.onload = () => {
-        loading.classList.add("hidden");
-        dataRow.classList.remove("hidden");
-
-        qs(
-          "#resize-old"
-        ).textContent = `${appState.originalStats.width} x ${appState.originalStats.height} px`;
-        qs(
-          "#resize-new"
-        ).textContent = `${imgEl.naturalWidth} x ${imgEl.naturalHeight} px`;
-      };
-    }
   }
 
   // =========================================================
-  // 17) BUILD CONVERT TYPE + PARAMS (for URL-based ConvertAPI calls)
+  // LOGIC
   // =========================================================
   async function buildConvertTypeAndParams(file) {
     const ext = getFileExt(file);
     let type = "";
     const params = {};
 
-    // Convert
     if (appState.view === "convert") {
       if (appState.subTool === "word-to-pdf")
         type = ext === "doc" ? "doc/to/pdf" : "docx/to/pdf";
@@ -857,13 +724,10 @@
       else if (appState.subTool === "png-to-jpg") type = "png/to/jpg";
     }
 
-    // Compress
     if (appState.view === "compress") {
       const mode = qs('input[name="comp-mode"]:checked')?.value || "auto";
-
       if (appState.subTool === "comp-pdf") {
         type = "pdf/to/compress";
-
         if (mode === "auto") {
           const s = Number(qs("#compression-range")?.value || 5);
           if (s <= 3) params.Preset = "screen";
@@ -875,14 +739,10 @@
       } else {
         const imgExt = normalizeImageExt(ext);
         type = `${imgExt}/to/compress`;
-
         if (mode === "auto") {
           const s = Number(qs("#compression-range")?.value || 5);
-
-          if (imgExt === "jpg") {
+          if (imgExt === "jpg")
             params.Quality = String(Math.max(10, Math.min(95, s * 10)));
-          }
-
           if (s <= 3) params.Preset = "screen";
           else if (s <= 6) params.Preset = "ebook";
           else params.Preset = "printer";
@@ -893,26 +753,21 @@
           )
             .trim()
             .toUpperCase();
-
           if (sizeVal > 0) {
             const sizeKb =
               unit === "MB" ? Math.round(sizeVal * 1024) : Math.round(sizeVal);
             params.CompressionFileSize = String(sizeKb);
           }
-
           params.Preset = "screen";
         }
       }
     }
 
-    // Resize
     if (appState.view === "resize") {
       const imgExt = normalizeImageExt(ext);
       type = `${imgExt}/to/${imgExt}`;
-
       const wRaw = (qs("#resize-w")?.value || "").trim();
       const hRaw = (qs("#resize-h")?.value || "").trim();
-
       if (wRaw || hRaw) {
         if (wRaw) params.ImageWidth = wRaw;
         if (hRaw) params.ImageHeight = hRaw;
@@ -928,15 +783,9 @@
       }
     }
 
-    // Merge
     if (appState.view === "merge") type = "pdf/to/merge";
-
     return { type, params };
   }
-
-  // =========================================================
-  // 17b) BLOB UPLOAD + CONVERTAPI (URL-based) — iOS-safe
-  // =========================================================
 
   function setProcessProgress(pct) {
     const p = Math.max(0, Math.min(100, Math.round(Number(pct) || 0)));
@@ -945,7 +794,6 @@
   }
 
   function isIOSDevice() {
-    // Covers iPhone/iPad + iPadOS that presents as Mac
     return (
       /iPhone|iPad|iPod/i.test(navigator.userAgent) ||
       (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1)
@@ -964,10 +812,6 @@
       jpeg: "image/jpeg",
       png: "image/png",
       webp: "image/webp",
-      heic: "image/heic",
-      heif: "image/heif",
-      tif: "image/tiff",
-      tiff: "image/tiff",
     };
     return map[ext] || "application/octet-stream";
   }
@@ -984,25 +828,20 @@
   }
 
   async function uploadToBlob(file, progressOffset = 0, progressSpan = 70) {
-    // NEW UPDATE: Pin version to v0.22.1 for iOS stability
-    const { upload } = await import(
-      "https://esm.sh/@vercel/blob@0.22.1/client"
-    );
+    // FIXED: Unpinned version (using latest) for better Android support
+    const { upload } = await import("https://esm.sh/@vercel/blob/client");
 
     const ios = isIOSDevice();
     let normalized = file;
 
-    // NEW UPDATE: iOS "File Object" Fix
-    // If iOS, ensure we are sending a Blob via slice(), not a potentially broken File ref
+    // Keep iOS Slice Fix
     if (ios) {
       const safeName = String(file?.name || "upload.bin").replace(
         /[^a-z0-9_.-]/gi,
         "_"
       );
       const mime = file?.type || guessMimeFromName(safeName);
-      // Slicing the file into a Blob often fixes the Safari "stuck" upload bug
       normalized = file.slice(0, file.size, mime);
-      // Re-attach name property for the uploader
       normalized.name = safeName;
     }
 
@@ -1012,8 +851,8 @@
     );
     const pathname = `uploads/${Date.now()}-${safeName}`;
 
-    // iOS Safari typically works best with multipart: false for smaller files,
-    let multipartDecision = ios ? false : normalized.size > 4.5 * 1024 * 1024;
+    // Auto-detect multipart (better for Android)
+    const multipartDecision = normalized.size > 4.5 * 1024 * 1024;
 
     let attempt = 0;
     const maxAttempts = 2;
@@ -1032,25 +871,16 @@
             setProcessProgress(scaled);
           },
         });
-
         const result = await withTimeout(uploadPromise, 180000, "BlobUpload");
-
-        if (!result || !(result.url || result?.blob?.url)) {
+        if (!result || !(result.url || result?.blob?.url))
           throw new Error("Invalid upload result");
-        }
-
         const url = result.url || result?.blob?.url;
         setProcessProgress(progressOffset + progressSpan);
         return { url, raw: result };
       } catch (err) {
-        console.error(
-          `[uploadToBlob] attempt ${attempt} failed:`,
-          err && (err.message || err)
-        );
+        console.error(`[uploadToBlob] attempt ${attempt} failed:`, err);
         if (attempt < maxAttempts) {
           await new Promise((r) => setTimeout(r, 1000));
-          // On retry, force simple upload (no multipart)
-          multipartDecision = false;
           continue;
         }
         throw new Error(`Blob upload failed: ${err?.message || err}`);
@@ -1064,9 +894,7 @@
       if (!first) throw new Error("No file selected");
       setProcessProgress(0);
 
-      // 1) Upload to Vercel Blob (URL-mode)
       let fileUrls = [];
-
       if (appState.view === "merge") {
         const step = appState.files.length ? 70 / appState.files.length : 70;
         for (let i = 0; i < appState.files.length; i++) {
@@ -1078,23 +906,17 @@
         fileUrls = [blob.url];
       }
 
-      // 2) Build ConvertAPI type + params
       const { type, params } = await buildConvertTypeAndParams(first);
       if (!type) throw new Error("Tool type not recognized");
 
-      // 3) Call convert proxy (URL mode)
       setProcessProgress(75);
-
-      // Ramp progress while server side processing occurs
       const ramp = setInterval(() => {
         const current =
           Number(processPercent?.innerText?.replace("%", "")) || 75;
         if (current < 92) setProcessProgress(current + 1);
       }, 180);
 
-      // Increase convert timeout on iOS (ConvertAPI sometimes slow). 300s = 5 minutes
       const convertTimeout = isIOSDevice() ? 300000 : 180000;
-
       const convertBody = {
         fileUrl: appState.view === "merge" ? null : fileUrls[0],
         files: appState.view === "merge" ? fileUrls : null,
@@ -1112,126 +934,70 @@
       );
 
       const resp = await withTimeout(convertPromise, convertTimeout, "Convert");
-
       clearInterval(ramp);
 
-      // If the proxy returned non-JSON body or non-OK, read text to surface server error
-      const contentType = resp.headers.get("content-type") || "";
       const rawText = await resp.text().catch(() => null);
-
       if (!resp.ok) {
-        // try parse JSON message from body if possible
         let parsed;
         try {
           parsed = rawText ? JSON.parse(rawText) : null;
-        } catch (e) {
-          parsed = null;
-        }
-        console.error(
-          "[processFilesWithProxy] convert proxy non-ok:",
-          resp.status,
-          parsed || rawText
-        );
+        } catch (e) {}
         alert(
           `Conversion failed (HTTP ${resp.status}).\n\n${
-            parsed?.error ||
-            parsed?.message ||
-            rawText ||
-            "See console/network tab."
+            parsed?.error || "Error"
           }`
         );
         resetApp();
-        throw new Error("Convert proxy HTTP " + resp.status);
+        throw new Error("Convert failed");
       }
 
-      // parse JSON response
-      let d;
-      try {
-        d = contentType.includes("application/json")
-          ? JSON.parse(rawText || "{}")
-          : null;
-      } catch (err) {
-        console.error(
-          "[processFilesWithProxy] Invalid JSON from convert proxy:",
-          rawText
-        );
-        resetApp();
-        throw new Error("Invalid response from convert proxy");
-      }
-
+      const d = JSON.parse(rawText || "{}");
       if (d?.Files?.length) {
         setProcessProgress(100);
         appState.resultUrl = d.Files[0].Url;
         incrementUsage();
-        // UPDATE: Pass full file object to showSuccess (not just name) for stats
         showSuccess(d.Files[0]);
         return d;
       }
-
-      // Not ok: show server-returned message if present
-      console.error(
-        "[processFilesWithProxy] convert returned no file:",
-        d || rawText
-      );
-      alert(`Conversion returned no file. ${d?.error || d?.message || ""}`);
-      resetApp();
       throw new Error("No file in response");
     } catch (err) {
-      // Present friendly message to the user and log details to console
-      console.error("[processFilesWithProxy] error:", err);
-      // if err.message contains "timed out" show specific message
-      if (/timed out/i.test(err.message || "")) {
-        alert(
-          "Operation timed out. Try again on a stronger connection or use a smaller file."
-        );
-      } else {
-        alert(err.message || "Processing failed. Please try again.");
-      }
+      alert(err.message || "Processing failed. Please try again.");
       resetApp();
       throw err;
     }
   }
 
   // =========================================================
-  // 18) DROPDOWNS (custom-select)
+  // DROPDOWNS & WALLETS
   // =========================================================
   function initCustomDropdowns() {
     const dropdowns = qsa(".custom-select");
-
     dropdowns.forEach((dd) => {
       const trigger = dd.querySelector(".select-trigger");
       const triggerText = dd.querySelector(".trigger-text");
       const options = dd.querySelectorAll(".option");
-
       const toggle = () => {
         const isOpen = dd.classList.contains("open");
         dropdowns.forEach((d) => d.classList.remove("open"));
         if (!isOpen) dd.classList.add("open");
       };
-
       trigger?.addEventListener("click", (e) => {
         e.stopPropagation();
         toggle();
       });
-
       dd.addEventListener("keydown", (e) => {
-        if (e.key === "Enter" || e.key === " ") {
+        if (e.key === "Enter") {
           e.preventDefault();
           toggle();
         }
       });
-
       options.forEach((opt) => {
         opt.setAttribute("tabindex", "0");
-
         const select = () => {
           const val = opt.getAttribute("data-value");
           if (!val) return;
-
-          // SUPPORT DROPDOWNS
           if (dd.id === "crypto-dropdown") {
             if (triggerText) triggerText.innerHTML = opt.innerHTML;
-
             const usdtGroup = qs("#usdt-network-group");
             if (val === "usdt") {
               usdtGroup?.classList.remove("hidden");
@@ -1240,67 +1006,50 @@
               usdtGroup?.classList.add("hidden");
               updateWalletDisplay(val);
             }
-
             dd.classList.remove("open");
             dd.focus();
             return;
           }
-
           if (dd.id === "network-dropdown") {
             if (triggerText) triggerText.innerHTML = opt.innerHTML;
             updateWalletDisplay(val);
-
             dd.classList.remove("open");
             dd.focus();
             return;
           }
-
-          // Unit dropdown (MB/KB)
           if (dd.id === "size-unit-dropdown") {
             if (triggerText) triggerText.textContent = val;
             dd.classList.remove("open");
             dd.focus();
             return;
           }
-
-          // Resize scale dropdown (UI only)
           if (dd.id === "resize-scale-dropdown") {
             if (triggerText) triggerText.innerHTML = opt.innerHTML;
             dd.classList.remove("open");
             dd.focus();
             return;
           }
-
-          // Feedback modal category dropdown
           if (dd.id === "feedback-category-dropdown") {
             if (triggerText) triggerText.innerHTML = opt.innerHTML;
-
             const hidden = qs("#feedback-category");
             if (hidden) hidden.value = val;
-
             dd.classList.remove("open");
             dd.focus();
             return;
           }
-
-          // Tool dropdowns
           if (triggerText) triggerText.innerHTML = opt.innerHTML;
           updateContext(appState.view, val);
-
           dd.classList.remove("open");
           dd.focus();
-
           if (appState.view === "compress") {
             toggleCompMode();
             updateRangeLabel();
           }
         };
-
         opt.addEventListener("click", (e) => {
           e.stopPropagation();
           select();
         });
-
         opt.addEventListener("keydown", (e) => {
           if (e.key === "Enter") {
             e.preventDefault();
@@ -1309,25 +1058,18 @@
         });
       });
     });
-
     window.addEventListener("click", () => {
       qsa(".custom-select").forEach((d) => d.classList.remove("open"));
     });
   }
 
-  // =========================================================
-  // 19) WALLETS (GET /api/wallets)
-  // =========================================================
   async function fetchSecureWallets() {
     try {
       const response = await fetch("/api/wallets", { cache: "no-store" });
       if (!response.ok) return;
-
       CRYPTO_WALLETS = await response.json();
       updateWalletDisplay("btc");
-    } catch (e) {
-      console.error("Wallet load failed", e);
-    }
+    } catch (e) {}
   }
 
   function mapWalletAddressForKey(key) {
@@ -1337,23 +1079,19 @@
     if (key === "sol") return CRYPTO_WALLETS.sol;
     if (key === "ton") return CRYPTO_WALLETS.ton;
     if (key === "tron") return CRYPTO_WALLETS.tron;
-
     if (key === "usdt-eth") return CRYPTO_WALLETS.usdt_eth;
     if (key === "usdt-bnb") return CRYPTO_WALLETS.usdt_bnb;
     if (key === "usdt-trc") return CRYPTO_WALLETS.usdt_trc;
     if (key === "usdt-sol") return CRYPTO_WALLETS.usdt_sol;
     if (key === "usdt-ton") return CRYPTO_WALLETS.usdt_ton;
     if (key === "usdt-arb") return CRYPTO_WALLETS.usdt_arb;
-
     return "Address Not Set";
   }
 
   function updateWalletDisplay(key) {
     donationState.selectedKey = key;
-
     const address = mapWalletAddressForKey(key) || "Address Not Set";
     if (walletInput) walletInput.value = address;
-
     if (
       qrBox &&
       qrImg &&
@@ -1367,27 +1105,21 @@
     } else {
       qrBox?.classList.add("hidden");
     }
-
     if (connectBtn) {
       connectBtn.innerHTML = '<i class="fa-solid fa-copy"></i> Copy Address';
       connectBtn.onclick = copyWallet;
     }
   }
 
-  // =========================================================
-  // 20) COPY WALLET
-  // =========================================================
   function copyWallet() {
     if (!walletInput) return;
     const value = walletInput.value;
     if (!value || value === "Loading...") return;
-
     navigator.clipboard?.writeText(value).catch(() => {
       walletInput.select();
       walletInput.setSelectionRange(0, 99999);
       document.execCommand("copy");
     });
-
     if (copyFeedback) {
       copyFeedback.classList.add("visible");
       setTimeout(() => copyFeedback.classList.remove("visible"), 2000);
