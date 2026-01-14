@@ -7,6 +7,11 @@
    - Strict "supported file only" validation for BOTH choose-file + drag-drop
    - Inline drop-zone error text + escalation modal on repeated mistakes
    - Resize Scale % fixed (no 404): reads original size in browser and sends px
+   
+   NEW UPDATES:
+   - iOS Fix: Pinned @vercel/blob version + slice() fix for Safari
+   - Early Stats: Show file size on "Ready" screen (Compress/Resize only)
+   - Preview/Stats: Show Before/After + Preview on "Success" screen
    ========================================================= */
 
 (() => {
@@ -19,8 +24,8 @@
   const MAX_UPLOAD_MB = 50;
 
   // Error escalation
-  const REJECT_ESCALATE_COUNT = 3;     // show modal after repeated invalid attempts
-  const MULTI_REJECT_ESCALATE = 2;     // show modal when multiple files rejected at once
+  const REJECT_ESCALATE_COUNT = 3; // show modal after repeated invalid attempts
+  const MULTI_REJECT_ESCALATE = 2; // show modal when multiple files rejected at once
 
   // =========================================================
   // 2) APP STATE
@@ -32,6 +37,9 @@
     resultUrl: null,
 
     rejectCount: 0, // repeated invalid attempts
+
+    // NEW: Capture stats before upload for comparison
+    originalStats: { size: 0, width: 0, height: 0 },
   };
 
   // Wallet addresses returned from /api/wallets
@@ -145,6 +153,16 @@
     return (el?.innerText || "").trim().toLowerCase();
   }
 
+  // NEW: Helper to format bytes to readable text
+  function formatBytes(bytes, decimals = 2) {
+    if (!+bytes) return "0 Bytes";
+    const k = 1024;
+    const dm = decimals < 0 ? 0 : decimals;
+    const sizes = ["Bytes", "KB", "MB", "GB", "TB"];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`;
+  }
+
   function getFileExt(file) {
     const name = file?.name || "";
     const parts = name.split(".");
@@ -162,9 +180,11 @@
       "image/bmp": "bmp",
       "image/tiff": "tiff",
       "application/pdf": "pdf",
-      "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx",
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+        "docx",
       "application/msword": "doc",
-      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "xlsx",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":
+        "xlsx",
       "application/vnd.ms-excel": "xls",
     };
 
@@ -182,7 +202,9 @@
     const maxBytes = MAX_UPLOAD_MB * 1024 * 1024;
     const tooBig = files.find((f) => f.size > maxBytes);
     if (tooBig) {
-      showInlineDropError(`"${tooBig.name}" is above ${MAX_UPLOAD_MB}MB. Please upload a smaller file.`);
+      showInlineDropError(
+        `"${tooBig.name}" is above ${MAX_UPLOAD_MB}MB. Please upload a smaller file.`
+      );
       return false;
     }
     return true;
@@ -216,7 +238,9 @@
   }
 
   function getSelectedScalePercent() {
-    const label = (qs("#resize-scale-dropdown .trigger-text")?.innerText || "").trim();
+    const label = (
+      qs("#resize-scale-dropdown .trigger-text")?.innerText || ""
+    ).trim();
     if (label.includes("75")) return 75;
     if (label.includes("50")) return 50;
     if (label.includes("25")) return 25;
@@ -249,7 +273,10 @@
   function escalateIfNeeded(rejectedCount = 1) {
     appState.rejectCount += 1;
 
-    if (rejectedCount >= MULTI_REJECT_ESCALATE || appState.rejectCount >= REJECT_ESCALATE_COUNT) {
+    if (
+      rejectedCount >= MULTI_REJECT_ESCALATE ||
+      appState.rejectCount >= REJECT_ESCALATE_COUNT
+    ) {
       // Use your existing modal system - show Feedback modal to report/learn
       openModal("feedback");
     }
@@ -360,7 +387,10 @@
     resetApp();
 
     const firstOption = views[viewName]?.querySelector(".option");
-    updateContext(viewName, firstOption ? firstOption.getAttribute("data-value") : null);
+    updateContext(
+      viewName,
+      firstOption ? firstOption.getAttribute("data-value") : null
+    );
 
     if (viewName === "compress") {
       toggleCompMode();
@@ -456,28 +486,25 @@
           accept = "*";
           limitText = "Files";
       }
-    } 
-    else if (view === "compress") {
+    } else if (view === "compress") {
       if (val === "comp-pdf") {
         accept = ".pdf";
         limitText = "PDF Files";
-      } 
-      else {
-          accept = "image/jpeg,image/png,image/webp,image/bmp,image/tiff";
-          limitText = "JPG/PNG/WebP Images";
+      } else {
+        accept = "image/jpeg,image/png,image/webp,image/bmp,image/tiff";
+        limitText = "JPG/PNG/WebP Images";
       }
-    }
-    else if (view === "resize") {
+    } else if (view === "resize") {
       accept = "image/jpeg,image/png,image/webp,image/bmp,image/tiff";
       limitText = "JPG/PNG/WebP Images";
-    } 
-    else if (view === "merge") {
+    } else if (view === "merge") {
       accept = ".pdf";
       limitText = "PDF Files";
     }
 
     if (fileInput) fileInput.setAttribute("accept", accept);
-    if (fileLimits) fileLimits.innerText = `Supported: ${limitText} • Max ${MAX_UPLOAD_MB}MB`;
+    if (fileLimits)
+      fileLimits.innerText = `Supported: ${limitText} • Max ${MAX_UPLOAD_MB}MB`;
 
     // clear old error
     dropError?.classList.add("hidden");
@@ -498,7 +525,9 @@
 
         if (rejected.length) {
           // On choose-file, browsers may still allow; we hard-reject and reset input
-          showInlineDropError(`Not supported: ${rejected.map((f) => f.name).join(", ")}`);
+          showInlineDropError(
+            `Not supported: ${rejected.map((f) => f.name).join(", ")}`
+          );
           escalateIfNeeded(rejected.length);
           fileInput.value = "";
           return;
@@ -533,7 +562,9 @@
         const { supported, rejected } = filterSupportedFiles(dropped);
 
         if (rejected.length) {
-          showInlineDropError(`Not supported: ${rejected.map((f) => f.name).join(", ")}`);
+          showInlineDropError(
+            `Not supported: ${rejected.map((f) => f.name).join(", ")}`
+          );
           escalateIfNeeded(rejected.length);
         }
 
@@ -581,8 +612,18 @@
     readyUI?.classList.remove("hidden");
 
     if (fileNameDisplay) {
+      // NEW UPDATE: Show file size early only for compress/resize
+      const f = appState.files[0];
+      let sizeText = "";
+
+      if (["compress", "resize"].includes(appState.view) && f) {
+        sizeText = ` (${formatBytes(f.size)})`;
+      }
+
       fileNameDisplay.innerText =
-        appState.files.length === 1 ? appState.files[0].name : `${appState.files.length} files selected`;
+        appState.files.length === 1
+          ? appState.files[0].name + sizeText
+          : `${appState.files.length} files selected`;
     }
 
     let actionText = "Start";
@@ -613,6 +654,10 @@
     dropError?.classList.add("hidden");
     if (dropError) dropError.textContent = "";
 
+    // Clear Preview/Stats UI
+    const wrapper = qs("#preview-wrapper");
+    if (wrapper) wrapper.classList.add("hidden");
+
     const legal = qs("#legal-check");
     if (legal) legal.checked = false;
     toggleStartButton();
@@ -637,7 +682,17 @@
   }
 
   function updateRangeLabel() {
-    const labels = ["Smallest", "Small", "Compact", "Balanced", "Balanced", "Better", "Good", "Great", "Best Quality"];
+    const labels = [
+      "Smallest",
+      "Small",
+      "Compact",
+      "Balanced",
+      "Balanced",
+      "Better",
+      "Good",
+      "Great",
+      "Best Quality",
+    ];
     const v = Number(qs("#compression-range")?.value || 5);
     const out = qs("#compression-text");
     if (out) out.innerText = labels[v - 1] || "Balanced";
@@ -655,6 +710,24 @@
     const title = qs("#process-title");
     if (title) title.innerText = "Processing...";
 
+    // NEW: Capture Original Stats before processing starts
+    appState.originalStats = {
+      size: appState.files[0]?.size || 0,
+      width: 0,
+      height: 0,
+    };
+
+    // If resizing, try to read original dimensions
+    if (appState.view === "resize" && appState.files[0]) {
+      try {
+        const dims = await getImageDimensions(appState.files[0]);
+        appState.originalStats.width = dims.w;
+        appState.originalStats.height = dims.h;
+      } catch (e) {
+        console.log("Could not read original dimensions", e);
+      }
+    }
+
     try {
       await processFilesWithProxy();
     } catch (e) {
@@ -665,19 +738,101 @@
   }
 
   // =========================================================
-  // 16) SUCCESS UI
+  // 16) SUCCESS UI (Clean: Logic Only)
   // =========================================================
-  function showSuccess(filename) {
+  function showSuccess(fileData) {
     processUI?.classList.add("hidden");
     successUI?.classList.remove("hidden");
 
+    const filename = fileData.FileName;
+    const newSize = fileData.FileSize;
+    const url = appState.resultUrl;
+
+    // 1. Setup Download Button (Logic preserved)
     if (downloadBtn) {
-      downloadBtn.onclick = () => {
+      const newBtn = downloadBtn.cloneNode(true);
+      downloadBtn.parentNode.replaceChild(newBtn, downloadBtn);
+      const currentDownloadBtn = qs(".download-btn");
+
+      currentDownloadBtn.onclick = () => {
         const link = document.createElement("a");
-        link.href = appState.resultUrl;
+        link.href = url;
         link.download = filename || "documorph-output";
         link.target = "_blank";
         link.click();
+      };
+    }
+
+    // 2. DOM Elements for Preview/Stats
+    const wrapper = qs("#preview-wrapper");
+    const imgEl = qs("#preview-img");
+    const pdfEl = qs("#preview-pdf");
+    const fnameEl = qs("#stats-filename");
+    const compBox = qs("#stats-compression");
+    const resizeBox = qs("#stats-resize");
+
+    // Reset UI state
+    wrapper.classList.remove("hidden");
+    imgEl.classList.add("hidden");
+    pdfEl.classList.add("hidden");
+    compBox.classList.add("hidden");
+    resizeBox.classList.add("hidden");
+
+    // 3. Set Filename
+    if (fnameEl) fnameEl.textContent = filename;
+
+    // 4. Handle Media Preview
+    const ext = String(filename).split(".").pop().toLowerCase();
+    const isImg = ["jpg", "jpeg", "png", "webp", "gif"].includes(ext);
+    const isPdf = ["pdf"].includes(ext);
+
+    if (isImg) {
+      imgEl.src = url;
+      imgEl.classList.remove("hidden");
+    } else if (isPdf) {
+      pdfEl.src = url + "#toolbar=0&navpanes=0&scrollbar=0";
+      pdfEl.classList.remove("hidden");
+    }
+
+    // 5. Handle Compression Stats (Only show for compress view)
+    if (appState.view === "compress") {
+      compBox.classList.remove("hidden");
+
+      const oldS = appState.originalStats.size;
+      const saved = oldS - newSize;
+      const savedPct = Math.round((saved / oldS) * 100);
+
+      qs("#comp-old").textContent = formatBytes(oldS);
+      qs("#comp-new").textContent = formatBytes(newSize);
+
+      const msg =
+        saved > 0
+          ? `Saved ${formatBytes(saved)} (${savedPct}%)!`
+          : "Already optimized!";
+      qs("#comp-saved").textContent = msg;
+    }
+
+    // 6. Handle Resize Stats (Only show for resize view & images)
+    if (appState.view === "resize" && isImg) {
+      resizeBox.classList.remove("hidden");
+      const loading = qs("#resize-loading");
+      const dataRow = qs("#resize-data");
+
+      // Show loading initially
+      loading.classList.remove("hidden");
+      dataRow.classList.add("hidden");
+
+      // Wait for preview image to load to read true dimensions
+      imgEl.onload = () => {
+        loading.classList.add("hidden");
+        dataRow.classList.remove("hidden");
+
+        qs(
+          "#resize-old"
+        ).textContent = `${appState.originalStats.width} x ${appState.originalStats.height} px`;
+        qs(
+          "#resize-new"
+        ).textContent = `${imgEl.naturalWidth} x ${imgEl.naturalHeight} px`;
       };
     }
   }
@@ -692,9 +847,11 @@
 
     // Convert
     if (appState.view === "convert") {
-      if (appState.subTool === "word-to-pdf") type = ext === "doc" ? "doc/to/pdf" : "docx/to/pdf";
+      if (appState.subTool === "word-to-pdf")
+        type = ext === "doc" ? "doc/to/pdf" : "docx/to/pdf";
       else if (appState.subTool === "pdf-to-word") type = "pdf/to/docx";
-      else if (appState.subTool === "excel-to-pdf") type = ext === "xls" ? "xls/to/pdf" : "xlsx/to/pdf";
+      else if (appState.subTool === "excel-to-pdf")
+        type = ext === "xls" ? "xls/to/pdf" : "xlsx/to/pdf";
       else if (appState.subTool === "pdf-to-excel") type = "pdf/to/xlsx";
       else if (appState.subTool === "jpg-to-png") type = "jpg/to/png";
       else if (appState.subTool === "png-to-jpg") type = "png/to/jpg";
@@ -731,10 +888,15 @@
           else params.Preset = "printer";
         } else {
           const sizeVal = Number(qs("#target-size-input")?.value || 0);
-          const unit = (qs("#size-unit-dropdown .trigger-text")?.textContent || "MB").trim().toUpperCase();
+          const unit = (
+            qs("#size-unit-dropdown .trigger-text")?.textContent || "MB"
+          )
+            .trim()
+            .toUpperCase();
 
           if (sizeVal > 0) {
-            const sizeKb = unit === "MB" ? Math.round(sizeVal * 1024) : Math.round(sizeVal);
+            const sizeKb =
+              unit === "MB" ? Math.round(sizeVal * 1024) : Math.round(sizeVal);
             params.CompressionFileSize = String(sizeKb);
           }
 
@@ -810,40 +972,33 @@
     return map[ext] || "application/octet-stream";
   }
 
-  function normalizeFileForIOS(file) {
-    // On iOS Safari file.type may be empty — re-wrap the File with guessed mime
-    const mime = file?.type && String(file.type).trim() ? file.type : guessMimeFromName(file?.name || "");
-    const safeName = String(file?.name || "upload.bin");
-    // Re-wrap (this preserves content bytes but ensures file.type exists)
-    try {
-      return new File([file], safeName, {
-        type: mime,
-        lastModified: file?.lastModified || Date.now(),
-      });
-    } catch (err) {
-      // Some older WebViews may fail with new File([...]) — fallback to original
-      console.warn("[normalizeFileForIOS] rewrap failed, using original file", err);
-      return file;
-    }
-  }
-
   function withTimeout(promise, ms, label = "Operation") {
     let timer;
     const timeout = new Promise((_, reject) => {
-      timer = setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms);
+      timer = setTimeout(
+        () => reject(new Error(`${label} timed out after ${ms}ms`)),
+        ms
+      );
     });
     return Promise.race([promise.finally(() => clearTimeout(timer)), timeout]);
   }
 
   async function uploadToBlob(file, progressOffset = 0, progressSpan = 70) {
+    // NEW UPDATE: Pin version to v0.22.1 for iOS stability
+    const { upload } = await import(
+      "https://esm.sh/@vercel/blob@0.22.1/client"
+    );
 
-    const { upload } = await import("https://esm.sh/@vercel/blob@0.22.1/client");
     const ios = isIOSDevice();
     let normalized = file;
 
-    // If iOS, ensure we are sending a Blob, not a potentially broken File ref
+    // NEW UPDATE: iOS "File Object" Fix
+    // If iOS, ensure we are sending a Blob via slice(), not a potentially broken File ref
     if (ios) {
-      const safeName = String(file?.name || "upload.bin").replace(/[^a-z0-9_.-]/gi, "_");
+      const safeName = String(file?.name || "upload.bin").replace(
+        /[^a-z0-9_.-]/gi,
+        "_"
+      );
       const mime = file?.type || guessMimeFromName(safeName);
       // Slicing the file into a Blob often fixes the Safari "stuck" upload bug
       normalized = file.slice(0, file.size, mime);
@@ -851,10 +1006,13 @@
       normalized.name = safeName;
     }
 
-    const safeName = String(file?.name || "upload.bin").replace(/[^a-z0-9_.-]/gi, "_");
+    const safeName = String(file?.name || "upload.bin").replace(
+      /[^a-z0-9_.-]/gi,
+      "_"
+    );
     const pathname = `uploads/${Date.now()}-${safeName}`;
 
-    // iOS Safari typically works best with multipart: false for smaller files, 
+    // iOS Safari typically works best with multipart: false for smaller files,
     let multipartDecision = ios ? false : normalized.size > 4.5 * 1024 * 1024;
 
     let attempt = 0;
@@ -885,7 +1043,10 @@
         setProcessProgress(progressOffset + progressSpan);
         return { url, raw: result };
       } catch (err) {
-        console.error(`[uploadToBlob] attempt ${attempt} failed:`, err);
+        console.error(
+          `[uploadToBlob] attempt ${attempt} failed:`,
+          err && (err.message || err)
+        );
         if (attempt < maxAttempts) {
           await new Promise((r) => setTimeout(r, 1000));
           // On retry, force simple upload (no multipart)
@@ -926,7 +1087,8 @@
 
       // Ramp progress while server side processing occurs
       const ramp = setInterval(() => {
-        const current = Number(processPercent?.innerText?.replace("%", "")) || 75;
+        const current =
+          Number(processPercent?.innerText?.replace("%", "")) || 75;
         if (current < 92) setProcessProgress(current + 1);
       }, 180);
 
@@ -940,11 +1102,14 @@
         storeFile: true,
       };
 
-      const convertPromise = fetch(`/api/convert?type=${encodeURIComponent(type)}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(convertBody),
-      });
+      const convertPromise = fetch(
+        `/api/convert?type=${encodeURIComponent(type)}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(convertBody),
+        }
+      );
 
       const resp = await withTimeout(convertPromise, convertTimeout, "Convert");
 
@@ -962,8 +1127,19 @@
         } catch (e) {
           parsed = null;
         }
-        console.error("[processFilesWithProxy] convert proxy non-ok:", resp.status, parsed || rawText);
-        alert(`Conversion failed (HTTP ${resp.status}).\n\n${parsed?.error || parsed?.message || rawText || "See console/network tab."}`);
+        console.error(
+          "[processFilesWithProxy] convert proxy non-ok:",
+          resp.status,
+          parsed || rawText
+        );
+        alert(
+          `Conversion failed (HTTP ${resp.status}).\n\n${
+            parsed?.error ||
+            parsed?.message ||
+            rawText ||
+            "See console/network tab."
+          }`
+        );
         resetApp();
         throw new Error("Convert proxy HTTP " + resp.status);
       }
@@ -971,9 +1147,14 @@
       // parse JSON response
       let d;
       try {
-        d = contentType.includes("application/json") ? JSON.parse(rawText || "{}") : null;
+        d = contentType.includes("application/json")
+          ? JSON.parse(rawText || "{}")
+          : null;
       } catch (err) {
-        console.error("[processFilesWithProxy] Invalid JSON from convert proxy:", rawText);
+        console.error(
+          "[processFilesWithProxy] Invalid JSON from convert proxy:",
+          rawText
+        );
         resetApp();
         throw new Error("Invalid response from convert proxy");
       }
@@ -982,12 +1163,16 @@
         setProcessProgress(100);
         appState.resultUrl = d.Files[0].Url;
         incrementUsage();
-        showSuccess(d.Files[0].FileName);
+        // UPDATE: Pass full file object to showSuccess (not just name) for stats
+        showSuccess(d.Files[0]);
         return d;
       }
 
       // Not ok: show server-returned message if present
-      console.error("[processFilesWithProxy] convert returned no file:", d || rawText);
+      console.error(
+        "[processFilesWithProxy] convert returned no file:",
+        d || rawText
+      );
       alert(`Conversion returned no file. ${d?.error || d?.message || ""}`);
       resetApp();
       throw new Error("No file in response");
@@ -996,7 +1181,9 @@
       console.error("[processFilesWithProxy] error:", err);
       // if err.message contains "timed out" show specific message
       if (/timed out/i.test(err.message || "")) {
-        alert("Operation timed out. Try again on a stronger connection or use a smaller file.");
+        alert(
+          "Operation timed out. Try again on a stronger connection or use a smaller file."
+        );
       } else {
         alert(err.message || "Processing failed. Please try again.");
       }
@@ -1167,9 +1354,16 @@
     const address = mapWalletAddressForKey(key) || "Address Not Set";
     if (walletInput) walletInput.value = address;
 
-    if (qrBox && qrImg && address !== "Address Not Set" && address !== "Loading...") {
+    if (
+      qrBox &&
+      qrImg &&
+      address !== "Address Not Set" &&
+      address !== "Loading..."
+    ) {
       qrBox.classList.remove("hidden");
-      qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(address)}`;
+      qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(
+        address
+      )}`;
     } else {
       qrBox?.classList.add("hidden");
     }

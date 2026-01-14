@@ -124,8 +124,7 @@ body {
   inset: 0;
   width: 100%;
   height: 100%;
-  background:
-    radial-gradient(at 0% 0%, #c7d2fe 0px, transparent 50%),
+  background: radial-gradient(at 0% 0%, #c7d2fe 0px, transparent 50%),
     radial-gradient(at 100% 100%, #fecaca 0px, transparent 50%);
   filter: blur(60px);
   z-index: -1;
@@ -154,6 +153,25 @@ a {
   display: none !important;
 }
 
+/* NEW: Utility classes replacing inline styles */
+.text-primary {
+  color: #6366f1 !important;
+}
+
+.text-warning {
+  color: #f59e0b !important;
+}
+
+.mt-md {
+  margin-top: 15px !important;
+}
+
+.form-status-text {
+  text-align: center;
+  margin-top: 10px;
+  font-size: 0.9rem;
+}
+
 /* ==========================================================================
    3) LAYOUT / MAIN WRAPPERS
    ========================================================================== */
@@ -165,7 +183,7 @@ a {
   align-items: center;
   justify-content: space-between;
 }
-   
+
 .container {
   max-width: 850px;
   width: 100%;
@@ -176,6 +194,7 @@ a {
 
 .glass-card {
   background: var(--glass-bg);
+  -webkit-backdrop-filter: blur(25px);
   backdrop-filter: blur(25px);
   border-radius: 24px;
   padding: 3rem;
@@ -204,6 +223,7 @@ a {
   align-items: center;
   padding: 1rem 0%;
   background: var(--glass-bg);
+  -webkit-backdrop-filter: blur(12px);
   backdrop-filter: blur(12px);
   border-bottom: var(--glass-border);
   position: sticky;
@@ -302,6 +322,7 @@ a {
   width: 100%;
   height: 0;
   background: var(--glass-bg);
+  -webkit-backdrop-filter: blur(20px);
   backdrop-filter: blur(20px);
   padding-top: 80px;
   overflow: hidden;
@@ -488,9 +509,9 @@ label {
   align-items: stretch;
   gap: 10px;
   width: 100%;
-  max-width: 400px;    
-  margin: 0 auto;      
-  flex-wrap: nowrap;   
+  max-width: 400px;
+  margin: 0 auto;
+  flex-wrap: nowrap;
 }
 
 #comp-target-settings .input-with-unit .simple-input {
@@ -502,15 +523,15 @@ label {
 }
 
 #comp-target-settings .input-with-unit .unit-dd {
-  flex: 0 0 110px;     
+  flex: 0 0 110px;
   min-width: 90px;
   height: 48px;
 }
 
 #comp-target-settings .input-with-unit .unit-dd .select-trigger {
   height: 48px;
-  padding: 0 14px;                
-  margin-bottom: 0;             
+  padding: 0 14px;
+  margin-bottom: 0;
   border-radius: 10px;
   display: flex;
   align-items: center;
@@ -607,7 +628,7 @@ label {
 }
 
 .meta-text {
-  font-size: 0.9rem;
+  font-size: 0.8rem;
   color: var(--text-light);
 }
 
@@ -622,11 +643,22 @@ label {
 
 /* Shake animation for rejected files */
 @keyframes dmShake {
-  0%, 100% { transform: translateX(0); }
-  20% { transform: translateX(-6px); }
-  40% { transform: translateX(6px); }
-  60% { transform: translateX(-4px); }
-  80% { transform: translateX(4px); }
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  20% {
+    transform: translateX(-6px);
+  }
+  40% {
+    transform: translateX(6px);
+  }
+  60% {
+    transform: translateX(-4px);
+  }
+  80% {
+    transform: translateX(4px);
+  }
 }
 
 .upload-zone.shake {
@@ -784,6 +816,103 @@ label {
   margin: 6px 0 0;
 }
 
+/* --- NEW UPDATE: Preview & Stats Area --- */
+#preview-wrapper {
+  margin-top: 24px;
+  text-align: center;
+  animation: fadeIn 0.5s ease;
+}
+
+#media-container {
+  margin-bottom: 16px;
+}
+
+#preview-img {
+  max-width: 100%;
+  max-height: 300px;
+  border-radius: 8px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+#preview-pdf {
+  width: 100%;
+  height: 300px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+}
+
+#stats-box {
+  background: #f8fafc;
+  border: 1px solid var(--input-border);
+  border-radius: 12px;
+  padding: 16px;
+  max-width: 400px;
+  margin: 0 auto;
+}
+
+/* Dark mode adjustment for stats box */
+@media (prefers-color-scheme: dark) {
+  #stats-box {
+    background: #1e293b;
+    border-color: #475569;
+  }
+}
+
+#stats-filename {
+  font-weight: 600;
+  color: var(--text-main);
+  margin-bottom: 12px;
+  word-break: break-all;
+}
+
+.stats-group {
+  border-top: 1px solid var(--input-border);
+  padding-top: 12px;
+  margin-top: 8px;
+}
+
+.stat-row {
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+}
+
+.stat-col {
+  display: flex;
+  flex-direction: column;
+}
+
+.stat-label {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  color: var(--text-light);
+  letter-spacing: 0.05em;
+  margin-bottom: 4px;
+}
+
+.stat-val {
+  font-weight: 700;
+  font-size: 1.1rem;
+  color: var(--text-main);
+}
+
+.stat-msg {
+  font-size: 0.85rem;
+  margin-top: 8px;
+  font-weight: 500;
+}
+
+.text-red {
+  color: #ef4444 !important;
+}
+.text-green {
+  color: #22c55e !important;
+}
+.text-blue {
+  color: #3b82f6 !important;
+}
+/* ---------------------------------------- */
+
 /* ==========================================================================
    8) MODALS
    ========================================================================== */
@@ -812,6 +941,7 @@ label {
   width: 100%;
   height: 100%;
   background: rgba(0, 0, 0, 0.6);
+  -webkit-backdrop-filter: blur(8px);
   backdrop-filter: blur(8px);
 }
 
@@ -1035,13 +1165,13 @@ label {
   display: flex;
   gap: 8px;
   margin-top: 5px;
-  width: 100%;         
-  align-items: stretch; 
+  width: 100%;
+  align-items: stretch;
 }
 
 .wallet-box input {
   flex: 1;
-  min-width: 0;    
+  min-width: 0;
   padding: 10px;
   border: 1px solid var(--input-border);
   background: var(--card-bg);
@@ -1052,12 +1182,12 @@ label {
 }
 
 .copy-btn {
-  flex: 0 0 44px;       
-  width: 44px;          
-  height: 44px;        
-  padding: 0;           
-  display: inline-flex; 
-  align-items: center;  
+  flex: 0 0 44px;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
   justify-content: center;
 
   border: 1px solid var(--input-border);

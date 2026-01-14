@@ -14,7 +14,7 @@
  *   CONVERTAPI_SECRET
  */
 
-const https = require('https');
+const https = require("https");
 
 module.exports.config = {
   api: {
@@ -31,99 +31,102 @@ function readRawBody(req, maxBytes = 2 * 1024 * 1024) {
     const chunks = [];
     let total = 0;
 
-    req.on('data', (chunk) => {
+    req.on("data", (chunk) => {
       total += chunk.length;
       if (total > maxBytes) {
-        reject(new Error('Body too large'));
+        reject(new Error("Body too large"));
         req.destroy();
         return;
       }
       chunks.push(chunk);
     });
 
-    req.on('end', () => {
-      resolve(Buffer.concat(chunks).toString('utf8') || '');
+    req.on("end", () => {
+      resolve(Buffer.concat(chunks).toString("utf8") || "");
     });
 
-    req.on('error', reject);
+    req.on("error", reject);
   });
 }
 
-function forwardToConvertApi({ type, secret, queryParams = {}, headers = {} }, res) {
+function forwardToConvertApi(
+  { type, secret, queryParams = {}, headers = {} },
+  res
+) {
   const base = new URL(`https://v2.convertapi.com/convert/${type}`);
-  base.searchParams.set('Secret', secret);
+  base.searchParams.set("Secret", secret);
 
   Object.entries(queryParams).forEach(([k, v]) => {
-    if (v === undefined || v === null || v === '') return;
+    if (v === undefined || v === null || v === "") return;
     base.searchParams.set(k, String(v));
   });
 
   const proxyReq = https.request(
     {
-      method: 'POST',
+      method: "POST",
       hostname: base.hostname,
       path: base.pathname + base.search,
       headers: {
-        'user-agent': 'DocuMorph-Proxy/2.0',
+        "user-agent": "DocuMorph-Proxy/2.0",
         ...headers,
       },
       timeout: 120000,
     },
     (proxyRes) => {
       res.statusCode = proxyRes.statusCode || 502;
-      res.setHeader('Cache-Control', 'no-store');
+      res.setHeader("Cache-Control", "no-store");
       res.setHeader(
-        'Content-Type',
-        proxyRes.headers['content-type'] || 'application/json'
+        "Content-Type",
+        proxyRes.headers["content-type"] || "application/json"
       );
-      if (proxyRes.headers['x-request-id']) {
-        res.setHeader('x-request-id', proxyRes.headers['x-request-id']);
+      if (proxyRes.headers["x-request-id"]) {
+        res.setHeader("x-request-id", proxyRes.headers["x-request-id"]);
       }
       proxyRes.pipe(res);
     }
   );
 
-  proxyReq.on('timeout', () => proxyReq.destroy(new Error('Proxy timeout')));
+  proxyReq.on("timeout", () => proxyReq.destroy(new Error("Proxy timeout")));
 
-  proxyReq.on('error', () => {
+  proxyReq.on("error", () => {
     if (!res.headersSent) {
       res.statusCode = 502;
-      res.setHeader('Content-Type', 'text/plain');
+      res.setHeader("Content-Type", "text/plain");
     }
-    res.end('Bad Gateway');
+    res.end("Bad Gateway");
   });
 
   proxyReq.end();
 }
 
 module.exports = async (req, res) => {
-  if (req.method !== 'POST') {
+  if (req.method !== "POST") {
     res.statusCode = 405;
-    res.setHeader('Allow', 'POST');
-    return res.end('Method Not Allowed');
+    res.setHeader("Allow", "POST");
+    return res.end("Method Not Allowed");
   }
 
   const secret = process.env.CONVERTAPI_SECRET;
-  const type = req.query?.type ? String(req.query.type).trim() : '';
+  const type = req.query?.type ? String(req.query.type).trim() : "";
 
-  if (!secret) return res.status(500).end('Missing CONVERTAPI_SECRET');
-  if (!type) return res.status(400).end('Missing type query param');
+  if (!secret) return res.status(500).end("Missing CONVERTAPI_SECRET");
+  if (!type) return res.status(400).end("Missing type query param");
   if (!isValidConvertType(type)) {
-    return res.status(400).end('Invalid type format. Expected: docx/to/pdf');
+    return res.status(400).end("Invalid type format. Expected: docx/to/pdf");
   }
 
-  const contentType = String(req.headers['content-type'] || '').toLowerCase();
+  const contentType = String(req.headers["content-type"] || "").toLowerCase();
 
   // =========================================================
   // MODE 1: JSON + file URL(s)
   // =========================================================
-  if (contentType.includes('application/json')) {
+  if (contentType.includes("application/json")) {
     try {
       const raw = await readRawBody(req);
       const data = raw ? JSON.parse(raw) : {};
 
       const queryParams = {
-        StoreFile: data?.storeFile === false ? 'false' : 'true',
+        StoreFile: data?.storeFile === false ? "false" : "true",
       };
 
       // Single file
@@ -139,9 +142,9 @@ module.exports = async (req, res) => {
       }
 
       // Extra params
-      if (data?.params && typeof data.params === 'object') {
+      if (data?.params && typeof data.params === "object") {
         Object.entries(data.params).forEach(([k, v]) => {
-          if (v === undefined || v === null || v === '') return;
+          if (v === undefined || v === null || v === "") return;
           queryParams[k] = String(v);
         });
       }
@@ -149,8 +152,8 @@ module.exports = async (req, res) => {
       return forwardToConvertApi({ type, secret, queryParams }, res);
     } catch {
       res.statusCode = 400;
-      res.setHeader('Content-Type', 'text/plain');
-      return res.end('Invalid JSON payload');
+      res.setHeader("Content-Type", "text/plain");
+      return res.end("Invalid JSON payload");
     }
   }
 
@@ -158,21 +161,23 @@ module.exports = async (req, res) => {
   // MODE 2: multipart/form-data (legacy)
   // =========================================================
   const targetUrl = new URL(
-    `https://v2.convertapi.com/convert/${type}?Secret=${encodeURIComponent(secret)}`
+    `https://v2.convertapi.com/convert/${type}?Secret=${encodeURIComponent(
+      secret
+    )}`
   );
 
   const headers = {
-    'content-type': req.headers['content-type'] || 'application/octet-stream',
-    'user-agent': 'DocuMorph-Proxy/2.0',
+    "content-type": req.headers["content-type"] || "application/octet-stream",
+    "user-agent": "DocuMorph-Proxy/2.0",
   };
 
-  if (req.headers['content-length']) {
-    headers['content-length'] = req.headers['content-length'];
+  if (req.headers["content-length"]) {
+    headers["content-length"] = req.headers["content-length"];
   }
 
   const proxyReq = https.request(
     {
-      method: 'POST',
+      method: "POST",
       hostname: targetUrl.hostname,
       path: targetUrl.pathname + targetUrl.search,
       headers,
@@ -180,26 +185,26 @@ module.exports = async (req, res) => {
     },
     (proxyRes) => {
       res.statusCode = proxyRes.statusCode || 502;
-      res.setHeader('Cache-Control', 'no-store');
+      res.setHeader("Cache-Control", "no-store");
       res.setHeader(
-        'Content-Type',
-        proxyRes.headers['content-type'] || 'application/json'
+        "Content-Type",
+        proxyRes.headers["content-type"] || "application/json"
       );
-      if (proxyRes.headers['x-request-id']) {
-        res.setHeader('x-request-id', proxyRes.headers['x-request-id']);
+      if (proxyRes.headers["x-request-id"]) {
+        res.setHeader("x-request-id", proxyRes.headers["x-request-id"]);
       }
       proxyRes.pipe(res);
     }
   );
 
-  proxyReq.on('timeout', () => proxyReq.destroy(new Error('Proxy timeout')));
+  proxyReq.on("timeout", () => proxyReq.destroy(new Error("Proxy timeout")));
 
-  proxyReq.on('error', () => {
+  proxyReq.on("error", () => {
     if (!res.headersSent) {
       res.statusCode = 502;
-      res.setHeader('Content-Type', 'text/plain');
+      res.setHeader("Content-Type", "text/plain");
     }
-    res.end('Bad Gateway');
+    res.end("Bad Gateway");
   });
 
   req.pipe(proxyReq);
