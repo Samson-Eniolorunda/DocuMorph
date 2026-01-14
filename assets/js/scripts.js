@@ -773,92 +773,97 @@
   }
 
   // =========================================================
-  // 17b) BLOB UPLOAD + CONVERTAPI (URL-based) — iOS safe
+  // 17b) BLOB UPLOAD + CONVERTAPI (URL-based) — iOS-safe
   // =========================================================
 
   function setProcessProgress(pct) {
     const p = Math.max(0, Math.min(100, Math.round(Number(pct) || 0)));
     if (processBar) processBar.style.width = `${p}%`;
-    if (processPercent) processPercent.textContent = `${p}%`;
+    if (processPercent) processPercent.innerText = `${p}%`;
   }
 
-  function isIOSWebKit() {
-    const ua = navigator.userAgent;
-    const iOS = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
-    return iOS;
+  function isIOSDevice() {
+    // covers iPhone/iPad + iPadOS masquerading as Mac
+    return (
+      /iPhone|iPad|iPod/i.test(navigator.userAgent) ||
+      (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1)
+    );
   }
 
-  function promiseTimeout(promise, ms, label = "Operation") {
+  function guessMimeFromName(name = "") {
+    const ext = name.split(".").pop()?.toLowerCase();
+
+    const map = {
+      pdf: "application/pdf",
+      doc: "application/msword",
+      docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      xls: "application/vnd.ms-excel",
+      xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      jpg: "image/jpeg",
+      jpeg: "image/jpeg",
+      png: "image/png",
+      webp: "image/webp",
+      heic: "image/heic",
+      heif: "image/heif",
+      tif: "image/tiff",
+      tiff: "image/tiff",
+    };
+
+    return map[ext] || "application/octet-stream";
+  }
+
+  function normalizeFileForIOS(file) {
+    // iOS sometimes gives file.type === ""
+    const mime = file?.type && String(file.type).trim() ? file.type : guessMimeFromName(file?.name || "");
+    const safeName = String(file?.name || "upload.bin");
+
+    // Re-wrap to ensure the blob has a real content-type
+    return new File([file], safeName, {
+      type: mime,
+      lastModified: file?.lastModified || Date.now(),
+    });
+  }
+
+  function withTimeout(promise, ms, label = "Operation") {
     let t;
     const timeout = new Promise((_, reject) => {
-      t = setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms);
+      t = setTimeout(() => reject(new Error(`${label} timed out`)), ms);
     });
-    return Promise.race([promise, timeout]).finally(() => clearTimeout(t));
-  }
 
-  // Cache the module so iPhone doesn’t re-import repeatedly
-  let _blobUploadFn = null;
-  async function getBlobUpload() {
-    if (_blobUploadFn) return _blobUploadFn;
-
-    // Pin + cache-friendly import (less iOS drama than re-importing every click)
-    const mod = await import("https://esm.sh/@vercel/blob/client@0.10.0");
-    _blobUploadFn = mod.upload;
-    return _blobUploadFn;
+    return Promise.race([
+      promise.finally(() => clearTimeout(t)),
+      timeout
+    ]);
   }
 
   async function uploadToBlob(file, progressOffset = 0, progressSpan = 70) {
-    const upload = await getBlobUpload();
+    const { upload } = await import("https://esm.sh/@vercel/blob/client");
 
-    const safeName = String(file?.name || "upload.bin").replace(/[^a-z0-9_.-]/gi, "_");
+    const ios = isIOSDevice();
+    const normalized = ios ? normalizeFileForIOS(file) : file;
+
+    const safeName = String(normalized?.name || "upload.bin").replace(/[^a-z0-9_.-]/gi, "_");
     const pathname = `uploads/${Date.now()}-${safeName}`;
 
-    const baseOpts = {
+    const uploadPromise = upload(pathname, normalized, {
       access: "public",
-      handleUploadUrl: new URL("/api/blob-upload", location.origin).toString(),
+      handleUploadUrl: "/api/blob-upload",
 
-      // ✅ IMPORTANT: only set contentType if browser provides it (iOS often doesn't)
-      ...(file?.type ? { contentType: file.type } : {}),
+      // iOS Safari can stall on multipart/chunked uploads → disable on iOS
+      multipart: ios ? false : normalized.size > 4.5 * 1024 * 1024,
 
-      onUploadProgress: ({ percentage }) => {
+      onUploadProgress: ({ percentage } = {}) => {
+        // Some browsers may not report percentage reliably
         const pct = Number(percentage);
         if (!Number.isFinite(pct)) return;
+
         const scaled = progressOffset + (pct * progressSpan) / 100;
         setProcessProgress(scaled);
       },
-    };
-    // iOS WebKit can hang on multipart sometimes, so:
-    // 1) try non-multipart first
-    // 2) if it fails on iOS, retry with multipart
-    const tryUpload = (multipart) =>
-      promiseTimeout(
-        upload(pathname, file, {
-          ...baseOpts,
-          multipart,
-        }),
-        multipart ? 180000 : 120000,
-        multipart ? "Upload (multipart)" : "Upload"
-      );
+    });
 
-    try {
-      return await tryUpload(false);
-    } catch (err) {
-      // retry only on iOS
-      if (!isIOSWebKit()) throw err;
-      console.warn("Upload failed (non-multipart). Retrying multipart…", err);
-      return await tryUpload(true);
-    }
-  }
-
-  async function fetchWithTimeout(url, options = {}, ms = 180000) {
-    const controller = new AbortController();
-    const t = setTimeout(() => controller.abort(), ms);
-
-    try {
-      return await fetch(url, { ...options, signal: controller.signal, cache: "no-store" });
-    } finally {
-      clearTimeout(t);
-    }
+    // avoid infinite “stuck processing” on iOS networks
+    return withTimeout(uploadPromise, 120000, "Upload");
   }
 
   async function processFilesWithProxy() {
@@ -869,8 +874,10 @@
 
     // 1) Upload to Vercel Blob
     let fileUrls = [];
+
     if (appState.view === "merge") {
       const step = appState.files.length ? 70 / appState.files.length : 70;
+
       for (let i = 0; i < appState.files.length; i++) {
         const blob = await uploadToBlob(appState.files[i], i * step, step);
         fileUrls.push(blob.url);
@@ -884,37 +891,39 @@
     const { type, params } = await buildConvertTypeAndParams(first);
     if (!type) throw new Error("Tool type not recognized");
 
-    // 3) Call proxy
+    // 3) Convert via your proxy
     setProcessProgress(75);
 
     const ramp = setInterval(() => {
-      const current = Number(String(processPercent?.textContent || "75").replace("%", "")) || 75;
+      const current = Number(processPercent?.innerText?.replace("%", "")) || 75;
       if (current < 92) setProcessProgress(current + 1);
     }, 180);
 
-    let resp;
-    try {
-      resp = await fetchWithTimeout(`/api/convert?type=${encodeURIComponent(type)}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Accept: "application/json" },
-        body: JSON.stringify({
-          fileUrl: appState.view === "merge" ? null : fileUrls[0],
-          files: appState.view === "merge" ? fileUrls : null,
-          params,
-          storeFile: true,
-        }),
-      }, 180000);
-    } finally {
-      clearInterval(ramp);
-    }
+    const convertPromise = fetch(`/api/convert?type=${encodeURIComponent(type)}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        fileUrl: appState.view === "merge" ? null : fileUrls[0],
+        files: appState.view === "merge" ? fileUrls : null,
+        params,
+        storeFile: true,
+      }),
+    });
+
+    const resp = await withTimeout(convertPromise, 120000, "Convert");
+
+    clearInterval(ramp);
+
     if (!resp.ok) {
       const raw = (await resp.text()).trim();
       console.error("Convert proxy error:", resp.status, raw);
+      alert(`Failed: ${resp.status}\n\n${raw.slice(0, 600)}`);
       resetApp();
-      throw new Error(`Convert failed: ${resp.status} - ${raw.slice(0, 400)}`);
+      throw new Error("HTTP " + resp.status);
     }
 
     const d = await resp.json();
+
     if (d?.Files?.length) {
       setProcessProgress(100);
       appState.resultUrl = d.Files[0].Url;
@@ -923,9 +932,11 @@
       return d;
     }
 
+    alert("Conversion returned no file.");
     resetApp();
-    throw new Error("Conversion returned no file.");
+    throw new Error("No file in response");
   }
+
 
   // =========================================================
   // 18) DROPDOWNS (custom-select)
