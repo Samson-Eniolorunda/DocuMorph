@@ -134,7 +134,7 @@ body {
 
 /* Base typography */
 h1 {
-  font-size: 3rem;
+  font-size: 2.5rem;
   margin-bottom: 0.5rem;
   letter-spacing: -1px;
 }
@@ -1527,15 +1527,6 @@ label {
     border-radius: 10px;
   }
 
-  /* Resize grid becomes single column */
-  .resize-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .full {
-    grid-column: span 1;
-  }
-
   /* Footer */
   .site-footer {
     padding: 1.6rem 6%;
@@ -1561,7 +1552,7 @@ label {
   }
 
   h1 {
-    font-size: 1.85rem;
+    font-size: 1.5rem;
   }
 
   p {
@@ -1575,6 +1566,11 @@ label {
 
   .upload-icon {
     font-size: 2.7rem;
+  }
+
+  .meta-text {
+    font-size: 0.7rem;
+    color: var(--text-light);
   }
 
   .btn-glow,

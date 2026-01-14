@@ -9,12 +9,10 @@
   <head>
     <!-- Character encoding -->
     <meta charset="UTF-8" />
-    <!-- Meta tags for browser compatibility -->
-    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
     <!-- Viewport for responsive design -->
     <meta
       name="viewport"
-      content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+      content="width=device-width, initial-scale=1.0"
     />
     <!-- Color scheme for light/dark mode support -->
     <meta name="color-scheme" content="light dark" />
@@ -68,18 +66,11 @@
         </a>
 
         <div class="nav-links desktop-only">
-          <button class="nav-btn active" onclick="switchView('convert')">
-            Convert
-          </button>
-          <button class="nav-btn" onclick="switchView('compress')">
-            Compress
-          </button>
-          <button class="nav-btn" onclick="switchView('resize')">Resize</button>
-          <button class="nav-btn" onclick="switchView('merge')">Merge</button>
-
-          <button class="nav-btn" onclick="openModal('feedback')">
-            Feedback
-          </button>
+          <button class="nav-btn active" onclick="switchView('convert')" type="button">Convert</button>
+          <button class="nav-btn" onclick="switchView('compress')" type="button">Compress</button>
+          <button class="nav-btn" onclick="switchView('resize')" type="button">Resize</button>
+          <button class="nav-btn" onclick="switchView('merge')" type="button">Merge</button>
+          <button class="nav-btn" onclick="openModal('feedback')" type="button">Feedback</button>
         </div>
 
         <button
@@ -95,27 +86,28 @@
 
     <!-- Mobile navigation drawer -->
     <div class="mobile-menu" id="mobile-menu">
-      <button class="mob-btn" onclick="switchView('convert'); toggleMenu()">
+      <button class="mob-btn" onclick="switchView('convert'); toggleMenu()" type="button">
         Convert
       </button>
-      <button class="mob-btn" onclick="switchView('compress'); toggleMenu()">
+      <button class="mob-btn" onclick="switchView('compress'); toggleMenu()" type="button">
         Compress
       </button>
-      <button class="mob-btn" onclick="switchView('resize'); toggleMenu()">
+      <button class="mob-btn" onclick="switchView('resize'); toggleMenu()" type="button">
         Resize
       </button>
-      <button class="mob-btn" onclick="switchView('merge'); toggleMenu()">
+      <button class="mob-btn" onclick="switchView('merge'); toggleMenu()" type="button">
         Merge
       </button>
 
       <button
         class="mob-btn support-highlight"
         onclick="openModal('feedback'); toggleMenu()"
+        type="button"
       >
         Feedback
       </button>
 
-      <button class="mob-btn" onclick="openModal('support'); toggleMenu()">
+      <button class="mob-btn" onclick="openModal('support'); toggleMenu()" type="button">
         Donate
       </button>
     </div>
@@ -168,7 +160,24 @@
 
         <!-- Compress tool view (settings: Auto / Target size) -->
         <section id="view-compress" class="view-section hidden">
-          <!-- ...existing code... -->
+          <div class="header-content">
+            <h1>Compress Files &amp; Images</h1>
+            <p>Optimize file &amp; image size while maintaining quality.</p>
+          </div>
+          
+          <div class="tool-wrapper">
+            <label>File Type:</label>
+            <div class="custom-select" id="compress-dropdown">
+              <div class="select-trigger">
+                <span class="trigger-text"><i class="fa-solid fa-file-pdf"></i> Compress PDF</span>
+                <i class="fa-solid fa-chevron-down arrow"></i>
+              </div>
+              <div class="options-container">
+                <div class="option" data-value="comp-pdf"><i class="fa-solid fa-file-pdf"></i> Compress PDF</div>
+                <div class="option" data-value="comp-img"><i class="fa-solid fa-image"></i> Compress Image</div>
+              </div>
+            </div>
+          </div>
 
           <!-- Compression settings controls (radio + range / target) -->
           <div class="settings-box">
@@ -182,7 +191,7 @@
                   checked
                   onchange="toggleCompMode()"
                 />
-                <span class="radio-box">Auto</span>
+                <span class="radio-box">Auto Slider</span>
               </label>
 
               <label class="radio-card">
@@ -219,23 +228,17 @@
 
             <!-- Target size mode: numeric input + unit dropdown -->
             <div id="comp-target-settings" class="hidden">
-              <label>Max Size:</label>
+              <label for="target-size-input">Max Size:</label>
 
               <div class="input-with-unit">
-                <label for="target-size-input">Target Size:</label>
-                <input
-                  type="number"
+                <input type="number"
                   class="simple-input"
                   placeholder="e.g. 2"
                   id="target-size-input"
                   title="Enter maximum file size in MB or KB"
                 />
 
-                <div
-                  class="custom-select unit-dd"
-                  id="size-unit-dropdown"
-                  tabindex="0"
-                >
+                <div class="custom-select unit-dd" id="size-unit-dropdown" tabindex="0">
                   <div class="select-trigger">
                     <span class="trigger-text">MB</span>
                     <i class="fa-solid fa-chevron-down arrow"></i>
@@ -253,8 +256,11 @@
 
         <!-- Resize tool view (width/height inputs and scale dropdown) -->
         <section id="view-resize" class="view-section hidden">
-          <!-- ...existing code... -->
-
+          <div class="header-content">
+            <h1>Resize Images</h1>
+            <p>Scale by pixels or percentage.</p>
+          </div>
+          
           <div class="resize-grid">
             <!-- Width input (px) -->
             <div class="input-group">
@@ -313,7 +319,23 @@
 
         <!-- Merge tool view -->
         <section id="view-merge" class="view-section hidden">
-          <!-- ...existing code... -->
+          <div class="header-content">
+            <h1>Merge Files</h1>
+              <p>Combine multiple files into one.</p>
+          </div>
+          <div class="tool-wrapper">
+            <label>Merge Mode:</label>
+            <div class="custom-select" id="merge-dropdown">
+              <div class="select-trigger">
+                <span class="trigger-text"><i class="fa-solid fa-copy"></i> Merge PDFs</span>
+                <i class="fa-solid fa-chevron-down arrow"></i>
+              </div>
+              <div class="options-container">
+                <div class="option" data-value="merge-pdf"><i class="fa-solid fa-copy"></i> Merge PDFs</div>
+                <div class="option" data-value="merge-img"><i class="fa-solid fa-images"></i> Images to PDF</div>
+              </div>
+            </div>
+          </div>
         </section>
 
         <!-- File upload area: drag & drop + hidden file input -->
