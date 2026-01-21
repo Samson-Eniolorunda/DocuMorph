@@ -1655,14 +1655,14 @@ label {
   }
 
   .legal-links button {
-    font-size: 0.5rem;
-  }
-
-  .attribution {
     font-size: 0.4rem;
   }
 
+  .attribution {
+    font-size: 0.7rem;
+  }
+
   .copyright {
-    font-size: 0.3rem;
+    font-size: 0.5rem;
   }
 }
