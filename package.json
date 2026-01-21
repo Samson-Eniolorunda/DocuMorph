@@ -9,6 +9,6 @@
     "node": ">=18"
   },
   "dependencies": {
-    "@vercel/blob": "^1.0.0"
+    "@vercel/blob": "^1.1.1"
   }
 }

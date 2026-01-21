@@ -1563,15 +1563,15 @@ label {
   }
 
   .legal-links button {
-    font-size: 0.5rem;
+    font-size: 0.8rem;
   }
 
   .attribution {
-    font-size: 0.5rem;
+    font-size: 0.7rem;
   }
 
   .copyright {
-    font-size: 0.5rem;
+    font-size: 0.6rem;
   }
 }
 
@@ -1655,7 +1655,7 @@ label {
   }
 
   .legal-links button {
-    font-size: 0.4rem;
+    font-size: 0.75rem;
   }
 
   .attribution {
@@ -1663,6 +1663,6 @@ label {
   }
 
   .copyright {
-    font-size: 0.5rem;
+    font-size: 0.6rem;
   }
 }
