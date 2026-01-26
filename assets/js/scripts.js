@@ -33,17 +33,25 @@
     resultUrl: null,
 
     rejectCount: 0,
-    
+
     // Stats capture
-    originalStats: { size: 0, width: 0, height: 0 } 
+    originalStats: { size: 0, width: 0, height: 0 },
   };
 
   // Wallet addresses
   let CRYPTO_WALLETS = {
-    btc: "Loading...", eth: "Loading...", bnb: "Loading...",
-    sol: "Loading...", ton: "Loading...", tron: "Loading...",
-    usdt_eth: "Loading...", usdt_bnb: "Loading...", usdt_trc: "Loading...",
-    usdt_sol: "Loading...", usdt_ton: "Loading...", usdt_arb: "Loading...",
+    btc: "Loading...",
+    eth: "Loading...",
+    bnb: "Loading...",
+    sol: "Loading...",
+    ton: "Loading...",
+    tron: "Loading...",
+    usdt_eth: "Loading...",
+    usdt_bnb: "Loading...",
+    usdt_trc: "Loading...",
+    usdt_sol: "Loading...",
+    usdt_ton: "Loading...",
+    usdt_arb: "Loading...",
   };
 
   const donationState = { selectedKey: "btc" };
@@ -135,10 +143,10 @@
   }
 
   function formatBytes(bytes, decimals = 2) {
-    if (!+bytes) return '0 Bytes';
+    if (!+bytes) return "0 Bytes";
     const k = 1024;
     const dm = decimals < 0 ? 0 : decimals;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+    const sizes = ["Bytes", "KB", "MB", "GB", "TB"];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`;
   }
@@ -150,10 +158,14 @@
     if (ext) return ext;
     const mime = (file?.type || "").toLowerCase();
     const map = {
-      "image/jpeg": "jpg", "image/jpg": "jpg", "image/png": "png",
-      "image/webp": "webp", "application/pdf": "pdf",
-      "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx",
-      "application/msword": "doc"
+      "image/jpeg": "jpg",
+      "image/jpg": "jpg",
+      "image/png": "png",
+      "image/webp": "webp",
+      "application/pdf": "pdf",
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+        "docx",
+      "application/msword": "doc",
     };
     return map[mime] || "";
   }
@@ -191,12 +203,16 @@
           reject(new Error("Img Error"));
         };
         img.src = url;
-      } catch (e) { reject(e); }
+      } catch (e) {
+        reject(e);
+      }
     });
   }
 
   function getSelectedScalePercent() {
-    const label = (qs("#resize-scale-dropdown .trigger-text")?.innerText || "").trim();
+    const label = (
+      qs("#resize-scale-dropdown .trigger-text")?.innerText || ""
+    ).trim();
     if (label.includes("75")) return 75;
     if (label.includes("50")) return 50;
     if (label.includes("25")) return 25;
@@ -211,7 +227,7 @@
     }
     dropZone.classList.remove("shake");
     // eslint-disable-next-line no-unused-expressions
-    dropZone.offsetHeight; 
+    dropZone.offsetHeight;
     dropZone.classList.add("shake");
     setTimeout(() => {
       dropError?.classList.add("hidden");
@@ -221,7 +237,10 @@
 
   function escalateIfNeeded(rejectedCount = 1) {
     appState.rejectCount += 1;
-    if (rejectedCount >= MULTI_REJECT_ESCALATE || appState.rejectCount >= REJECT_ESCALATE_COUNT) {
+    if (
+      rejectedCount >= MULTI_REJECT_ESCALATE ||
+      appState.rejectCount >= REJECT_ESCALATE_COUNT
+    ) {
       openModal("feedback");
     }
   }
@@ -233,7 +252,10 @@
 
     const ext = getFileExt(file);
     const mime = (file.type || "").toLowerCase();
-    const rules = accept.split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
+    const rules = accept
+      .split(",")
+      .map((s) => s.trim().toLowerCase())
+      .filter(Boolean);
 
     return rules.some((r) => {
       if (r === "image/*") return mime.startsWith("image/");
@@ -289,7 +311,9 @@
   function incrementUsage() {
     const d = getUsage();
     d.count += 1;
-    try { localStorage.setItem("documorph_usage", JSON.stringify(d)); } catch (_) {}
+    try {
+      localStorage.setItem("documorph_usage", JSON.stringify(d));
+    } catch (_) {}
   }
 
   function toggleMenu() {
@@ -299,12 +323,17 @@
 
   function switchView(viewName) {
     appState.view = viewName;
-    qsa(".nav-btn").forEach((b) => b.classList.toggle("active", safeLowerText(b) === viewName));
+    qsa(".nav-btn").forEach((b) =>
+      b.classList.toggle("active", safeLowerText(b) === viewName),
+    );
     Object.values(views).forEach((v) => v && v.classList.add("hidden"));
     if (views[viewName]) views[viewName].classList.remove("hidden");
     resetApp();
     const firstOption = views[viewName]?.querySelector(".option");
-    updateContext(viewName, firstOption ? firstOption.getAttribute("data-value") : null);
+    updateContext(
+      viewName,
+      firstOption ? firstOption.getAttribute("data-value") : null,
+    );
     if (viewName === "compress") {
       toggleCompMode();
       updateRangeLabel();
@@ -329,12 +358,15 @@
     setText(status, "Sending...");
     try {
       const r = await fetch("/api/form", {
-        method: "POST", headers: { "Content-Type": "application/json" },
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
       });
       setText(status, r.ok ? "Thanks! Message sent." : "Oops! Server error.");
       if (r.ok) e.target.reset();
-    } catch (_) { setText(status, "Network Error."); }
+    } catch (_) {
+      setText(status, "Network Error.");
+    }
   }
 
   function updateContext(view, val) {
@@ -352,30 +384,53 @@
     if (view === "convert") {
       switch (val) {
         case "word-to-pdf":
-          accept = ".doc,.docx,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+          accept =
+            ".doc,.docx,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document";
           limitText = "Word Docs";
           break;
-        case "pdf-to-word": accept = ".pdf"; limitText = "PDF Files"; break;
-        case "excel-to-pdf": accept = ".xls,.xlsx"; limitText = "Excel Sheets"; break;
-        case "pdf-to-excel": accept = ".pdf"; limitText = "PDF Files"; break;
-        case "jpg-to-png": accept = "image/jpeg,image/jpg"; limitText = "JPG Images"; break;
-        case "png-to-jpg": accept = "image/png"; limitText = "PNG Images"; break;
-        default: accept = "*"; limitText = "Files";
+        case "pdf-to-word":
+          accept = ".pdf";
+          limitText = "PDF Files";
+          break;
+        case "excel-to-pdf":
+          accept = ".xls,.xlsx";
+          limitText = "Excel Sheets";
+          break;
+        case "pdf-to-excel":
+          accept = ".pdf";
+          limitText = "PDF Files";
+          break;
+        case "jpg-to-png":
+          accept = "image/jpeg,image/jpg";
+          limitText = "JPG Images";
+          break;
+        case "png-to-jpg":
+          accept = "image/png";
+          limitText = "PNG Images";
+          break;
+        default:
+          accept = "*";
+          limitText = "Files";
       }
-    } 
-    else if (view === "compress") {
-      if (val === "comp-pdf") { accept = ".pdf"; limitText = "PDF Files"; } 
-      else { accept = "image/jpeg,image/png,image/webp,image/bmp,image/tiff"; limitText = "Images"; }
-    }
-    else if (view === "resize") {
-      accept = "image/jpeg,image/png,image/webp,image/bmp,image/tiff"; limitText = "Images";
-    } 
-    else if (view === "merge") {
-      accept = ".pdf"; limitText = "PDF Files";
+    } else if (view === "compress") {
+      if (val === "comp-pdf") {
+        accept = ".pdf";
+        limitText = "PDF Files";
+      } else {
+        accept = "image/jpeg,image/png,image/webp,image/bmp,image/tiff";
+        limitText = "Images";
+      }
+    } else if (view === "resize") {
+      accept = "image/jpeg,image/png,image/webp,image/bmp,image/tiff";
+      limitText = "Images";
+    } else if (view === "merge") {
+      accept = ".pdf";
+      limitText = "PDF Files";
     }
 
     if (fileInput) fileInput.setAttribute("accept", accept);
-    if (fileLimits) fileLimits.innerText = `Supported: ${limitText} • Max ${MAX_UPLOAD_MB}MB`;
+    if (fileLimits)
+      fileLimits.innerText = `Supported: ${limitText} • Max ${MAX_UPLOAD_MB}MB`;
     dropError?.classList.add("hidden");
     if (dropError) dropError.textContent = "";
   }
@@ -387,7 +442,9 @@
         if (!chosen.length) return;
         const { supported, rejected } = filterSupportedFiles(chosen);
         if (rejected.length) {
-          showInlineDropError(`Not supported: ${rejected.map((f) => f.name).join(", ")}`);
+          showInlineDropError(
+            `Not supported: ${rejected.map((f) => f.name).join(", ")}`,
+          );
           escalateIfNeeded(rejected.length);
           fileInput.value = "";
           return;
@@ -414,7 +471,9 @@
         if (!dropped.length) return;
         const { supported, rejected } = filterSupportedFiles(dropped);
         if (rejected.length) {
-          showInlineDropError(`Not supported: ${rejected.map((f) => f.name).join(", ")}`);
+          showInlineDropError(
+            `Not supported: ${rejected.map((f) => f.name).join(", ")}`,
+          );
           escalateIfNeeded(rejected.length);
         }
         if (!supported.length) return;
@@ -454,26 +513,28 @@
   function showReadyScreen() {
     readyUI?.classList.remove("hidden");
     if (fileNameDisplay) {
-        const f = appState.files[0];
-        let infoText = "";
-        
-        if (f) {
-            if (appState.view === 'compress') {
-                infoText = ` (${formatBytes(f.size)})`;
-            } else if (appState.view === 'resize') {
-                // Calculate dims immediately for display
-                getImageDimensions(f).then(({w, h}) => {
-                    if(appState.view === 'resize' && appState.files[0] === f) {
-                        fileNameDisplay.innerText = f.name + ` (${w} x ${h} px)`;
-                    }
-                }).catch(() => {});
-            }
+      const f = appState.files[0];
+      let infoText = "";
+
+      if (f) {
+        if (appState.view === "compress") {
+          infoText = ` (${formatBytes(f.size)})`;
+        } else if (appState.view === "resize") {
+          // Calculate dims immediately for display
+          getImageDimensions(f)
+            .then(({ w, h }) => {
+              if (appState.view === "resize" && appState.files[0] === f) {
+                fileNameDisplay.innerText = f.name + ` (${w} x ${h} px)`;
+              }
+            })
+            .catch(() => {});
         }
-        
-        fileNameDisplay.innerText =
-            appState.files.length === 1 
-            ? appState.files[0].name + infoText 
-            : `${appState.files.length} files selected`;
+      }
+
+      fileNameDisplay.innerText =
+        appState.files.length === 1
+          ? appState.files[0].name + infoText
+          : `${appState.files.length} files selected`;
     }
     let actionText = "Start";
     if (appState.view === "convert") actionText = "Convert Now";
@@ -520,7 +581,17 @@
   }
 
   function updateRangeLabel() {
-    const labels = ["Smallest", "Small", "Compact", "Balanced", "Balanced", "Better", "Good", "Great", "Best Quality"];
+    const labels = [
+      "Smallest",
+      "Small",
+      "Compact",
+      "Balanced",
+      "Balanced",
+      "Better",
+      "Good",
+      "Great",
+      "Best Quality",
+    ];
     const v = Number(qs("#compression-range")?.value || 5);
     const out = qs("#compression-text");
     if (out) out.innerText = labels[v - 1] || "Balanced";
@@ -535,7 +606,8 @@
 
     appState.originalStats = {
       size: appState.files[0]?.size || 0,
-      width: 0, height: 0
+      width: 0,
+      height: 0,
     };
 
     if (appState.view === "resize" && appState.files[0]) {
@@ -543,11 +615,14 @@
         const dims = await getImageDimensions(appState.files[0]);
         appState.originalStats.width = dims.w;
         appState.originalStats.height = dims.h;
-      } catch (e) { console.log("Dims error", e); }
+      } catch (e) {
+        console.log("Dims error", e);
+      }
     }
 
-    try { await processFilesWithProxy(); } 
-    catch (e) {
+    try {
+      await processFilesWithProxy();
+    } catch (e) {
       console.error(e);
       alert("Processing failed. Please try again.");
       resetApp();
@@ -566,7 +641,7 @@
     if (oldBtn && oldBtn.parentNode) {
       const newBtn = oldBtn.cloneNode(true);
       oldBtn.parentNode.replaceChild(newBtn, oldBtn);
-      
+
       newBtn.onclick = () => {
         const link = document.createElement("a");
         link.href = url;
@@ -584,7 +659,7 @@
     wrapper.classList.remove("hidden");
     compBox.classList.add("hidden");
     resizeBox.classList.add("hidden");
-    
+
     const imgEl = qs("#preview-img");
     const pdfEl = qs("#preview-pdf");
     if (imgEl) imgEl.classList.add("hidden");
@@ -592,50 +667,55 @@
 
     if (fnameEl) fnameEl.textContent = filename;
 
-    const ext = String(filename).split('.').pop().toLowerCase();
-    const isImg = ['jpg', 'jpeg', 'png', 'webp', 'gif'].includes(ext);
+    const ext = String(filename).split(".").pop().toLowerCase();
+    const isImg = ["jpg", "jpeg", "png", "webp", "gif"].includes(ext);
 
     // FIXED: Show stats box immediately with "Original" data, load "New" async
     if (isImg && appState.view === "resize") {
-        resizeBox.classList.remove("hidden");
-        const loading = qs("#resize-loading");
-        const dataRow = qs("#resize-data");
-        
-        // Setup initial display with known Original
-        loading.classList.remove("hidden"); // Shows "Calculating..."
-        dataRow.classList.add("hidden"); 
-        
-        // Fill original immediately
-        qs("#resize-old").textContent = `${appState.originalStats.width} x ${appState.originalStats.height} px`;
+      resizeBox.classList.remove("hidden");
+      const loading = qs("#resize-loading");
+      const dataRow = qs("#resize-data");
 
-        fetch(url)
-          .then(res => res.blob())
-          .then(blob => {
-             const tempImg = new Image();
-             const objectUrl = URL.createObjectURL(blob);
-             tempImg.onload = () => {
-                 loading.classList.add("hidden");
-                 dataRow.classList.remove("hidden");
-                 qs("#resize-new").textContent = `${tempImg.naturalWidth} x ${tempImg.naturalHeight} px`;
-                 URL.revokeObjectURL(objectUrl);
-             };
-             tempImg.src = objectUrl;
-          })
-          .catch(e => {
-             console.log("Stats load failed", e);
-             loading.textContent = "See download for new size";
-          });
+      // Setup initial display with known Original
+      loading.classList.remove("hidden"); // Shows "Calculating..."
+      dataRow.classList.add("hidden");
+
+      // Fill original immediately
+      qs("#resize-old").textContent =
+        `${appState.originalStats.width} x ${appState.originalStats.height} px`;
+
+      fetch(url)
+        .then((res) => res.blob())
+        .then((blob) => {
+          const tempImg = new Image();
+          const objectUrl = URL.createObjectURL(blob);
+          tempImg.onload = () => {
+            loading.classList.add("hidden");
+            dataRow.classList.remove("hidden");
+            qs("#resize-new").textContent =
+              `${tempImg.naturalWidth} x ${tempImg.naturalHeight} px`;
+            URL.revokeObjectURL(objectUrl);
+          };
+          tempImg.src = objectUrl;
+        })
+        .catch((e) => {
+          console.log("Stats load failed", e);
+          loading.textContent = "See download for new size";
+        });
     }
 
     if (appState.view === "compress") {
-        compBox.classList.remove("hidden");
-        const oldS = appState.originalStats.size;
-        const saved = oldS - newSize;
-        const savedPct = Math.round((saved / oldS) * 100);
-        qs("#comp-old").textContent = formatBytes(oldS);
-        qs("#comp-new").textContent = formatBytes(newSize);
-        const msg = saved > 0 ? `Saved ${formatBytes(saved)} (${savedPct}%)!` : 'Already optimized!';
-        qs("#comp-saved").textContent = msg;
+      compBox.classList.remove("hidden");
+      const oldS = appState.originalStats.size;
+      const saved = oldS - newSize;
+      const savedPct = Math.round((saved / oldS) * 100);
+      qs("#comp-old").textContent = formatBytes(oldS);
+      qs("#comp-new").textContent = formatBytes(newSize);
+      const msg =
+        saved > 0
+          ? `Saved ${formatBytes(saved)} (${savedPct}%)!`
+          : "Already optimized!";
+      qs("#comp-saved").textContent = msg;
     }
   }
 
@@ -648,9 +728,11 @@
     const params = {};
 
     if (appState.view === "convert") {
-      if (appState.subTool === "word-to-pdf") type = ext === "doc" ? "doc/to/pdf" : "docx/to/pdf";
+      if (appState.subTool === "word-to-pdf")
+        type = ext === "doc" ? "doc/to/pdf" : "docx/to/pdf";
       else if (appState.subTool === "pdf-to-word") type = "pdf/to/docx";
-      else if (appState.subTool === "excel-to-pdf") type = ext === "xls" ? "xls/to/pdf" : "xlsx/to/pdf";
+      else if (appState.subTool === "excel-to-pdf")
+        type = ext === "xls" ? "xls/to/pdf" : "xlsx/to/pdf";
       else if (appState.subTool === "pdf-to-excel") type = "pdf/to/xlsx";
       else if (appState.subTool === "jpg-to-png") type = "jpg/to/png";
       else if (appState.subTool === "png-to-jpg") type = "png/to/jpg";
@@ -662,20 +744,32 @@
         type = "pdf/to/compress";
         if (mode === "auto") {
           const s = Number(qs("#compression-range")?.value || 5);
-          if (s <= 3) params.Preset = "screen"; else if (s <= 6) params.Preset = "ebook"; else params.Preset = "printer";
-        } else { params.Preset = "ebook"; }
+          if (s <= 3) params.Preset = "screen";
+          else if (s <= 6) params.Preset = "ebook";
+          else params.Preset = "printer";
+        } else {
+          params.Preset = "ebook";
+        }
       } else {
         const imgExt = normalizeImageExt(ext);
         type = `${imgExt}/to/compress`;
         if (mode === "auto") {
           const s = Number(qs("#compression-range")?.value || 5);
-          if (imgExt === "jpg") params.Quality = String(Math.max(10, Math.min(95, s * 10)));
-          if (s <= 3) params.Preset = "screen"; else if (s <= 6) params.Preset = "ebook"; else params.Preset = "printer";
+          if (imgExt === "jpg")
+            params.Quality = String(Math.max(10, Math.min(95, s * 10)));
+          if (s <= 3) params.Preset = "screen";
+          else if (s <= 6) params.Preset = "ebook";
+          else params.Preset = "printer";
         } else {
           const sizeVal = Number(qs("#target-size-input")?.value || 0);
-          const unit = (qs("#size-unit-dropdown .trigger-text")?.textContent || "MB").trim().toUpperCase();
+          const unit = (
+            qs("#size-unit-dropdown .trigger-text")?.textContent || "MB"
+          )
+            .trim()
+            .toUpperCase();
           if (sizeVal > 0) {
-            const sizeKb = unit === "MB" ? Math.round(sizeVal * 1024) : Math.round(sizeVal);
+            const sizeKb =
+              unit === "MB" ? Math.round(sizeVal * 1024) : Math.round(sizeVal);
             params.CompressionFileSize = String(sizeKb);
           }
           params.Preset = "screen";
@@ -697,7 +791,8 @@
           const { w, h } = await getImageDimensions(file);
           const newW = Math.max(1, Math.round((w * pct) / 100));
           const newH = Math.max(1, Math.round((h * pct) / 100));
-          params.ImageWidth = String(newW); params.ImageHeight = String(newH);
+          params.ImageWidth = String(newW);
+          params.ImageHeight = String(newH);
         }
       }
     }
@@ -713,15 +808,24 @@
   }
 
   function isIOSDevice() {
-    return (/iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1));
+    return (
+      /iPhone|iPad|iPod/i.test(navigator.userAgent) ||
+      (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1)
+    );
   }
 
   function guessMimeFromName(name = "") {
     const ext = String(name).split(".").pop()?.toLowerCase() || "";
     const map = {
-      pdf: "application/pdf", doc: "application/msword", docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-      xls: "application/vnd.ms-excel", xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", webp: "image/webp",
+      pdf: "application/pdf",
+      doc: "application/msword",
+      docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      xls: "application/vnd.ms-excel",
+      xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      jpg: "image/jpeg",
+      jpeg: "image/jpeg",
+      png: "image/png",
+      webp: "image/webp",
     };
     return map[ext] || "application/octet-stream";
   }
@@ -729,27 +833,98 @@
   function withTimeout(promise, ms, label = "Operation") {
     let timer;
     const timeout = new Promise((_, reject) => {
-      timer = setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms);
+      timer = setTimeout(
+        () => reject(new Error(`${label} timed out after ${ms}ms`)),
+        ms,
+      );
     });
     return Promise.race([promise.finally(() => clearTimeout(timer)), timeout]);
   }
 
-  async function uploadToBlob(file, progressOffset = 0, progressSpan = 70) {
-    const { upload } = await import("https://esm.sh/@vercel/blob/client");
+  // iOS Native Upload - Uses XMLHttpRequest for maximum compatibility
+  async function uploadToServerDirect(
+    file,
+    progressOffset = 0,
+    progressSpan = 70,
+  ) {
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      const formData = new FormData();
 
-    const ios = isIOSDevice();
-    let normalized = file;
-
-    if (ios) {
-      const safeName = String(file?.name || "upload.bin").replace(/[^a-z0-9_.-]/gi, "_");
+      const safeName = String(file?.name || "upload.bin").replace(
+        /[^a-z0-9_.-]/gi,
+        "_",
+      );
       const mime = file?.type || guessMimeFromName(safeName);
-      normalized = file.slice(0, file.size, mime);
-      normalized.name = safeName;
+
+      // Create a proper File object for iOS
+      let uploadFile;
+      try {
+        uploadFile = new File([file], safeName, { type: mime });
+      } catch (e) {
+        // Fallback for older iOS that doesn't support File constructor
+        uploadFile = file;
+      }
+
+      formData.append("file", uploadFile, safeName);
+
+      xhr.open("POST", "/api/native-upload", true);
+
+      // Progress tracking
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable) {
+          const pct = (e.loaded / e.total) * 100;
+          const scaled = progressOffset + (pct * progressSpan) / 100;
+          setProcessProgress(scaled);
+        }
+      };
+
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          try {
+            const response = JSON.parse(xhr.responseText);
+            if (response.url) {
+              setProcessProgress(progressOffset + progressSpan);
+              resolve({ url: response.url, raw: response });
+            } else {
+              reject(
+                new Error(response.error || "Upload failed - no URL returned"),
+              );
+            }
+          } catch (e) {
+            reject(new Error("Invalid server response"));
+          }
+        } else {
+          reject(new Error(`Upload failed with status ${xhr.status}`));
+        }
+      };
+
+      xhr.onerror = () => reject(new Error("Network error during upload"));
+      xhr.ontimeout = () => reject(new Error("Upload timed out"));
+      xhr.timeout = 180000; // 3 minutes
+
+      xhr.send(formData);
+    });
+  }
+
+  async function uploadToBlob(file, progressOffset = 0, progressSpan = 70) {
+    const ios = isIOSDevice();
+
+    // iOS: Use native XMLHttpRequest upload (bypasses @vercel/blob issues)
+    if (ios) {
+      console.log("[Upload] iOS detected - using native upload");
+      return uploadToServerDirect(file, progressOffset, progressSpan);
     }
 
-    const safeName = String(file?.name || "upload.bin").replace(/[^a-z0-9_.-]/gi, "_");
+    // Non-iOS: Use standard Vercel Blob client
+    const { upload } = await import("https://esm.sh/@vercel/blob/client");
+
+    const safeName = String(file?.name || "upload.bin").replace(
+      /[^a-z0-9_.-]/gi,
+      "_",
+    );
     const pathname = `uploads/${Date.now()}-${safeName}`;
-    const multipartDecision = normalized.size > 4.5 * 1024 * 1024;
+    const multipartDecision = file.size > 4.5 * 1024 * 1024;
 
     let attempt = 0;
     const maxAttempts = 2;
@@ -757,7 +932,7 @@
     while (attempt < maxAttempts) {
       attempt++;
       try {
-        const uploadPromise = upload(pathname, normalized, {
+        const uploadPromise = upload(pathname, file, {
           access: "public",
           handleUploadUrl: "/api/blob-upload",
           multipart: multipartDecision,
@@ -769,7 +944,8 @@
           },
         });
         const result = await withTimeout(uploadPromise, 180000, "BlobUpload");
-        if (!result || !(result.url || result?.blob?.url)) throw new Error("Invalid upload result");
+        if (!result || !(result.url || result?.blob?.url))
+          throw new Error("Invalid upload result");
         const url = result.url || result?.blob?.url;
         setProcessProgress(progressOffset + progressSpan);
         return { url, raw: result };
@@ -807,7 +983,8 @@
 
       setProcessProgress(75);
       const ramp = setInterval(() => {
-        const current = Number(processPercent?.innerText?.replace("%", "")) || 75;
+        const current =
+          Number(processPercent?.innerText?.replace("%", "")) || 75;
         if (current < 92) setProcessProgress(current + 1);
       }, 180);
 
@@ -815,21 +992,31 @@
       const convertBody = {
         fileUrl: appState.view === "merge" ? null : fileUrls[0],
         files: appState.view === "merge" ? fileUrls : null,
-        params, storeFile: true,
+        params,
+        storeFile: true,
       };
 
-      const convertPromise = fetch(`/api/convert?type=${encodeURIComponent(type)}`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(convertBody),
-      });
+      const convertPromise = fetch(
+        `/api/convert?type=${encodeURIComponent(type)}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(convertBody),
+        },
+      );
 
       const resp = await withTimeout(convertPromise, convertTimeout, "Convert");
       clearInterval(ramp);
 
       const rawText = await resp.text().catch(() => null);
       if (!resp.ok) {
-        let parsed; try { parsed = rawText ? JSON.parse(rawText) : null; } catch (e) {}
-        alert(`Conversion failed (HTTP ${resp.status}).\n\n${parsed?.error || "Error"}`);
+        let parsed;
+        try {
+          parsed = rawText ? JSON.parse(rawText) : null;
+        } catch (e) {}
+        alert(
+          `Conversion failed (HTTP ${resp.status}).\n\n${parsed?.error || "Error"}`,
+        );
         resetApp();
         throw new Error("Convert failed");
       }
@@ -864,8 +1051,16 @@
         dropdowns.forEach((d) => d.classList.remove("open"));
         if (!isOpen) dd.classList.add("open");
       };
-      trigger?.addEventListener("click", (e) => { e.stopPropagation(); toggle(); });
-      dd.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); toggle(); } });
+      trigger?.addEventListener("click", (e) => {
+        e.stopPropagation();
+        toggle();
+      });
+      dd.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          toggle();
+        }
+      });
       options.forEach((opt) => {
         opt.setAttribute("tabindex", "0");
         const select = () => {
@@ -874,35 +1069,68 @@
           if (dd.id === "crypto-dropdown") {
             if (triggerText) triggerText.innerHTML = opt.innerHTML;
             const usdtGroup = qs("#usdt-network-group");
-            if (val === "usdt") { usdtGroup?.classList.remove("hidden"); updateWalletDisplay("usdt-eth"); }
-            else { usdtGroup?.classList.add("hidden"); updateWalletDisplay(val); }
-            dd.classList.remove("open"); dd.focus(); return;
+            if (val === "usdt") {
+              usdtGroup?.classList.remove("hidden");
+              updateWalletDisplay("usdt-eth");
+            } else {
+              usdtGroup?.classList.add("hidden");
+              updateWalletDisplay(val);
+            }
+            dd.classList.remove("open");
+            dd.focus();
+            return;
           }
           if (dd.id === "network-dropdown") {
             if (triggerText) triggerText.innerHTML = opt.innerHTML;
-            updateWalletDisplay(val); dd.classList.remove("open"); dd.focus(); return;
+            updateWalletDisplay(val);
+            dd.classList.remove("open");
+            dd.focus();
+            return;
           }
           if (dd.id === "size-unit-dropdown") {
-            if (triggerText) triggerText.textContent = val; dd.classList.remove("open"); dd.focus(); return;
+            if (triggerText) triggerText.textContent = val;
+            dd.classList.remove("open");
+            dd.focus();
+            return;
           }
           if (dd.id === "resize-scale-dropdown") {
-            if (triggerText) triggerText.innerHTML = opt.innerHTML; dd.classList.remove("open"); dd.focus(); return;
+            if (triggerText) triggerText.innerHTML = opt.innerHTML;
+            dd.classList.remove("open");
+            dd.focus();
+            return;
           }
           if (dd.id === "feedback-category-dropdown") {
             if (triggerText) triggerText.innerHTML = opt.innerHTML;
-            const hidden = qs("#feedback-category"); if (hidden) hidden.value = val;
-            dd.classList.remove("open"); dd.focus(); return;
+            const hidden = qs("#feedback-category");
+            if (hidden) hidden.value = val;
+            dd.classList.remove("open");
+            dd.focus();
+            return;
           }
           if (triggerText) triggerText.innerHTML = opt.innerHTML;
           updateContext(appState.view, val);
-          dd.classList.remove("open"); dd.focus();
-          if (appState.view === "compress") { toggleCompMode(); updateRangeLabel(); }
+          dd.classList.remove("open");
+          dd.focus();
+          if (appState.view === "compress") {
+            toggleCompMode();
+            updateRangeLabel();
+          }
         };
-        opt.addEventListener("click", (e) => { e.stopPropagation(); select(); });
-        opt.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); select(); } });
+        opt.addEventListener("click", (e) => {
+          e.stopPropagation();
+          select();
+        });
+        opt.addEventListener("keydown", (e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            select();
+          }
+        });
       });
     });
-    window.addEventListener("click", () => { qsa(".custom-select").forEach((d) => d.classList.remove("open")); });
+    window.addEventListener("click", () => {
+      qsa(".custom-select").forEach((d) => d.classList.remove("open"));
+    });
   }
 
   async function fetchSecureWallets() {
@@ -934,10 +1162,17 @@
     donationState.selectedKey = key;
     const address = mapWalletAddressForKey(key) || "Address Not Set";
     if (walletInput) walletInput.value = address;
-    if (qrBox && qrImg && address !== "Address Not Set" && address !== "Loading...") {
+    if (
+      qrBox &&
+      qrImg &&
+      address !== "Address Not Set" &&
+      address !== "Loading..."
+    ) {
       qrBox.classList.remove("hidden");
       qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(address)}`;
-    } else { qrBox?.classList.add("hidden"); }
+    } else {
+      qrBox?.classList.add("hidden");
+    }
     if (connectBtn) {
       connectBtn.innerHTML = '<i class="fa-solid fa-copy"></i> Copy Address';
       connectBtn.onclick = copyWallet;
