@@ -1,0 +1,115 @@
+@import "tailwindcss";
+
+/* Light by default; dark with <html class="dark"> (device setting or the visitor's choice). */
+:root {
+  --bg: #f6f7f9;
+  --surface: #ffffff;
+  --raised: #eef1f4;
+  --line: #dde2e8;
+  --fg: #111827;
+  --muted: #4b5563;
+  --subtle: #7b8494;
+  --accent: #0f766e;
+  --accent-soft: rgba(15, 118, 110, 0.1);
+  --accent-fg: #ffffff;
+  --warn: #b45309;
+  --danger: #b42318;
+  color-scheme: light;
+}
+html.dark {
+  --bg: #0d1117;
+  --surface: #151b23;
+  --raised: #1c232d;
+  --line: #2a323d;
+  --fg: #e8ecf1;
+  --muted: #a7b0bd;
+  --subtle: #758091;
+  --accent: #2dd4bf;
+  --accent-soft: rgba(45, 212, 191, 0.12);
+  --accent-fg: #062521;
+  --warn: #f5a524;
+  --danger: #f97066;
+  color-scheme: dark;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-raised: var(--raised);
+  --color-line: var(--line);
+  --color-fg: var(--fg);
+  --color-muted: var(--muted);
+  --color-subtle: var(--subtle);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-fg: var(--accent-fg);
+  --color-warn: var(--warn);
+  --color-danger: var(--danger);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
+}
+::selection {
+  background: var(--accent);
+  color: var(--accent-fg);
+}
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Shared classes live in the components layer, so utilities such as p-0 or
+   w-16 on the same element still win. */
+@layer components {
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    border-radius: 0.6rem;
+    padding: 0.6rem 1rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    transition:
+      background-color 0.15s,
+      border-color 0.15s,
+      opacity 0.15s;
+  }
+  .btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  .btn-primary {
+    background: var(--accent);
+    color: var(--accent-fg);
+  }
+  .btn-primary:hover:not(:disabled) {
+    opacity: 0.9;
+  }
+  .btn-quiet {
+    border: 1px solid var(--line);
+    background: var(--surface);
+    color: var(--fg);
+  }
+  .btn-quiet:hover:not(:disabled) {
+    border-color: var(--subtle);
+  }
+  .field {
+    width: 100%;
+    border-radius: 0.6rem;
+    border: 1px solid var(--line);
+    background: var(--surface);
+    padding: 0.55rem 0.75rem;
+    font-size: 0.875rem;
+    color: var(--fg);
+  }
+  .field:focus {
+    border-color: var(--accent);
+    outline: none;
+  }
+}

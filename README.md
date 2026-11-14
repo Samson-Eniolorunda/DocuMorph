@@ -1,141 +1,49 @@
 # DocuMorph
 
-A **privacy-first file tools web app** for quick utilities like **Convert, Compress, Resize, and Merge** — with a smooth **upload → process → download** experience.
+Private PDF and image tools that run in your browser.
 
----
+Live: https://documorph-blue.vercel.app
 
-## ✨ Features
+## Tools
 
-### File Tools
+Run on the visitor's device (no upload):
 
-- **Convert** — Word ↔ PDF, Excel ↔ PDF, JPG ↔ PNG
-- **Compress** — PDFs & Images (auto quality or target size)
-- **Resize** — Images by width/height or scale percentage
-- **Merge** — Combine multiple PDFs into one
+- **Edit PDF**: add text, cover and retype, highlight, boxes, images, signatures (drawn, typed or uploaded), fill and lock forms, delete pages.
+- **Merge PDF**, **Split PDF** (page ranges, every N pages, every page), **Organise pages** (reorder, rotate, delete with previews).
+- **Images to PDF**, **PDF to images** (PNG or JPG at 72, 150 or 300 dpi).
+- **Convert, resize and compress images** (JPG, PNG, WebP; compress by quality or to a target size).
 
-### User Experience
+Processed on a server (ConvertAPI), files up to 4 MB:
 
-- **Drag & Drop** with strict file-type validation
-- **Progress UI** — upload, processing, and success states
-- **Daily usage limit** — stored locally on device
-- **Mobile-first** — responsive design with mobile menu
-- **iOS optimized** — native upload for all iOS versions
+- Word to PDF, PDF to Word, Excel to PDF, PDF to Excel, Compress PDF.
 
-### Extras
+## How it is built
 
-- **Feedback modal** — submit requests via Formspree
-- **Donation wallets** — securely loaded from server env vars
+- Next.js 16 (App Router), React 19, TypeScript, Tailwind CSS 4.
+- [pdf-lib](https://pdf-lib.js.org) writes PDFs; [pdf.js](https://mozilla.github.io/pdf.js/) renders them. Both run in the browser; the pdf.js worker is copied into `public/` at install so nothing loads from a third-party CDN.
+- Files are identified by their first bytes, not their names, in the browser and on the server.
+- Edits are stored in page coordinates as displayed and converted to PDF coordinates on save, including pages stored rotated (`src/lib/coords.ts`).
+- Text uses the standard PDF fonts; characters outside their range (for example Yoruba tone marks) switch to a bundled Noto Sans, embedded as a subset.
+- The server route (`src/app/api/convert/route.ts`) accepts only the listed conversions, checks the file signature and size, limits each visitor per day by a hashed IP address, and forwards the file to ConvertAPI without storing it. Converted files can be deleted from ConvertAPI straight after download.
+- Security headers are set for every page (`next.config.ts`).
 
----
+## Run locally
 
-## 🛠 Tech Stack
-
-| Layer          | Technology                             |
-| -------------- | -------------------------------------- |
-| **Frontend**   | HTML, CSS, Vanilla JavaScript          |
-| **Storage**    | Vercel Blob (with iOS-native fallback) |
-| **Processing** | ConvertAPI                             |
-| **Backend**    | Vercel Serverless Functions            |
-| **Deployment** | Vercel                                 |
-
----
-
-## 📂 Project Structure
-
-```
-DocuMorph/
-├── index.html              # Single-page app UI
-├── package.json            # Dependencies & scripts
-├── README.md
-│
-├── assets/
-│   ├── css/
-│   │   └── styles.css      # All styles (responsive + glass UI)
-│   └── js/
-│       └── scripts.js      # App logic, uploads, state management
-│
-└── api/
-    ├── blob-upload.js      # Vercel Blob client upload (non-iOS)
-    ├── native-upload.js    # FormData upload for iOS devices
-    ├── convert.js          # ConvertAPI proxy (URL mode)
-    ├── form.js             # Formspree proxy for feedback
-    └── wallets.js          # Donation wallet addresses from ENV
+```bash
+npm install
+npm run dev
 ```
 
----
+Checks: `npm run typecheck`, `npm run lint`, `npm test` (unit tests with Vitest), `npm run build`.
 
-## ⚙️ How It Works
+## Settings
 
-DocuMorph uses a **URL-based pipeline** to avoid serverless upload limits:
+| Name | Required | Purpose |
+| --- | --- | --- |
+| `CONVERTAPI_SECRET` | For the server tools | ConvertAPI secret. Without it the server tools answer "not set up". |
+| `CONVERT_DAILY_PER_VISITOR` | No | Server conversions allowed per visitor per day (default 10). |
+| `CONVERT_DAILY_SITE_CAP` | No | Server conversions allowed for the whole site per day (default: no cap). |
+| `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN` | No | Shares the daily counts across server instances. Without them each instance counts on its own. |
+| `NEXT_PUBLIC_SITE_URL` | No | Public address, for link previews. |
 
-```
-┌─────────────┐     ┌──────────────────┐     ┌─────────────┐
-│   Browser   │────▶│   Vercel Blob    │────▶│ ConvertAPI  │
-│  (Upload)   │     │  (File Storage)  │     │ (Process)   │
-└─────────────┘     └──────────────────┘     └─────────────┘
-                              │                      │
-                              ▼                      ▼
-                         Blob URL ──────────▶ Processed File URL
-                                                     │
-                                                     ▼
-                                              ┌─────────────┐
-                                              │  Download   │
-                                              └─────────────┘
-```
-
-1. **Upload** — Browser uploads file to Vercel Blob via `/api/blob-upload` (or `/api/native-upload` on iOS)
-2. **Process** — App sends the Blob URL to `/api/convert`
-3. **Convert** — Server calls ConvertAPI with the URL, returns processed file
-4. **Download** — UI shows download button for the final output
-
-> 🔒 Your ConvertAPI secret stays on the server (never exposed in browser)
-
----
-
-## 🔑 Environment Variables
-
-Required on Vercel:
-
-```env
-CONVERTAPI_SECRET=your_convertapi_secret
-BLOB_READ_WRITE_TOKEN=your_vercel_blob_token
-FORMSPREE_FORM_ID=your_formspree_id
-
-# Donation wallets (optional)
-WALLET_BTC=...
-WALLET_ETH=...
-WALLET_SOL=...
-# ... etc
-```
-
----
-
-## 🚀 Deployment
-
-1. Push to GitHub
-2. Connect repo to [Vercel](https://vercel.com)
-3. Add environment variables in Vercel dashboard
-4. Deploy!
-
----
-
-## 📱 iOS Compatibility
-
-iOS devices use a **native upload path** to ensure reliability:
-
-- Uses `XMLHttpRequest` + `FormData` instead of `@vercel/blob` client
-- Server-side `busboy` parses the upload
-- Direct `put()` to Vercel Blob from server
-- Works on iOS 12+ through current and future versions
-
----
-
-## 👤 Author
-
-**Samson Eniolorunda**
-
----
-
-## 📄 License
-
-MIT License — free to use, modify, and distribute.
+See `.env.example`.
