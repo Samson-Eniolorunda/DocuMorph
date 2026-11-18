@@ -78,3 +78,11 @@ export async function pageToImage(
   if (!blob) throw new Error("This browser could not create the image.");
   return { blob, scaledDown: fit < 1 };
 }
+
+/** Draws a page as a JPEG at the given resolution, for rebuilding a smaller PDF. Returns the page's size in points. */
+export async function pageToJpeg(doc: PDFDocumentProxy, index: number, dpi: number, quality: number) {
+  const page = await doc.getPage(index + 1);
+  const base = page.getViewport({ scale: 1 });
+  const { blob } = await pageToImage(doc, index, dpi, "image/jpeg", quality);
+  return { bytes: new Uint8Array(await blob.arrayBuffer()), width: base.width, height: base.height };
+}

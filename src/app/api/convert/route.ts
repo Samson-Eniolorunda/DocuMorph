@@ -1,23 +1,38 @@
-// Server conversions (Word, Excel, PDF compression) through ConvertAPI.
+// Server conversions: Word and Excel to PDF (Gotenberg) and PDF to Word or Excel (Adobe PDF Services).
 //
 // Safeguards:
-// - only the conversions listed in SERVER_TOOLS, with their own options (zod schema);
+// - only the conversions listed in SERVER_TOOLS (zod schema);
 // - the file's first bytes and its extension must match the tool, so renamed files are refused;
-// - files up to 4 MB, sent straight to ConvertAPI: nothing is stored here;
+// - files up to 4 MB, because Vercel accepts request bodies up to 4.5 MB;
 // - a daily limit per visitor and an optional site-wide cap, spent only when a conversion succeeds;
+// - for Adobe, a monthly and a daily cap on the whole site so the free allowance is never exceeded;
+// - nothing is written anywhere: the converted file is sent back in the same response;
 // - visitors are counted by a hashed address, never the address itself.
 
-import { NextResponse } from "next/server";
 import { serverToolBySlug } from "@/config/server-tools";
 import { detectKind, extOf, SERVER_MAX_BYTES } from "@/lib/files";
 import { convertFields } from "@/schemas/convert";
-import { convertFile } from "@/server/convertapi";
-import { loadEnv } from "@/server/env";
-import { fail, resultToken, visitorKey } from "@/server/http";
-import { checkLimit, refund } from "@/server/rate-limit";
+import { exportPdf, adobeMediaType, type AdobeTarget } from "@/server/adobe";
+import { adobeConfig, gotenbergConfig, loadEnv } from "@/server/env";
+import { officeToPdf } from "@/server/gotenberg";
+import { fail, visitorKey } from "@/server/http";
+import { checkLimit, hasSharedStore, refund, releaseAdobe, reserveAdobe } from "@/server/rate-limit";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
+
+const PDF_TYPE = "application/pdf";
+const busy = (name: string) =>
+  `${name} is busy today, please try tomorrow. The tools that run in your browser still work.`;
+
+/** A single-chunk stream, so a result larger than Vercel's buffered response limit is still delivered. */
+const streamOf = (bytes: Uint8Array) =>
+  new ReadableStream<Uint8Array>({
+    start(controller) {
+      controller.enqueue(bytes);
+      controller.close();
+    },
+  });
 
 export async function POST(req: Request) {
   const config = loadEnv();
@@ -26,7 +41,6 @@ export async function POST(req: Request) {
     return fail(503, "Server conversions are not set up on this site.");
   }
   const { env } = config;
-  if (!env.CONVERTAPI_SECRET) return fail(503, "Server conversions are not set up on this site.");
 
   let form: FormData;
   try {
@@ -35,26 +49,25 @@ export async function POST(req: Request) {
     return fail(400, "The upload could not be read. Please try again.");
   }
 
-  const fields = convertFields.safeParse({ tool: form.get("tool"), option: form.get("option") ?? undefined });
+  const fields = convertFields.safeParse({ tool: form.get("tool") });
   if (!fields.success) return fail(400, "Unknown conversion.");
   const tool = serverToolBySlug(fields.data.tool);
   if (!tool) return fail(400, "Unknown conversion.");
 
+  const gotenberg = gotenbergConfig(env);
+  const adobe = adobeConfig(env);
+  if (tool.engine === "gotenberg" ? !gotenberg : !adobe || !hasSharedStore())
+    return fail(503, "This conversion is not set up on this site.");
+
   const file = form.get("file");
   if (!(file instanceof File) || file.size === 0) return fail(400, "Choose a file to convert.");
-  if (file.size > SERVER_MAX_BYTES) return fail(413, "Files sent to the server can be up to 4 MB.");
+  if (file.size > SERVER_MAX_BYTES)
+    return fail(413, "Files sent to the server can be up to 4 MB. This file is too large for this tool.");
 
   const ext = extOf(file.name);
   const kind = detectKind(new Uint8Array(await file.slice(0, 16).arrayBuffer()));
   if (!tool.accept.includes(ext) || !tool.kinds.includes(kind)) {
     return fail(415, `This tool accepts ${tool.accept.map((e) => `.${e}`).join(" or ")} files only.`);
-  }
-
-  let option: { name: string; value: string } | undefined;
-  if (tool.option) {
-    const value = fields.data.option ?? tool.option.default;
-    if (!tool.option.values.some((o) => o.value === value)) return fail(400, "Unknown option.");
-    option = { name: tool.option.name, value };
   }
 
   const today = new Date().toISOString().slice(0, 10);
@@ -77,18 +90,61 @@ export async function POST(req: Request) {
     return fail(503, "Server conversions are paused for a moment. Please try again shortly.");
   }
 
-  const outcome = await convertFile(env.CONVERTAPI_SECRET, tool.route(ext), file, option);
-  if (!outcome.ok) {
+  let bytes: Uint8Array;
+  let failure: "timeout" | "unauthorised" | "quota" | "unavailable" | "failed" | null = null;
+  let adobeSpent = false;
+  const giveBack = async () => {
     await refund(visitor, limits).catch(() => undefined);
-    if (outcome.reason === "timeout") return fail(504, "The conversion took too long. Please try a smaller file.");
-    return fail(
-      502,
-      outcome.reason === "unauthorised"
-        ? "Server conversions are not available right now."
-        : "The file could not be converted. It may be damaged or protected.",
-    );
+    if (adobeSpent) await releaseAdobe().catch(() => undefined);
+  };
+
+  if (tool.engine === "gotenberg" && gotenberg) {
+    const out = await officeToPdf(gotenberg, file);
+    if (out.ok) bytes = out.bytes;
+    else {
+      failure = out.reason;
+      bytes = new Uint8Array();
+    }
+  } else if (adobe) {
+    try {
+      const reserved = await reserveAdobe({ monthly: env.ADOBE_MONTHLY_CAP, daily: env.ADOBE_DAILY_CAP });
+      if (!reserved.ok) {
+        await refund(visitor, limits).catch(() => undefined);
+        return fail(503, busy(tool.name));
+      }
+      adobeSpent = true;
+    } catch (err) {
+      console.error("Adobe cap check failed", err);
+      await refund(visitor, limits).catch(() => undefined);
+      return fail(503, "Server conversions are paused for a moment. Please try again shortly.");
+    }
+    const out = await exportPdf(adobe, file, tool.outExt as AdobeTarget);
+    if (out.ok) bytes = out.bytes;
+    else {
+      failure = out.reason;
+      bytes = new Uint8Array();
+    }
+  } else {
+    return fail(503, "This conversion is not set up on this site.");
   }
 
-  const token = await resultToken(env.CONVERTAPI_SECRET, outcome.file.fileId, req);
-  return NextResponse.json({ ...outcome.file, token, remaining }, { headers: { "Cache-Control": "no-store" } });
+  if (failure) {
+    await giveBack();
+    console.error("Conversion failed", tool.slug, failure);
+    if (failure === "timeout") return fail(504, "The conversion took too long. Please try a smaller file.");
+    if (failure === "quota") return fail(503, busy(tool.name));
+    if (failure === "unauthorised" || failure === "unavailable")
+      return fail(502, "Server conversions are not available right now. Please try again later.");
+    return fail(502, "The file could not be converted. It may be damaged or protected.");
+  }
+
+  const type = tool.outExt === "pdf" ? PDF_TYPE : adobeMediaType(tool.outExt as AdobeTarget);
+  return new Response(streamOf(bytes), {
+    headers: {
+      "Content-Type": type,
+      "Content-Length": String(bytes.byteLength),
+      "Cache-Control": "no-store",
+      "X-Remaining": String(remaining),
+    },
+  });
 }

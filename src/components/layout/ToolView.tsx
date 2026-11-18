@@ -11,6 +11,9 @@ const VIEWS: Record<string, React.ComponentType> = {
   "merge-pdf": dynamic(() => import("@/features/merge/MergePdf").then((m) => m.MergePdf), { loading }),
   "split-pdf": dynamic(() => import("@/features/split/SplitPdf").then((m) => m.SplitPdf), { loading }),
   "organise-pdf": dynamic(() => import("@/features/organise/OrganisePdf").then((m) => m.OrganisePdf), { loading }),
+  "compress-pdf": dynamic(() => import("@/features/compress-pdf/CompressPdf").then((m) => m.CompressPdf), {
+    loading,
+  }),
   "images-to-pdf": dynamic(() => import("@/features/images-to-pdf/ImagesToPdf").then((m) => m.ImagesToPdf), {
     loading,
   }),

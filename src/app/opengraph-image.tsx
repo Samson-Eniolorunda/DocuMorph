@@ -1,5 +1,6 @@
 import { ImageResponse } from "next/og";
-import { SITE, TOOLS } from "@/config/tools";
+import { SITE } from "@/config/site";
+import { TOOLS } from "@/config/tools";
 
 export const alt = `${SITE.name}: ${SITE.tagline}`;
 export const size = { width: 1200, height: 630 };

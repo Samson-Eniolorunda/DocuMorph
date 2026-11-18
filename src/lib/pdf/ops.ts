@@ -111,6 +111,28 @@ export async function imagesToPdf(
   return out.save();
 }
 
+/** Builds a PDF whose pages are JPEG pictures drawn at the given size in points (used to shrink scanned or image-heavy PDFs). */
+export async function pdfFromJpegs(pages: { bytes: Uint8Array; width: number; height: number }[]) {
+  const out = await PDFDocument.create();
+  for (const p of pages) {
+    const image = await out.embedJpg(p.bytes);
+    out.addPage([p.width, p.height]).drawImage(image, { x: 0, y: 0, width: p.width, height: p.height });
+  }
+  return out.save();
+}
+
+/** A lossless tidy-up: drops metadata and packs objects into compressed streams. Text stays text. */
+export async function tidyPdf(bytes: Uint8Array) {
+  const doc = await PDFDocument.load(bytes, LOAD);
+  doc.setTitle("");
+  doc.setAuthor("");
+  doc.setSubject("");
+  doc.setKeywords([]);
+  doc.setProducer("DocuMorph");
+  doc.setCreator("DocuMorph");
+  return doc.save({ useObjectStreams: true });
+}
+
 /* ---------- Forms ---------- */
 
 export type FieldInfo =

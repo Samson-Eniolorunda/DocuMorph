@@ -11,11 +11,9 @@ export interface ServerTool {
   accept: string[];
   /** Signatures the server accepts for this tool. */
   kinds: FileKind[];
-  /** ConvertAPI route for an input extension. */
-  route: (ext: string) => string;
-  outExt: string;
-  /** Optional choice shown on the page and checked on the server. */
-  option?: { name: string; label: string; values: { value: string; label: string }[]; default: string };
+  /** Gotenberg (LibreOffice) converts Office files to PDF; Adobe PDF Services exports a PDF to Office. */
+  engine: "gotenberg" | "adobe";
+  outExt: "pdf" | "docx" | "xlsx";
 }
 
 export const SERVER_TOOLS: ServerTool[] = [
@@ -25,7 +23,7 @@ export const SERVER_TOOLS: ServerTool[] = [
     summary: "Turn a Word document (.docx or .doc) into a PDF with its layout kept.",
     accept: ["docx", "doc"],
     kinds: ["zip-office", "ole-office"],
-    route: (ext) => (ext === "doc" ? "doc/to/pdf" : "docx/to/pdf"),
+    engine: "gotenberg",
     outExt: "pdf",
   },
   {
@@ -34,7 +32,7 @@ export const SERVER_TOOLS: ServerTool[] = [
     summary: "Turn a PDF into an editable Word document.",
     accept: ["pdf"],
     kinds: ["pdf"],
-    route: () => "pdf/to/docx",
+    engine: "adobe",
     outExt: "docx",
   },
   {
@@ -43,7 +41,7 @@ export const SERVER_TOOLS: ServerTool[] = [
     summary: "Turn a spreadsheet (.xlsx or .xls) into a PDF.",
     accept: ["xlsx", "xls"],
     kinds: ["zip-office", "ole-office"],
-    route: (ext) => (ext === "xls" ? "xls/to/pdf" : "xlsx/to/pdf"),
+    engine: "gotenberg",
     outExt: "pdf",
   },
   {
@@ -52,27 +50,8 @@ export const SERVER_TOOLS: ServerTool[] = [
     summary: "Pull the tables in a PDF into an Excel spreadsheet.",
     accept: ["pdf"],
     kinds: ["pdf"],
-    route: () => "pdf/to/xlsx",
+    engine: "adobe",
     outExt: "xlsx",
-  },
-  {
-    slug: "compress-pdf",
-    name: "Compress PDF",
-    summary: "Make a PDF smaller by optimising its images and structure.",
-    accept: ["pdf"],
-    kinds: ["pdf"],
-    route: () => "pdf/to/compress",
-    outExt: "pdf",
-    option: {
-      name: "Preset",
-      label: "Quality",
-      default: "ebook",
-      values: [
-        { value: "screen", label: "Smallest file (screen)" },
-        { value: "ebook", label: "Balanced (recommended)" },
-        { value: "printer", label: "High quality (print)" },
-      ],
-    },
   },
 ];
 

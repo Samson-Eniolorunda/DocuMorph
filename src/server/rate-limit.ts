@@ -1,5 +1,5 @@
 // Limits server conversions per visitor (by IP address) per day, plus an
-// optional daily cap for the whole site, so nobody can spend the ConvertAPI
+// optional daily cap for the whole site, so nobody can spend the conversion
 // allowance.
 //
 // With UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN set (free tier is
@@ -77,7 +77,45 @@ export async function refund(
   if (perSite > 0) await count(`dm:${today}:site`, DAY, -1);
 }
 
-/** A separate, generous allowance for downloading and deleting results, so those calls cannot be used without limit. */
-export async function checkResultCalls(visitor: string, today: string, max = 60, count: Counter = defaultCounter()) {
-  return (await count(`dm:${today}:r:${visitor}`, DAY)) <= max;
+/**
+ * Spends one unit of Adobe's free allowance, or says why it cannot. The month is counted first and the day second,
+ * so a busy day cannot use up the month. Only the shared store is exact; callers must not use this without it.
+ */
+export async function reserveAdobe(
+  { monthly, daily, now = new Date() }: { monthly: number; daily: number; now?: Date },
+  count: Counter = defaultCounter(),
+): Promise<{ ok: true } | { ok: false; reason: "month" | "day" }> {
+  const day = now.toISOString().slice(0, 10);
+  const month = day.slice(0, 7);
+  const m = await count(`dm:adobe:m:${month}`, 35 * DAY);
+  if (m > monthly) {
+    await count(`dm:adobe:m:${month}`, 35 * DAY, -1);
+    return { ok: false, reason: "month" };
+  }
+  const d = await count(`dm:adobe:d:${day}`, DAY);
+  if (d > daily) {
+    await count(`dm:adobe:d:${day}`, DAY, -1);
+    await count(`dm:adobe:m:${month}`, 35 * DAY, -1);
+    return { ok: false, reason: "day" };
+  }
+  return { ok: true };
+}
+
+/** Gives back one unit, when Adobe was never reached or refused the file. */
+export async function releaseAdobe(now = new Date(), count: Counter = defaultCounter()) {
+  const day = now.toISOString().slice(0, 10);
+  await count(`dm:adobe:d:${day}`, DAY, -1);
+  await count(`dm:adobe:m:${day.slice(0, 7)}`, 35 * DAY, -1);
+}
+
+export const hasSharedStore = () => Boolean(process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN);
+
+/** A small daily allowance for feedback messages. Counted when the message is accepted. */
+export async function checkFeedbackCalls(
+  visitor: string,
+  today: string,
+  max: number,
+  count: Counter = defaultCounter(),
+) {
+  return (await count(`dm:${today}:f:${visitor}`, DAY)) <= max;
 }

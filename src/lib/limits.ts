@@ -9,11 +9,13 @@ export const MAX_CANVAS_PIXELS = 16_000_000;
 
 export const isTouchDevice = () => typeof window !== "undefined" && window.matchMedia("(pointer: coarse)").matches;
 
-/** A warning for a large PDF on a touch device, or null. */
-export function largePdfWarning(file: Blob) {
+/** A warning for a large file on a touch device, or null. Files up to 100 MB are accepted; phones are told first. */
+export function largeFileWarning(file: Blob) {
   if (!isTouchDevice() || file.size <= PHONE_PDF_WARN_BYTES) return null;
-  return `This file is ${formatBytes(file.size)}. Large PDFs can be slow on a phone and the browser may close the tab. Close other apps first, and save your work as you go.`;
+  return `This file is ${formatBytes(file.size)}. Large files can be slow on a phone and the browser may close the tab. Close other apps first, and save your work as you go.`;
 }
+
+export const largePdfWarning = largeFileWarning;
 
 /** The factor (at most 1) that brings a canvas of this size within what a phone can allocate. */
 export function pixelScale(width: number, height: number, maxPixels = MAX_CANVAS_PIXELS) {

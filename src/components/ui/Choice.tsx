@@ -14,16 +14,18 @@ export function RadioGroup<T extends string | number>({
   onChange,
   options,
   className,
+  disabled = false,
 }: {
   legend: string;
   value: T;
   onChange: (value: T) => void;
   options: Option<T>[];
   className?: string;
+  disabled?: boolean;
 }) {
   const name = useId();
   return (
-    <fieldset className={className}>
+    <fieldset className={className} disabled={disabled}>
       <legend className="mb-1.5 text-body font-medium">{legend}</legend>
       <div className="overflow-hidden rounded-lg border border-control bg-surface">
         {options.map((o) => (

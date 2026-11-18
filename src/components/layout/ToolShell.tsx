@@ -41,7 +41,7 @@ export function WhereLine({ where }: { where: "device" | "server" }) {
     <p className="mt-3 flex items-start gap-2 text-muted">
       <Cloud className="mt-0.5 size-5 shrink-0" aria-hidden />
       <span>
-        Sent to ConvertAPI to be converted, up to 4 MB. DocuMorph does not keep it.{" "}
+        Sent to a conversion service, up to 4 MB, and deleted straight after. DocuMorph does not keep it.{" "}
         <Link href="/privacy" className="text-accent underline underline-offset-4">
           What happens to my file?
         </Link>

@@ -3,7 +3,7 @@
 import { SERVER_TOOLS } from "@/config/server-tools";
 
 export type Where = "device" | "server";
-export type Group = "Edit and organise" | "Convert" | "Images" | "Office and compression";
+export type Group = "Edit and organise" | "Convert" | "Images" | "Office conversions";
 
 export interface ToolInfo {
   slug: string;
@@ -39,6 +39,13 @@ export const TOOLS: ToolInfo[] = [
     slug: "organise-pdf",
     name: "Organise pages",
     summary: "Reorder, rotate and delete pages, with a preview of each one.",
+    group: "Edit and organise",
+    where: "device",
+  },
+  {
+    slug: "compress-pdf",
+    name: "Compress PDF",
+    summary: "Make a PDF smaller: a light tidy that keeps the text, or smaller pages at the quality you choose.",
     group: "Edit and organise",
     where: "device",
   },
@@ -81,19 +88,11 @@ export const TOOLS: ToolInfo[] = [
     slug: t.slug,
     name: t.name,
     summary: t.summary,
-    group: "Office and compression" as const,
+    group: "Office conversions" as const,
     where: "server" as const,
   })),
 ];
 
-export const GROUPS: Group[] = ["Edit and organise", "Convert", "Images", "Office and compression"];
+export const GROUPS: Group[] = ["Edit and organise", "Convert", "Images", "Office conversions"];
 
 export const toolBySlug = (slug: string) => TOOLS.find((t) => t.slug === slug);
-
-export const SITE = {
-  name: "DocuMorph",
-  url: process.env.NEXT_PUBLIC_SITE_URL ?? "https://documorph-blue.vercel.app",
-  tagline: "Private PDF and image tools that run in your browser.",
-  author: { name: "Samson Eniolorunda", url: "https://samsoneniolorunda.vercel.app" },
-  repo: "https://github.com/Samson-Eniolorunda/DocuMorph",
-};

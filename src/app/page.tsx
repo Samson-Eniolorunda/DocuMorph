@@ -15,7 +15,7 @@ export default function Home() {
         <ToolList columns />
       </div>
       <p className="mt-6 max-w-[68ch] text-body-sm text-subtle">
-        The five tools marked Server send your file to ConvertAPI, up to 4 MB, and DocuMorph does not keep it.
+        The four tools marked Server send your file to a conversion service, up to 4 MB, and DocuMorph does not keep it.
       </p>
     </div>
   );

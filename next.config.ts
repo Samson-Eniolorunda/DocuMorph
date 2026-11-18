@@ -10,6 +10,12 @@ const securityHeaders = [
   { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains" },
 ];
 
+// The site's address comes only from NEXT_PUBLIC_SITE_URL. A production build without it would publish
+// wrong canonical links and share images, so it stops here.
+if (process.env.NODE_ENV === "production" && !process.env.NEXT_PUBLIC_SITE_URL?.trim()) {
+  throw new Error("NEXT_PUBLIC_SITE_URL is required for a production build (for example https://your-project.vercel.app).");
+}
+
 const nextConfig: NextConfig = {
   poweredByHeader: false,
   async headers() {

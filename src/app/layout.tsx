@@ -3,7 +3,7 @@ import { Dancing_Script, Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
-import { SITE } from "@/config/tools";
+import { SITE } from "@/config/site";
 
 const sans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 const mono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
@@ -15,7 +15,7 @@ export const metadata: Metadata = {
   description:
     "Edit, sign, merge, split and organise PDFs, and convert, resize and compress images, in your browser. Your files stay on your device.",
   applicationName: SITE.name,
-  authors: [{ name: SITE.author.name, url: SITE.author.url }],
+  authors: [{ name: SITE.owner }],
   alternates: { canonical: "/" },
   openGraph: { type: "website", siteName: SITE.name, locale: "en_GB" },
   twitter: { card: "summary_large_image" },

@@ -1,17 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { POST } from "@/app/api/convert/route";
-import { DELETE, GET } from "@/app/api/convert/result/route";
 
 const ZIP = [0x50, 0x4b, 0x03, 0x04, 0, 0, 0, 0];
 const PDF = [0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x34];
 let n = 0;
 const ip = () => `203.0.113.${++n}`;
 
-function convertRequest(fields: { tool?: string; file?: File | null; option?: string }, address = ip()) {
+function convertRequest(fields: { tool?: string; file?: File | null }, address = ip()) {
   const form = new FormData();
   if (fields.tool !== undefined) form.set("tool", fields.tool);
   if (fields.file) form.set("file", fields.file);
-  if (fields.option) form.set("option", fields.option);
   return new Request("http://localhost/api/convert", {
     method: "POST",
     body: form,
@@ -22,15 +20,63 @@ function convertRequest(fields: { tool?: string; file?: File | null; option?: st
 const docx = (name = "letter.docx", size = 64) =>
   new File([new Uint8Array([...ZIP, ...new Array(size - ZIP.length).fill(1)])], name);
 const pdf = (name = "a.pdf") => new File([new Uint8Array(PDF)], name);
+const pdfBytes = () => new Response(new Uint8Array([...PDF, 1, 2, 3]), { status: 200 });
 
-const converted = { Files: [{ FileName: "letter.pdf", FileSize: 1234, FileId: "abcdef1234567890" }] };
+/** A fake network: Gotenberg, Adobe and a counting store, each recorded so tests can look at the calls. */
+interface Net {
+  calls: { url: string; init: RequestInit }[];
+  gotenberg: () => Response | Promise<Response>;
+  adobeJob: () => Response;
+  counters: Map<string, number>;
+}
+let net: Net;
 
-let upstream: ReturnType<typeof vi.fn>;
+function handler(url: string, init: RequestInit = {}): Response | Promise<Response> {
+  net.calls.push({ url, init });
+  if (url.startsWith("https://store.test/pipeline")) {
+    const commands = JSON.parse(String(init.body)) as string[][];
+    const key = String(commands[0]?.[1]);
+    const next = (net.counters.get(key) ?? 0) + Number(commands[0]?.[2]);
+    net.counters.set(key, next);
+    return Response.json([{ result: next }, { result: 1 }]);
+  }
+  if (url.startsWith("https://office.test/forms/libreoffice/convert")) return net.gotenberg();
+  if (url === "https://pdf-services.adobe.io/token") return Response.json({ access_token: "tok" });
+  if (url === "https://pdf-services.adobe.io/assets" && init.method === "POST")
+    return Response.json({ uploadUri: "https://upload.test/put?sig=1", assetID: "asset-1" });
+  if (url.startsWith("https://upload.test/")) return new Response(null, { status: 200 });
+  if (url === "https://pdf-services.adobe.io/operation/exportpdf") return net.adobeJob();
+  if (url === "https://pdf-services.adobe.io/operation/exportpdf/job-1/status")
+    return Response.json({ status: "done", asset: { downloadUri: "https://download.test/out" } });
+  if (url === "https://download.test/out") return new Response(new Uint8Array(ZIP), { status: 200 });
+  if (url.startsWith("https://pdf-services.adobe.io/assets/") && init.method === "DELETE")
+    return new Response(null, { status: 204 });
+  return new Response("unexpected", { status: 500 });
+}
+
 beforeEach(() => {
-  vi.stubEnv("CONVERTAPI_SECRET", "test-secret");
+  net = {
+    calls: [],
+    counters: new Map(),
+    gotenberg: () => pdfBytes(),
+    adobeJob: () =>
+      new Response(null, {
+        status: 201,
+        headers: { location: "https://pdf-services.adobe.io/operation/exportpdf/job-1/status" },
+      }),
+  };
+  vi.stubEnv("GOTENBERG_URL", "https://office.test");
+  vi.stubEnv("GOTENBERG_USERNAME", "svc");
+  vi.stubEnv("GOTENBERG_PASSWORD", "pw-secret");
+  vi.stubEnv("PDF_SERVICES_CLIENT_ID", "client-id");
+  vi.stubEnv("PDF_SERVICES_CLIENT_SECRET", "client-secret");
+  vi.stubEnv("UPSTASH_REDIS_REST_URL", "https://store.test");
+  vi.stubEnv("UPSTASH_REDIS_REST_TOKEN", "store-token");
   vi.stubEnv("CONVERT_DAILY_PER_VISITOR", "10");
-  upstream = vi.fn();
-  vi.stubGlobal("fetch", upstream);
+  vi.stubGlobal(
+    "fetch",
+    vi.fn((url: string | URL | Request, init?: RequestInit) => Promise.resolve(handler(String(url), init))),
+  );
   vi.spyOn(console, "error").mockImplementation(() => undefined);
 });
 afterEach(() => {
@@ -39,150 +85,172 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-const ok = (body: unknown) => new Response(JSON.stringify(body), { status: 200 });
+const upstream = () => net.calls.filter((c) => !c.url.startsWith("https://store.test"));
+const adobeCount = (prefix: string) => [...net.counters].find(([k]) => k.startsWith(prefix))?.[1];
 
-describe("POST /api/convert", () => {
-  it("answers 503 when the secret is not set", async () => {
-    vi.stubEnv("CONVERTAPI_SECRET", "");
+describe("POST /api/convert: refusals", () => {
+  it("answers 503 when the converter is not set up", async () => {
+    vi.stubEnv("GOTENBERG_URL", "");
     expect((await POST(convertRequest({ tool: "word-to-pdf", file: docx() }))).status).toBe(503);
+    vi.stubEnv("PDF_SERVICES_CLIENT_ID", "");
+    expect((await POST(convertRequest({ tool: "pdf-to-word", file: pdf() }))).status).toBe(503);
+  });
+
+  it("answers 503 for PDF to Word when there is no shared store, rather than risk the free allowance", async () => {
+    vi.stubEnv("UPSTASH_REDIS_REST_URL", "");
+    vi.stubEnv("UPSTASH_REDIS_REST_TOKEN", "");
+    expect((await POST(convertRequest({ tool: "pdf-to-word", file: pdf() }))).status).toBe(503);
+    expect(upstream()).toHaveLength(0);
   });
 
   it("answers 503 when a limit is mistyped, rather than running without it", async () => {
     vi.stubEnv("CONVERT_DAILY_PER_VISITOR", "ten");
     expect((await POST(convertRequest({ tool: "word-to-pdf", file: docx() }))).status).toBe(503);
-    expect(upstream).not.toHaveBeenCalled();
+    expect(upstream()).toHaveLength(0);
   });
 
-  it("refuses an unlisted tool (400)", async () => {
+  it("refuses an unlisted tool (400), including the retired PDF compression", async () => {
     expect((await POST(convertRequest({ tool: "rm-rf", file: docx() }))).status).toBe(400);
+    expect((await POST(convertRequest({ tool: "compress-pdf", file: pdf() }))).status).toBe(400);
   });
 
   it("refuses a missing file (400)", async () => {
     expect((await POST(convertRequest({ tool: "word-to-pdf" }))).status).toBe(400);
   });
 
-  it("refuses a file over 4 MB (413)", async () => {
-    expect(
-      (await POST(convertRequest({ tool: "word-to-pdf", file: docx("big.docx", 4 * 1024 * 1024 + 1) }))).status,
-    ).toBe(413);
+  it("refuses a file over 4 MB (413) with a clear message", async () => {
+    const res = await POST(convertRequest({ tool: "word-to-pdf", file: docx("big.docx", 4 * 1024 * 1024 + 1) }));
+    expect(res.status).toBe(413);
+    expect((await res.json()).error).toMatch(/4 MB/);
   });
 
   it("refuses a renamed file (415): a PDF called .docx, and a Word file called .pdf", async () => {
     expect((await POST(convertRequest({ tool: "word-to-pdf", file: pdf("fake.docx") }))).status).toBe(415);
     expect((await POST(convertRequest({ tool: "pdf-to-word", file: docx("fake.pdf") }))).status).toBe(415);
-    expect(upstream).not.toHaveBeenCalled();
+    expect(upstream()).toHaveLength(0);
   });
+});
 
-  it("refuses an unlisted option (400)", async () => {
-    expect((await POST(convertRequest({ tool: "compress-pdf", file: pdf(), option: "extreme" }))).status).toBe(400);
-  });
-
-  it("converts, and returns a token and the remaining allowance, never the secret or the ConvertAPI address", async () => {
-    upstream.mockResolvedValueOnce(ok(converted));
+describe("Word and Excel to PDF (Gotenberg)", () => {
+  it("converts, with basic authentication, and returns the PDF without keeping anything", async () => {
     const res = await POST(convertRequest({ tool: "word-to-pdf", file: docx() }));
     expect(res.status).toBe(200);
-    const body = await res.json();
-    expect(body).toMatchObject({ name: "letter.pdf", size: 1234, fileId: "abcdef1234567890", remaining: 9 });
-    expect(body.token).toMatch(/^[A-Za-z0-9_-]{16,}$/);
-    expect(JSON.stringify(body)).not.toContain("test-secret");
-    expect(JSON.stringify(body)).not.toContain("convertapi");
+    expect(res.headers.get("content-type")).toBe("application/pdf");
+    expect(res.headers.get("x-remaining")).toBe("9");
+    expect(new Uint8Array(await res.arrayBuffer()).slice(0, 5)).toEqual(new Uint8Array(PDF.slice(0, 5)));
+    const call = upstream()[0];
+    expect(call?.url).toBe("https://office.test/forms/libreoffice/convert");
+    expect((call?.init.headers as Record<string, string>).Authorization).toBe(`Basic ${btoa("svc:pw-secret")}`);
+    expect(((call?.init.body as FormData).get("files") as File).name).toBe("letter.docx");
+  });
+
+  it("never reveals the service address or its password in an error", async () => {
+    net.gotenberg = () => new Response("boom", { status: 500 });
+    const res = await POST(convertRequest({ tool: "word-to-pdf", file: docx() }));
+    expect(res.status).toBe(502);
+    expect(JSON.stringify(await res.json())).not.toMatch(/office\.test|pw-secret|svc/);
+  });
+
+  it("tries once more when the service is waking up, then succeeds", async () => {
+    let attempts = 0;
+    net.gotenberg = () => (++attempts === 1 ? new Response("starting", { status: 503 }) : pdfBytes());
+    const res = await POST(convertRequest({ tool: "word-to-pdf", file: docx() }));
+    expect(res.status).toBe(200);
+    expect(attempts).toBe(2);
+  });
+
+  it("gives up after the second failed attempt (502) and gives the conversion back", async () => {
+    vi.stubEnv("CONVERT_DAILY_PER_VISITOR", "1");
+    const address = ip();
+    net.gotenberg = () => new Response("down", { status: 503 });
+    expect((await POST(convertRequest({ tool: "word-to-pdf", file: docx() }, address))).status).toBe(502);
+    net.gotenberg = () => pdfBytes();
+    expect((await POST(convertRequest({ tool: "word-to-pdf", file: docx() }, address))).status).toBe(200);
+  });
+
+  it("answers 502 when the service rejects the credentials, without detail", async () => {
+    net.gotenberg = () => new Response("no", { status: 401 });
+    const res = await POST(convertRequest({ tool: "word-to-pdf", file: docx() }));
+    expect(res.status).toBe(502);
+    expect((await res.json()).error).not.toMatch(/401|password|credential/i);
+  });
+
+  it("refuses output that is not a PDF", async () => {
+    net.gotenberg = () => new Response("<html>error</html>", { status: 200 });
+    expect((await POST(convertRequest({ tool: "word-to-pdf", file: docx() }))).status).toBe(502);
   });
 
   it("stops at the daily limit (429)", async () => {
     vi.stubEnv("CONVERT_DAILY_PER_VISITOR", "1");
     const address = ip();
-    upstream.mockResolvedValue(ok(converted));
     expect((await POST(convertRequest({ tool: "word-to-pdf", file: docx() }, address))).status).toBe(200);
     const second = await POST(convertRequest({ tool: "word-to-pdf", file: docx() }, address));
     expect(second.status).toBe(429);
     expect((await second.json()).error).toMatch(/tomorrow/);
   });
-
-  it("does not use up the allowance when the conversion fails", async () => {
-    vi.stubEnv("CONVERT_DAILY_PER_VISITOR", "1");
-    const address = ip();
-    upstream.mockResolvedValueOnce(new Response(JSON.stringify({ Message: "bad" }), { status: 400 }));
-    expect((await POST(convertRequest({ tool: "word-to-pdf", file: docx() }, address))).status).toBe(502);
-    upstream.mockResolvedValueOnce(ok(converted));
-    expect((await POST(convertRequest({ tool: "word-to-pdf", file: docx() }, address))).status).toBe(200);
-  });
-
-  it("answers 504 when ConvertAPI does not answer, and gives the conversion back", async () => {
-    vi.stubEnv("CONVERT_DAILY_PER_VISITOR", "1");
-    const address = ip();
-    upstream.mockRejectedValueOnce(new DOMException("timed out", "TimeoutError"));
-    expect((await POST(convertRequest({ tool: "word-to-pdf", file: docx() }, address))).status).toBe(504);
-    upstream.mockResolvedValueOnce(ok(converted));
-    expect((await POST(convertRequest({ tool: "word-to-pdf", file: docx() }, address))).status).toBe(200);
-  });
-
-  it("answers 502 without detail when ConvertAPI refuses the secret", async () => {
-    upstream.mockResolvedValueOnce(new Response("{}", { status: 401 }));
-    const res = await POST(convertRequest({ tool: "word-to-pdf", file: docx() }));
-    expect(res.status).toBe(502);
-    expect((await res.json()).error).not.toMatch(/secret|401/i);
-  });
 });
 
-describe("result route", () => {
-  async function issue(address: string) {
-    upstream.mockResolvedValueOnce(ok(converted));
-    return (await (await POST(convertRequest({ tool: "word-to-pdf", file: docx() }, address))).json()) as {
-      fileId: string;
-      token: string;
-    };
-  }
-  const call = (method: "GET" | "DELETE", fileId: string, token: string, address: string) =>
-    (method === "GET" ? GET : DELETE)(
-      new Request(`http://localhost/api/convert/result?fileId=${fileId}&token=${token}`, {
-        method,
-        headers: { "x-forwarded-for": address },
-      }),
+describe("PDF to Word and Excel (Adobe PDF Services)", () => {
+  it("runs the whole flow, in order, and returns the Word file", async () => {
+    const res = await POST(convertRequest({ tool: "pdf-to-word", file: pdf() }));
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toContain("wordprocessingml");
+    expect(upstream().map((c) => `${c.init.method ?? "GET"} ${new URL(c.url).pathname}`)).toEqual([
+      "POST /token",
+      "POST /assets",
+      "PUT /put",
+      "POST /operation/exportpdf",
+      "GET /operation/exportpdf/job-1/status",
+      "GET /out",
+      "DELETE /assets/asset-1",
+    ]);
+    const job = upstream()[3];
+    expect(JSON.parse(String(job?.init.body))).toMatchObject({ assetID: "asset-1", targetFormat: "docx" });
+    expect((job?.init.headers as Record<string, string>)["x-api-key"]).toBe("client-id");
+    expect(adobeCount("dm:adobe:m:")).toBe(1);
+  });
+
+  it("asks for xlsx for PDF to Excel", async () => {
+    const res = await POST(convertRequest({ tool: "pdf-to-excel", file: pdf() }));
+    expect(res.status).toBe(200);
+    expect(JSON.parse(String(upstream()[3]?.init.body))).toMatchObject({ targetFormat: "xlsx" });
+  });
+
+  it("says it is busy when the daily cap is reached, without calling Adobe or using the visitor's allowance", async () => {
+    vi.stubEnv("ADOBE_DAILY_CAP", "1");
+    expect((await POST(convertRequest({ tool: "pdf-to-word", file: pdf() }))).status).toBe(200);
+    const before = upstream().length;
+    const res = await POST(convertRequest({ tool: "pdf-to-word", file: pdf() }));
+    expect(res.status).toBe(503);
+    expect((await res.json()).error).toBe(
+      "PDF to Word is busy today, please try tomorrow. The tools that run in your browser still work.",
     );
-
-  it("sends the file to the visitor who made it, then deletes it from ConvertAPI", async () => {
-    const address = ip();
-    const { fileId, token } = await issue(address);
-    upstream
-      .mockResolvedValueOnce(new Response("PDFDATA", { headers: { "content-type": "application/pdf" } }))
-      .mockResolvedValueOnce(new Response(null, { status: 200 }));
-    const res = await call("GET", fileId, token, address);
-    expect(res.status).toBe(200);
-    expect(await res.text()).toBe("PDFDATA");
-    const deleteCall = upstream.mock.calls[2] as [string, RequestInit];
-    expect(deleteCall[0]).toContain(`/d/${fileId}`);
-    expect(deleteCall[1].method).toBe("DELETE");
+    expect(upstream().length).toBe(before);
+    expect(adobeCount("dm:adobe:d:")).toBe(1);
+    expect(adobeCount("dm:adobe:m:")).toBe(1);
   });
 
-  it("refuses another visitor's token (403) and makes no call to ConvertAPI", async () => {
-    const { fileId, token } = await issue(ip());
-    const before = upstream.mock.calls.length;
-    expect((await call("GET", fileId, token, ip())).status).toBe(403);
-    expect((await call("DELETE", fileId, token, ip())).status).toBe(403);
-    expect(upstream.mock.calls.length).toBe(before);
+  it("says it is busy when the monthly cap is reached", async () => {
+    vi.stubEnv("ADOBE_MONTHLY_CAP", "1");
+    expect((await POST(convertRequest({ tool: "pdf-to-word", file: pdf() }))).status).toBe(200);
+    expect((await POST(convertRequest({ tool: "pdf-to-excel", file: pdf() }))).status).toBe(503);
   });
 
-  it("refuses a malformed identifier or token (400)", async () => {
-    const address = ip();
-    expect((await call("DELETE", "../../etc", "x", address)).status).toBe(400);
-    expect((await call("GET", "short", "short", address)).status).toBe(400);
+  it("gives the allowance back when Adobe fails", async () => {
+    net.adobeJob = () => new Response("bad", { status: 400 });
+    const res = await POST(convertRequest({ tool: "pdf-to-word", file: pdf() }));
+    expect(res.status).toBe(502);
+    expect(adobeCount("dm:adobe:m:")).toBe(0);
+    expect(adobeCount("dm:adobe:d:")).toBe(0);
   });
 
-  it("deletes on request, and treats an already-deleted file as deleted", async () => {
-    const address = ip();
-    const { fileId, token } = await issue(address);
-    upstream.mockResolvedValueOnce(new Response(null, { status: 404 }));
-    const res = await call("DELETE", fileId, token, address);
-    expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ deleted: true });
+  it("treats Adobe's rate limit as busy (503)", async () => {
+    net.adobeJob = () => new Response("slow down", { status: 429 });
+    expect((await POST(convertRequest({ tool: "pdf-to-word", file: pdf() }))).status).toBe(503);
   });
 
-  it("limits how often results can be fetched", async () => {
-    const address = ip();
-    const { fileId, token } = await issue(address);
-    upstream.mockResolvedValue(new Response(null, { status: 404 }));
-    let last = 200;
-    for (let i = 0; i < 65; i++) last = (await call("DELETE", fileId, token, address)).status;
-    expect(last).toBe(429);
+  it("never reveals the credentials", async () => {
+    const res = await POST(convertRequest({ tool: "pdf-to-word", file: pdf() }));
+    expect(JSON.stringify([...res.headers])).not.toMatch(/client-secret|tok/);
   });
 });

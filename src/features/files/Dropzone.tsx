@@ -6,7 +6,8 @@ import { Button } from "@/components/ui/Button";
 import { Notice } from "@/components/ui/Feedback";
 import { cn } from "@/lib/cn";
 import { formatBytes, sniff, type FileKind } from "@/lib/files";
-import { largePdfWarning } from "@/lib/limits";
+import { largeFileWarning } from "@/lib/limits";
+import { UploadNote } from "@/components/layout/UploadNote";
 
 const LABELS: Partial<Record<FileKind, string>> = {
   pdf: "PDF",
@@ -45,6 +46,8 @@ interface Props {
   camera?: boolean;
   /** Tools that can suggest alternatives for a file that is too big. */
   tooLargeAdvice?: string;
+  /** Where the file goes, for the line under the upload area. */
+  where?: "device" | "server";
 }
 
 /**
@@ -60,6 +63,7 @@ export function Dropzone({
   onFiles,
   camera = false,
   tooLargeAdvice,
+  where = "device",
 }: Props) {
   const input = useRef<HTMLInputElement>(null);
   const cameraInput = useRef<HTMLInputElement>(null);
@@ -106,8 +110,7 @@ export function Dropzone({
     setProblems(issues);
     const [first, ...rest] = ok;
     if (first) {
-      const pdf = ok.find((p) => p.kind === "pdf");
-      setWarning((pdf && largePdfWarning(pdf.file)) || "");
+      setWarning(ok.map((p) => largeFileWarning(p.file)).find(Boolean) ?? "");
       onFiles([first, ...rest]);
     }
     if (input.current) input.current.value = "";
@@ -166,6 +169,7 @@ export function Dropzone({
           />
         )}
       </div>
+      <UploadNote where={where} />
       {problems.length > 0 && (
         <Notice tone="error" className="mt-3">
           {problems.map((p) => (

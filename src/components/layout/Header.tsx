@@ -8,6 +8,8 @@ import { Logo } from "./Logo";
 import { ToolList } from "./ToolList";
 import { Button, IconButton } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
+import { CoffeeLink } from "./CoffeeLink";
+import { FeedbackLink } from "@/features/feedback/FeedbackLink";
 
 const listeners = new Set<() => void>();
 const subscribe = (fn: () => void) => {
@@ -63,6 +65,10 @@ export function Header() {
       </div>
       <Dialog open={open} onClose={() => setOpen(false)} title="All tools" side>
         <ToolList current={path.slice(1)} onNavigate={() => setOpen(false)} />
+        <div className="mt-6 flex flex-wrap items-center gap-x-5 border-t border-line pt-3 text-muted">
+          <FeedbackLink className="inline-flex min-h-11 items-center underline-offset-4 hover:text-fg hover:underline" />
+          <CoffeeLink />
+        </div>
       </Dialog>
     </header>
   );

@@ -9,6 +9,8 @@ import { canShare, download, share, zip, type OutputFile } from "@/lib/download"
 import { formatBytes, savedPercent } from "@/lib/files";
 import { explain } from "@/lib/errors";
 import { isInAppBrowser } from "@/lib/limits";
+import { SITE } from "@/config/site";
+import { CoffeeLink } from "@/components/layout/CoffeeLink";
 
 export interface Dimensions {
   width: number;
@@ -113,6 +115,12 @@ export function Results({
           </li>
         ))}
       </ul>
+
+      {SITE.coffeeUrl && (
+        <p className="mt-4 text-body-sm text-subtle">
+          DocuMorph is free and has no adverts. If it saved you time, you can <CoffeeLink className="text-accent" />.
+        </p>
+      )}
 
       <ActionBar>
         <Button variant="secondary" size="lg" onClick={onReset}>

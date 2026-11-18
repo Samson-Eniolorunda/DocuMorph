@@ -123,10 +123,12 @@ describe("rate limit", () => {
 });
 
 describe("server tools", () => {
-  it("map extensions to the right conversion", () => {
-    expect(serverToolBySlug("word-to-pdf")!.route("doc")).toBe("doc/to/pdf");
-    expect(serverToolBySlug("word-to-pdf")?.route("docx")).toBe("docx/to/pdf");
+  it("name the engine and output for each conversion", () => {
+    expect(serverToolBySlug("word-to-pdf")).toMatchObject({ engine: "gotenberg", outExt: "pdf" });
+    expect(serverToolBySlug("excel-to-pdf")).toMatchObject({ engine: "gotenberg", outExt: "pdf" });
+    expect(serverToolBySlug("pdf-to-word")).toMatchObject({ engine: "adobe", outExt: "docx" });
+    expect(serverToolBySlug("pdf-to-excel")).toMatchObject({ engine: "adobe", outExt: "xlsx" });
     expect(serverToolBySlug("nope")).toBeUndefined();
-    for (const t of SERVER_TOOLS) expect(t.route(t.accept[0] ?? "")).toMatch(/^[a-z]+\/to\/[a-z]+$/);
+    expect(SERVER_TOOLS).toHaveLength(4);
   });
 });
