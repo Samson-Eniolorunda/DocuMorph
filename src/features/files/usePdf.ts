@@ -3,10 +3,9 @@
 import { useEffect, useState } from "react";
 import type { PDFDocumentProxy } from "pdfjs-dist";
 import { readBytes } from "@/lib/download";
-import { openPdf } from "@/lib/pdf/render";
-import { explain } from "./Results";
+import { explain } from "@/lib/errors";
 
-/** Opens a chosen PDF for preview and keeps its bytes for pdf-lib. */
+/** Opens a chosen PDF for preview and keeps one copy of its bytes for the writer. */
 export function usePdf() {
   const [file, setFile] = useState<File | null>(null);
   const [bytes, setBytes] = useState<Uint8Array | null>(null);
@@ -18,6 +17,7 @@ export function usePdf() {
     setLoading(true);
     setError("");
     try {
+      const { openPdf } = await import("@/lib/pdf/render");
       const b = await readBytes(f);
       const d = await openPdf(b);
       setFile(f);

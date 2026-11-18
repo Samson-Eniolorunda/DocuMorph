@@ -1,19 +1,27 @@
 @import "tailwindcss";
 
-/* Light by default; dark with <html class="dark"> (device setting or the visitor's choice). */
+/* One set of design tokens. Light by default; dark with <html class="dark">
+   (the device setting, or the visitor's own choice). */
 :root {
   --bg: #f6f7f9;
   --surface: #ffffff;
   --raised: #eef1f4;
   --line: #dde2e8;
+  --control: #6a7280;
   --fg: #111827;
   --muted: #4b5563;
-  --subtle: #7b8494;
+  --subtle: #5f6877;
   --accent: #0f766e;
-  --accent-soft: rgba(15, 118, 110, 0.1);
+  --accent-hover: #0b5f59;
+  --accent-tint: #e7f1f0;
   --accent-fg: #ffffff;
-  --warn: #b45309;
+  --warn: #92400e;
   --danger: #b42318;
+  --danger-tint: #fdecea;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
   color-scheme: light;
 }
 html.dark {
@@ -21,38 +29,82 @@ html.dark {
   --surface: #151b23;
   --raised: #1c232d;
   --line: #2a323d;
+  --control: #6b7686;
   --fg: #e8ecf1;
   --muted: #a7b0bd;
-  --subtle: #758091;
+  --subtle: #8d97a6;
   --accent: #2dd4bf;
-  --accent-soft: rgba(45, 212, 191, 0.12);
+  --accent-hover: #5eead4;
+  --accent-tint: rgba(45, 212, 191, 0.12);
   --accent-fg: #062521;
   --warn: #f5a524;
   --danger: #f97066;
+  --danger-tint: rgba(249, 112, 102, 0.12);
   color-scheme: dark;
 }
 
-@theme inline {
+@theme {
   --color-bg: var(--bg);
   --color-surface: var(--surface);
   --color-raised: var(--raised);
   --color-line: var(--line);
+  --color-control: var(--control);
   --color-fg: var(--fg);
   --color-muted: var(--muted);
   --color-subtle: var(--subtle);
   --color-accent: var(--accent);
-  --color-accent-soft: var(--accent-soft);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-tint: var(--accent-tint);
   --color-accent-fg: var(--accent-fg);
   --color-warn: var(--warn);
   --color-danger: var(--danger);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-danger-tint: var(--danger-tint);
+
+  --font-sans: var(--font-geist-sans), system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+
+  /* Type scale: 16 px is the smallest text for reading and for every input. */
+  --text-caption: 0.8125rem;
+  --text-caption--line-height: 1.125rem;
+  --text-body-sm: 0.875rem;
+  --text-body-sm--line-height: 1.25rem;
+  --text-body: 1rem;
+  --text-body--line-height: 1.5rem;
+  --text-title: 1.25rem;
+  --text-title--line-height: 1.75rem;
+  --text-display: 1.75rem;
+  --text-display--line-height: 2.125rem;
+  --text-display-lg: 2.25rem;
+  --text-display-lg--line-height: 2.75rem;
+
+  /* One radius scale, no pills. */
+  --radius-*: initial;
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+
+  /* Shadows mark only what floats. */
+  --shadow-*: initial;
+  --shadow-sm: 0 1px 2px rgb(15 23 42 / 0.08);
+  --shadow-md: 0 8px 24px rgb(15 23 42 / 0.16);
+
+  --ease-out: cubic-bezier(0.2, 0, 0, 1);
 }
 
+svg.lucide {
+  flex-shrink: 0;
+}
+html {
+  scroll-padding-top: 4.5rem;
+  scroll-padding-bottom: 7rem;
+  -webkit-text-size-adjust: 100%;
+}
 body {
   background: var(--bg);
   color: var(--fg);
   font-family: var(--font-geist-sans), system-ui, sans-serif;
+  font-size: 1rem;
+  line-height: 1.5rem;
 }
 ::selection {
   background: var(--accent);
@@ -63,53 +115,47 @@ body {
   outline-offset: 2px;
 }
 
-/* Shared classes live in the components layer, so utilities such as p-0 or
-   w-16 on the same element still win. */
-@layer components {
-  .btn {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.5rem;
-    border-radius: 0.6rem;
-    padding: 0.6rem 1rem;
-    font-size: 0.875rem;
-    font-weight: 500;
-    transition:
-      background-color 0.15s,
-      border-color 0.15s,
-      opacity 0.15s;
+/* Motion: quick, and only where it explains a change. */
+@utility transition-quick {
+  transition-property: color, background-color, border-color, opacity, transform;
+  transition-duration: 120ms;
+  transition-timing-function: var(--ease-out);
+}
+@keyframes sheet-in {
+  from {
+    transform: translateY(16px);
+    opacity: 0;
   }
-  .btn:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
+}
+@keyframes fade-in {
+  from {
+    opacity: 0;
   }
-  .btn-primary {
-    background: var(--accent);
-    color: var(--accent-fg);
+}
+@keyframes slide-bar {
+  from {
+    transform: translateX(-100%);
   }
-  .btn-primary:hover:not(:disabled) {
-    opacity: 0.9;
+  to {
+    transform: translateX(250%);
   }
-  .btn-quiet {
-    border: 1px solid var(--line);
-    background: var(--surface);
-    color: var(--fg);
+}
+dialog[open].sheet {
+  animation: sheet-in 200ms var(--ease-out);
+}
+dialog[open]::backdrop {
+  animation: fade-in 200ms var(--ease-out);
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
   }
-  .btn-quiet:hover:not(:disabled) {
-    border-color: var(--subtle);
-  }
-  .field {
-    width: 100%;
-    border-radius: 0.6rem;
-    border: 1px solid var(--line);
-    background: var(--surface);
-    padding: 0.55rem 0.75rem;
-    font-size: 0.875rem;
-    color: var(--fg);
-  }
-  .field:focus {
-    border-color: var(--accent);
-    outline: none;
+  .progress-fill {
+    transition-duration: 120ms !important;
   }
 }

@@ -1,13 +1,18 @@
 "use client";
 
-import { useState } from "react";
-import { FileImage, Loader2 } from "lucide-react";
+import { useRef, useState } from "react";
+import { FileImage } from "lucide-react";
+import { ActionBar } from "@/components/layout/ActionBar";
+import { Button } from "@/components/ui/Button";
+import { Select } from "@/components/ui/Field";
+import { Notice, ProgressBar } from "@/components/ui/Feedback";
+import { RangesField } from "@/components/ui/RangesField";
 import { Dropzone } from "@/features/files/Dropzone";
-import { ErrorNote, Results, explain } from "@/features/files/Results";
+import { Results } from "@/features/files/Results";
 import { usePdf } from "@/features/files/usePdf";
-import { DEVICE_MAX_BYTES, renameTo } from "@/lib/files";
 import type { OutputFile } from "@/lib/download";
-import { pageToImage } from "@/lib/pdf/render";
+import { explain } from "@/lib/errors";
+import { DEVICE_MAX_BYTES, formatBytes, renameTo } from "@/lib/files";
 import { parseRanges } from "@/lib/ranges";
 
 const DPI = [
@@ -21,42 +26,65 @@ export function PdfToImages() {
   const [format, setFormat] = useState<"image/png" | "image/jpeg">("image/png");
   const [dpi, setDpi] = useState(150);
   const [which, setWhich] = useState("");
-  const [progress, setProgress] = useState<string>("");
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [error, setError] = useState("");
+  const [note, setNote] = useState("");
   const [out, setOut] = useState<OutputFile[] | null>(null);
+  const cancelled = useRef(false);
+
+  const n = pdf.doc?.numPages ?? 0;
+  const parsed = which.trim() ? parseRanges(which, n) : null;
+  const rangeError = parsed && !parsed.ok ? parsed.error : undefined;
 
   async function run() {
     const { doc, file } = pdf;
     if (!doc || !file) return;
-    const n = doc.numPages;
     let pages = Array.from({ length: n }, (_, i) => i);
-    if (which.trim()) {
-      const r = parseRanges(which, n);
-      if (!r.ok) return setError(r.error);
-      pages = [...new Set(r.groups.flat())];
+    if (parsed) {
+      if (!parsed.ok) return;
+      pages = [...new Set(parsed.groups.flat())];
     }
     setError("");
+    setNote("");
+    cancelled.current = false;
     try {
+      const { pageToImage } = await import("@/lib/pdf/render");
       const files: OutputFile[] = [];
+      let scaledDown = false;
       for (const [k, i] of pages.entries()) {
-        setProgress(`Page ${k + 1} of ${pages.length}…`);
-        const blob = await pageToImage(doc, i, dpi, format);
-        files.push({ name: renameTo(file.name, format === "image/png" ? "png" : "jpg", `-page-${i + 1}`), blob });
+        if (cancelled.current) return;
+        setProgress({ done: k, total: pages.length });
+        const r = await pageToImage(doc, i, dpi, format);
+        scaledDown ||= r.scaledDown;
+        files.push({
+          name: renameTo(file.name, format === "image/png" ? "png" : "jpg", `-page-${i + 1}`),
+          blob: r.blob,
+        });
       }
+      if (scaledDown)
+        setNote(
+          "Some pages were too large to draw at this resolution on this device, so they were saved at a lower one.",
+        );
       setOut(files);
     } catch (e) {
       setError(explain(e));
     } finally {
-      setProgress("");
+      setProgress(null);
     }
   }
+
+  const reset = () => {
+    setOut(null);
+    pdf.reset();
+  };
 
   if (out)
     return (
       <Results
         files={out}
+        note={note}
         zipName={renameTo(pdf.file?.name ?? "document.pdf", "zip", "-images")}
-        onReset={() => (setOut(null), pdf.reset())}
+        onReset={reset}
       />
     );
 
@@ -64,54 +92,63 @@ export function PdfToImages() {
     return (
       <div className="space-y-3">
         <Dropzone kinds={["pdf"]} maxBytes={DEVICE_MAX_BYTES} onFiles={([p]) => void pdf.load(p.file)} />
-        {pdf.loading && <p className="text-sm text-muted">Opening…</p>}
-        <ErrorNote message={pdf.error} />
+        {pdf.loading && <p className="text-muted">Opening…</p>}
+        {pdf.error && <Notice tone="error">{pdf.error}</Notice>}
       </div>
     );
 
   return (
-    <div className="space-y-5 rounded-2xl border border-line bg-surface p-5">
-      <p className="text-sm text-muted">
-        {pdf.file?.name} · {pdf.doc.numPages} page{pdf.doc.numPages === 1 ? "" : "s"}
+    <div className="space-y-5">
+      <p className="min-w-0 truncate text-muted">
+        {pdf.file?.name}, <span className="font-mono">{formatBytes(pdf.file?.size ?? 0)}</span>, {n} page
+        {n === 1 ? "" : "s"}
       </p>
-      <div className="grid gap-4 sm:grid-cols-3">
-        <label className="text-sm">
-          Format
-          <select className="field mt-1" value={format} onChange={(e) => setFormat(e.target.value as typeof format)}>
-            <option value="image/png">PNG (sharpest)</option>
-            <option value="image/jpeg">JPG (smaller)</option>
-          </select>
-        </label>
-        <label className="text-sm">
-          Resolution
-          <select className="field mt-1" value={dpi} onChange={(e) => setDpi(Number(e.target.value))}>
-            {DPI.map(([v, l]) => (
-              <option key={v} value={v}>
-                {l}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="text-sm">
-          Pages (blank for all)
-          <input
-            className="field mt-1"
-            placeholder="e.g. 1-3, 6"
-            value={which}
-            onChange={(e) => setWhich(e.target.value)}
-          />
-        </label>
-      </div>
-      <ErrorNote message={error} />
-      <div className="flex gap-2">
-        <button type="button" className="btn btn-primary" disabled={!!progress} onClick={run}>
-          {progress ? <Loader2 className="size-4 animate-spin" /> : <FileImage className="size-4" />}{" "}
-          {progress || "Create images"}
-        </button>
-        <button type="button" className="btn btn-quiet" disabled={!!progress} onClick={pdf.reset}>
-          Choose another file
-        </button>
-      </div>
+      <Select label="Format" value={format} onChange={(e) => setFormat(e.target.value as typeof format)}>
+        <option value="image/png">PNG (sharpest)</option>
+        <option value="image/jpeg">JPG (smaller)</option>
+      </Select>
+      <Select label="Resolution" value={dpi} onChange={(e) => setDpi(Number(e.target.value))}>
+        {DPI.map(([v, l]) => (
+          <option key={v} value={v}>
+            {l}
+          </option>
+        ))}
+      </Select>
+      <RangesField
+        label="Pages (leave blank for all)"
+        value={which}
+        onChange={setWhich}
+        error={rangeError}
+        placeholder="For example 1-3, 6"
+      />
+      {error && <Notice tone="error">{error}</Notice>}
+      <ActionBar
+        status={
+          progress ? (
+            <div>
+              <p className="mb-1 font-mono">
+                Page {Math.min(progress.done + 1, progress.total)} of {progress.total}
+              </p>
+              <ProgressBar label="Creating images" value={(progress.done / progress.total) * 100} />
+            </div>
+          ) : undefined
+        }
+      >
+        {progress ? (
+          <Button variant="secondary" size="lg" onClick={() => (cancelled.current = true)}>
+            Cancel
+          </Button>
+        ) : (
+          <>
+            <Button variant="secondary" size="lg" onClick={pdf.reset}>
+              Choose another file
+            </Button>
+            <Button variant="primary" size="lg" disabled={Boolean(rangeError)} onClick={run}>
+              <FileImage className="size-5" aria-hidden /> Create images
+            </Button>
+          </>
+        )}
+      </ActionBar>
     </div>
   );
 }

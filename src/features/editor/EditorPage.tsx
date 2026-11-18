@@ -3,7 +3,7 @@
 import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 import type { PDFDocumentProxy } from "pdfjs-dist";
-import { GripVertical } from "lucide-react";
+import { cn } from "@/lib/cn";
 import { renderPage } from "@/lib/pdf/render";
 import { CSS_FONT, measureText, type EdEdit, type TextStyle, type ToolName } from "./types";
 
@@ -18,11 +18,14 @@ export interface PageProps {
   tool: ToolName;
   selected: string | null;
   deleted: boolean;
+  /** Images keep their proportions unless this is on (the touch equivalent of holding Shift). */
+  freeResize: boolean;
   onSelect: (id: string | null) => void;
   /** Place a new item at a point (or over a dragged box) on this page. */
   onPlace: (page: number, box: { x: number; y: number; w: number; h: number }, dragged: boolean) => void;
+  onEditText: (id: string) => void;
   onChange: (id: string, patch: Partial<EdEdit>) => void;
-  /** Called once before a move, resize or typing starts, so it can be undone. */
+  /** Called once before a move or resize starts, so it can be undone. */
   onCheckpoint: () => void;
 }
 
@@ -35,26 +38,39 @@ type Drag = {
   ratio: number;
 };
 
+const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
+
+/**
+ * One page with its edits. One finger on the page scrolls the document and two fingers zoom it,
+ * the browser's own gestures. Only an armed box tool draws, and a second finger or a cancelled
+ * touch abandons the box, so nothing is ever left half drawn.
+ */
 export function EditorPage(p: PageProps) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const layer = useRef<HTMLDivElement>(null);
   const [visible, setVisible] = useState(false);
   const [draft, setDraft] = useState<{ x0: number; y0: number; x1: number; y1: number } | null>(null);
   const drag = useRef<Drag | null>(null);
+  const touches = useRef(new Set<number>());
   const cssW = p.size.width * p.scale;
   const cssH = p.size.height * p.scale;
 
+  // Draw the page when it nears the screen, and let go of its memory when it is far away.
   useEffect(() => {
     const el = layer.current;
     if (!el) return;
-    const io = new IntersectionObserver(([e]) => e?.isIntersecting && setVisible(true), { rootMargin: "600px" });
+    const io = new IntersectionObserver(([e]) => e && setVisible(e.isIntersecting), { rootMargin: "800px" });
     io.observe(el);
     return () => io.disconnect();
   }, []);
 
   useEffect(() => {
     const target = canvas.current;
-    if (!visible || !target) return;
+    if (!target) return;
+    if (!visible) {
+      target.width = target.height = 0;
+      return;
+    }
     let cancelled = false;
     const t = setTimeout(() => {
       if (!cancelled) void renderPage(p.doc, p.index, cssW, target);
@@ -71,46 +87,59 @@ export function EditorPage(p: PageProps) {
   };
 
   const drawsBox = p.tool === "whiteout" || p.tool === "highlight" || p.tool === "outline";
-
   const placesItem = p.tool === "text" || p.tool === "image" || p.tool === "signature";
 
   function layerDown(e: React.PointerEvent) {
-    if (p.deleted || (e.target as HTMLElement).tagName === "TEXTAREA") return;
+    touches.current.add(e.pointerId);
+    if (touches.current.size > 1) return setDraft(null); // a second finger means zoom or pan
+    if (p.deleted) return;
     const onPage = e.target === layer.current;
-    // Text, images and signatures can be placed over an existing box: that is
-    // how "cover, then retype" works. Boxes are only drawn on the page itself.
+    // Text, images and signatures can be placed over an existing box: that is how "cover, then retype" works.
     if (!onPage && !placesItem) return;
-    const pt = toPt(e);
     if (p.tool === "select") return p.onSelect(null);
+    const pt = toPt(e);
     if (drawsBox) {
       e.currentTarget.setPointerCapture(e.pointerId);
       setDraft({ x0: pt.x, y0: pt.y, x1: pt.x, y1: pt.y });
-      return;
     }
-    p.onPlace(p.index, { x: pt.x, y: pt.y, w: 0, h: 0 }, false);
   }
 
   function layerMove(e: React.PointerEvent) {
+    if (!draft || touches.current.size > 1) return;
+    const pt = toPt(e);
+    setDraft({ ...draft, x1: clamp(pt.x, 0, p.size.width), y1: clamp(pt.y, 0, p.size.height) });
+  }
+
+  function layerUp(e: React.PointerEvent) {
+    const wasOnly = touches.current.size === 1;
+    touches.current.delete(e.pointerId);
     if (draft) {
-      const pt = toPt(e);
-      setDraft({
-        ...draft,
-        x1: Math.max(0, Math.min(p.size.width, pt.x)),
-        y1: Math.max(0, Math.min(p.size.height, pt.y)),
-      });
+      const box = {
+        x: Math.min(draft.x0, draft.x1),
+        y: Math.min(draft.y0, draft.y1),
+        w: Math.abs(draft.x1 - draft.x0),
+        h: Math.abs(draft.y1 - draft.y0),
+      };
+      setDraft(null);
+      if (wasOnly) p.onPlace(p.index, box, box.w > 4 && box.h > 4);
+      return;
+    }
+    // A tap with a placing tool: only when the finger did not travel, so scrolling never drops an item.
+    if (wasOnly && placesItem && !p.deleted && (e.target === layer.current || placesItem)) {
+      const moved = Math.hypot(e.clientX - downAt.current.x, e.clientY - downAt.current.y);
+      if (moved < 8) {
+        const pt = toPt(e);
+        p.onPlace(p.index, { x: pt.x, y: pt.y, w: 0, h: 0 }, false);
+      }
     }
   }
 
-  function layerUp() {
-    if (!draft) return;
-    const box = {
-      x: Math.min(draft.x0, draft.x1),
-      y: Math.min(draft.y0, draft.y1),
-      w: Math.abs(draft.x1 - draft.x0),
-      h: Math.abs(draft.y1 - draft.y0),
-    };
+  const downAt = useRef({ x: 0, y: 0 });
+
+  function layerCancel(e: React.PointerEvent) {
+    touches.current.delete(e.pointerId);
     setDraft(null);
-    p.onPlace(p.index, box, box.w > 4 && box.h > 4);
+    drag.current = null;
   }
 
   function startDrag(e: React.PointerEvent, ed: EdEdit, mode: Drag["mode"]) {
@@ -142,8 +171,7 @@ export function EditorPage(p: PageProps) {
     } else {
       const w = Math.max(8, d.orig.w + dx);
       const ed = p.edits.find((x) => x.id === d.id);
-      // Images keep their proportions unless Shift is held.
-      const h = ed?.type === "image" && !e.shiftKey ? w / d.ratio : Math.max(6, d.orig.h + dy);
+      const h = ed?.type === "image" && !(e.shiftKey || p.freeResize) ? w / d.ratio : Math.max(6, d.orig.h + dy);
       p.onChange(d.id, { w, h });
     }
   }
@@ -152,7 +180,7 @@ export function EditorPage(p: PageProps) {
 
   return (
     <div
-      className={`relative mx-auto shadow-md ${p.deleted ? "opacity-30" : ""}`}
+      className={cn("relative mx-auto bg-white shadow-md", p.deleted && "opacity-30")}
       style={{ width: cssW, height: cssH }}
     >
       <canvas
@@ -163,67 +191,105 @@ export function EditorPage(p: PageProps) {
       />
       <div
         ref={layer}
-        className={`absolute inset-0 touch-none ${p.tool === "select" ? "" : drawsBox ? "cursor-crosshair" : "cursor-copy"}`}
-        onPointerDown={layerDown}
+        className={cn("absolute inset-0", drawsBox ? "cursor-crosshair" : placesItem ? "cursor-copy" : "")}
+        style={{ touchAction: drawsBox ? "none" : "pan-y pinch-zoom" }}
+        onPointerDown={(e) => {
+          downAt.current = { x: e.clientX, y: e.clientY };
+          layerDown(e);
+        }}
         onPointerMove={layerMove}
         onPointerUp={layerUp}
+        onPointerCancel={layerCancel}
       >
         {p.edits.map((ed) => {
           const isSel = p.selected === ed.id;
-          const style: React.CSSProperties = { left: ed.x * p.scale, top: ed.y * p.scale };
+          const pos: React.CSSProperties = { left: ed.x * p.scale, top: ed.y * p.scale };
+          const label =
+            ed.type === "text"
+              ? `Text: ${ed.text || "empty"}`
+              : ed.type === "image"
+                ? "Image"
+                : ed.style === "whiteout"
+                  ? "Cover"
+                  : ed.style === "highlight"
+                    ? "Highlight"
+                    : "Box";
 
           if (ed.type === "text") {
             const ts: TextStyle = { size: ed.size, color: ed.color, font: ed.font, bold: ed.bold };
             const m = measureText(ed.text || "Type here", ts);
             return (
-              <div key={ed.id} className="absolute" style={style} onPointerMove={dragMove} onPointerUp={endDrag}>
-                {isSel && (
-                  <span
-                    role="button"
-                    aria-label="Move text"
-                    tabIndex={-1}
-                    onPointerDown={(e) => startDrag(e, ed, "move")}
-                    className="absolute -left-5 top-0 flex h-5 w-4 cursor-move items-center justify-center rounded-sm bg-accent text-accent-fg"
-                  >
-                    <GripVertical className="size-3" />
-                  </span>
+              <div
+                key={ed.id}
+                role="button"
+                tabIndex={0}
+                aria-label={label}
+                aria-pressed={isSel}
+                data-edit={ed.id}
+                className={cn(
+                  "absolute cursor-move whitespace-pre",
+                  isSel
+                    ? "outline-2 outline-dashed outline-accent"
+                    : "hover:outline hover:outline-1 hover:outline-black/20",
                 )}
-                <textarea
-                  data-edit={ed.id}
-                  value={ed.text}
-                  placeholder="Type here"
-                  spellCheck
-                  onFocus={() => {
+                style={{
+                  ...pos,
+                  minWidth: 24,
+                  minHeight: 24,
+                  width: m.width * p.scale + 6,
+                  height: m.height * p.scale,
+                  fontFamily: CSS_FONT[ed.font],
+                  fontSize: ed.size * p.scale,
+                  fontWeight: ed.bold ? 700 : 400,
+                  lineHeight: 1.2,
+                  color: ed.text ? ed.color : "rgba(0,0,0,0.4)",
+                  touchAction: "none",
+                }}
+                onPointerDown={(e) => {
+                  if (p.tool === "text") {
+                    e.stopPropagation();
                     p.onSelect(ed.id);
-                    p.onCheckpoint();
-                  }}
-                  onChange={(e) => p.onChange(ed.id, { text: e.target.value })}
-                  className={`block resize-none overflow-hidden bg-transparent p-0 outline-none placeholder:text-black/35 ${isSel ? "ring-1 ring-accent ring-dashed" : "hover:ring-1 hover:ring-black/20"}`}
-                  style={{
-                    width: m.width * p.scale + 6,
-                    height: m.height * p.scale,
-                    fontFamily: CSS_FONT[ed.font],
-                    fontSize: ed.size * p.scale,
-                    fontWeight: ed.bold ? 700 : 400,
-                    lineHeight: 1.2,
-                    color: ed.color,
-                  }}
-                />
+                    p.onEditText(ed.id);
+                    return;
+                  }
+                  startDrag(e, ed, "move");
+                }}
+                onPointerMove={dragMove}
+                onPointerUp={endDrag}
+                onPointerCancel={endDrag}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") p.onEditText(ed.id);
+                }}
+              >
+                {ed.text || "Type here"}
               </div>
             );
           }
 
-          const boxStyle: React.CSSProperties = { ...style, width: ed.w * p.scale, height: ed.h * p.scale };
           return (
             <div
               key={ed.id}
-              className={`absolute ${placesItem ? "" : "cursor-move"} ${isSel ? "outline-2 outline-offset-1 outline-accent" : ""}`}
-              style={boxStyle}
+              role="button"
+              tabIndex={0}
+              aria-label={label}
+              aria-pressed={isSel}
+              className={cn(
+                "absolute",
+                !placesItem && "cursor-move",
+                isSel && "outline-2 outline-offset-1 outline-accent",
+              )}
+              style={{ ...pos, width: ed.w * p.scale, height: ed.h * p.scale, touchAction: "none" }}
               onPointerDown={(e) => {
-                if (!placesItem) startDrag(e, ed, "move");
+                if (placesItem) return;
+                startDrag(e, ed, "move");
               }}
+              onClick={() => !placesItem && p.onSelect(ed.id)}
               onPointerMove={dragMove}
               onPointerUp={endDrag}
+              onPointerCancel={endDrag}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") p.onSelect(ed.id);
+              }}
             >
               {ed.type === "box" && (
                 <div
@@ -253,8 +319,11 @@ export function EditorPage(p: PageProps) {
                   aria-label="Resize"
                   tabIndex={-1}
                   onPointerDown={(e) => startDrag(e, ed, "resize")}
-                  className="absolute -bottom-1.5 -right-1.5 size-3 cursor-nwse-resize rounded-sm border border-white bg-accent"
-                />
+                  className="absolute -bottom-5 -right-5 flex size-11 cursor-nwse-resize items-center justify-center"
+                  style={{ touchAction: "none" }}
+                >
+                  <span className="size-3.5 rounded-sm border border-white bg-accent" />
+                </span>
               )}
             </div>
           );
@@ -262,7 +331,7 @@ export function EditorPage(p: PageProps) {
 
         {draft && (
           <div
-            className="pointer-events-none absolute border border-dashed border-accent bg-accent-soft"
+            className="pointer-events-none absolute border border-dashed border-accent bg-accent-tint"
             style={{
               left: Math.min(draft.x0, draft.x1) * p.scale,
               top: Math.min(draft.y0, draft.y1) * p.scale,
@@ -275,5 +344,3 @@ export function EditorPage(p: PageProps) {
     </div>
   );
 }
-
-const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));

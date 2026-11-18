@@ -1,36 +1,32 @@
 // Server conversions (Word, Excel, PDF compression) through ConvertAPI.
 //
 // Safeguards:
-// - only the conversions listed in SERVER_TOOLS, with their own options;
-// - the file's first bytes must match the tool (renamed files are refused);
+// - only the conversions listed in SERVER_TOOLS, with their own options (zod schema);
+// - the file's first bytes and its extension must match the tool, so renamed files are refused;
 // - files up to 4 MB, sent straight to ConvertAPI: nothing is stored here;
-// - a daily limit per visitor and an optional daily cap for the whole site;
-// - visitors are counted by a hashed IP address, never the address itself.
+// - a daily limit per visitor and an optional site-wide cap, spent only when a conversion succeeds;
+// - visitors are counted by a hashed address, never the address itself.
 
 import { NextResponse } from "next/server";
-import { detectKind, extOf, SERVER_MAX_BYTES } from "@/lib/files";
-import { checkLimit } from "@/server/rate-limit";
 import { serverToolBySlug } from "@/config/server-tools";
+import { detectKind, extOf, SERVER_MAX_BYTES } from "@/lib/files";
+import { convertFields } from "@/schemas/convert";
+import { convertFile } from "@/server/convertapi";
+import { loadEnv } from "@/server/env";
+import { fail, resultToken, visitorKey } from "@/server/http";
+import { checkLimit, refund } from "@/server/rate-limit";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
-const PER_VISITOR = Number(process.env.CONVERT_DAILY_PER_VISITOR ?? 10);
-const PER_SITE = Number(process.env.CONVERT_DAILY_SITE_CAP ?? 0); // 0 = no site-wide cap
-
-const fail = (status: number, error: string) =>
-  NextResponse.json({ error }, { status, headers: { "Cache-Control": "no-store" } });
-
-async function visitorKey(req: Request, today: string) {
-  const ip =
-    (req.headers.get("x-forwarded-for") ?? "").split(",")[0]?.trim() || req.headers.get("x-real-ip") || "unknown";
-  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(`${today}:${ip}`));
-  return Buffer.from(digest).toString("base64url").slice(0, 22);
-}
-
 export async function POST(req: Request) {
-  const secret = process.env.CONVERTAPI_SECRET;
-  if (!secret) return fail(503, "Server conversions are not set up on this site.");
+  const config = loadEnv();
+  if (!config.ok) {
+    console.error("Invalid server settings", config.problems);
+    return fail(503, "Server conversions are not set up on this site.");
+  }
+  const { env } = config;
+  if (!env.CONVERTAPI_SECRET) return fail(503, "Server conversions are not set up on this site.");
 
   let form: FormData;
   try {
@@ -39,7 +35,9 @@ export async function POST(req: Request) {
     return fail(400, "The upload could not be read. Please try again.");
   }
 
-  const tool = serverToolBySlug(String(form.get("tool") ?? ""));
+  const fields = convertFields.safeParse({ tool: form.get("tool"), option: form.get("option") ?? undefined });
+  if (!fields.success) return fail(400, "Unknown conversion.");
+  const tool = serverToolBySlug(fields.data.tool);
   if (!tool) return fail(400, "Unknown conversion.");
 
   const file = form.get("file");
@@ -52,76 +50,45 @@ export async function POST(req: Request) {
     return fail(415, `This tool accepts ${tool.accept.map((e) => `.${e}`).join(" or ")} files only.`);
   }
 
-  let optionValue: string | undefined;
+  let option: { name: string; value: string } | undefined;
   if (tool.option) {
-    const v = String(form.get("option") ?? tool.option.default);
-    if (!tool.option.values.some((o) => o.value === v)) return fail(400, "Unknown option.");
-    optionValue = v;
+    const value = fields.data.option ?? tool.option.default;
+    if (!tool.option.values.some((o) => o.value === value)) return fail(400, "Unknown option.");
+    option = { name: tool.option.name, value };
   }
 
   const today = new Date().toISOString().slice(0, 10);
+  const visitor = await visitorKey(req, today);
+  const limits = { perVisitor: env.CONVERT_DAILY_PER_VISITOR, perSite: env.CONVERT_DAILY_SITE_CAP, today };
+  let remaining: number;
   try {
-    const limit = await checkLimit(await visitorKey(req, today), { perVisitor: PER_VISITOR, perSite: PER_SITE, today });
+    const limit = await checkLimit(visitor, limits);
     if (!limit.ok) {
       return fail(
         429,
         limit.reason === "site"
           ? "Today's server conversions are used up. The tools that run in your browser still work."
-          : `You have used today's ${PER_VISITOR} server conversions. Please try again tomorrow.`,
+          : `You have used today's ${env.CONVERT_DAILY_PER_VISITOR} server conversions. Please try again tomorrow.`,
       );
     }
+    remaining = limit.remaining;
   } catch (err) {
     console.error("Rate limit check failed", err);
     return fail(503, "Server conversions are paused for a moment. Please try again shortly.");
   }
 
-  const body = new FormData();
-  body.set("File", file, file.name);
-  body.set("StoreFile", "true");
-  if (tool.option && optionValue) body.set(tool.option.name, optionValue);
-
-  const url = `https://v2.convertapi.com/convert/${tool.route(ext)}?Secret=${encodeURIComponent(secret)}`;
-  let res: Response;
-  try {
-    res = await fetch(url, { method: "POST", body, signal: AbortSignal.timeout(55_000), cache: "no-store" });
-  } catch {
-    return fail(504, "The conversion took too long. Please try a smaller file.");
-  }
-
-  const data = (await res.json().catch(() => null)) as {
-    Files?: { FileName: string; FileSize: number; FileId: string; Url: string }[];
-    Message?: string;
-  } | null;
-
-  if (!res.ok || !data?.Files?.length) {
-    console.error("ConvertAPI error", res.status, data?.Message);
+  const outcome = await convertFile(env.CONVERTAPI_SECRET, tool.route(ext), file, option);
+  if (!outcome.ok) {
+    await refund(visitor, limits).catch(() => undefined);
+    if (outcome.reason === "timeout") return fail(504, "The conversion took too long. Please try a smaller file.");
     return fail(
       502,
-      res.status === 401
+      outcome.reason === "unauthorised"
         ? "Server conversions are not available right now."
         : "The file could not be converted. It may be damaged or protected.",
     );
   }
 
-  const out = data.Files[0];
-  if (!out) return fail(502, "The file could not be converted. It may be damaged or protected.");
-  return NextResponse.json(
-    { name: out.FileName, size: out.FileSize, url: out.Url, fileId: out.FileId },
-    { headers: { "Cache-Control": "no-store" } },
-  );
-}
-
-/** Deletes a converted file from ConvertAPI before its 3-hour expiry. */
-export async function DELETE(req: Request) {
-  const fileId = new URL(req.url).searchParams.get("fileId") ?? "";
-  if (!/^[A-Za-z0-9_-]{8,128}$/.test(fileId)) return fail(400, "Unknown file.");
-  const secret = process.env.CONVERTAPI_SECRET;
-  if (!secret) return fail(503, "Server conversions are not set up on this site.");
-  const res = await fetch(`https://v2.convertapi.com/d/${fileId}?Secret=${encodeURIComponent(secret)}`, {
-    method: "DELETE",
-    cache: "no-store",
-  }).catch(() => null);
-  // 404 means it is already gone, which is the outcome we want.
-  if (res && (res.ok || res.status === 404)) return NextResponse.json({ deleted: true });
-  return fail(502, "The file could not be deleted now; ConvertAPI removes it within 3 hours.");
+  const token = await resultToken(env.CONVERTAPI_SECRET, outcome.file.fileId, req);
+  return NextResponse.json({ ...outcome.file, token, remaining }, { headers: { "Cache-Control": "no-store" } });
 }

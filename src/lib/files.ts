@@ -2,7 +2,7 @@
 // The type is decided from the file's first bytes (its "signature"), not from
 // its name, so a renamed file cannot pass as something it is not.
 
-export type FileKind = "pdf" | "jpg" | "png" | "webp" | "zip-office" | "ole-office" | "unknown";
+export type FileKind = "pdf" | "jpg" | "png" | "webp" | "heic" | "zip-office" | "ole-office" | "unknown";
 
 const startsWith = (b: Uint8Array, sig: number[], offset = 0) => sig.every((v, i) => b[offset + i] === v);
 
@@ -11,6 +11,11 @@ export function detectKind(head: Uint8Array): FileKind {
   if (startsWith(head, [0xff, 0xd8, 0xff])) return "jpg";
   if (startsWith(head, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) return "png";
   if (startsWith(head, [0x52, 0x49, 0x46, 0x46]) && startsWith(head, [0x57, 0x45, 0x42, 0x50], 8)) return "webp"; // RIFF....WEBP
+  if (startsWith(head, [0x66, 0x74, 0x79, 0x70], 4)) {
+    // ISO media: iPhone photographs saved as HEIC/HEIF.
+    const brand = String.fromCharCode(...head.slice(8, 12));
+    if (["heic", "heix", "heim", "heis", "hevc", "hevx", "mif1", "msf1"].includes(brand)) return "heic";
+  }
   if (startsWith(head, [0x50, 0x4b, 0x03, 0x04])) return "zip-office"; // .docx, .xlsx (ZIP container)
   if (startsWith(head, [0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1])) return "ole-office"; // .doc, .xls
   return "unknown";
@@ -35,7 +40,7 @@ export function formatBytes(n: number) {
   if (!Number.isFinite(n) || n < 0) return "–";
   if (n < 1024) return `${n} B`;
   if (n < 1024 * 1024) return `${(n / 1024).toFixed(n < 10 * 1024 ? 1 : 0)} KB`;
-  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+  return `${Number((n / (1024 * 1024)).toFixed(1))} MB`;
 }
 
 /** Percentage saved, e.g. 1000 → 600 is 40. Negative when the file grew. */

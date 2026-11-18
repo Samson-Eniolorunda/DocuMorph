@@ -3,6 +3,7 @@
 
 import type { PDFDocumentProxy } from "pdfjs-dist";
 import { context2d } from "../canvas";
+import { pixelScale } from "../limits";
 
 let lib: Promise<typeof import("pdfjs-dist")> | null = null;
 
@@ -47,7 +48,10 @@ export async function renderPage(
   return { canvas, width: base.width, height: base.height };
 }
 
-/** Renders a page to an image file at a given resolution (dots per inch). */
+/**
+ * Renders a page to an image file at a given resolution (dots per inch). A page too large for a phone's
+ * canvas limit is drawn smaller, and `scaledDown` says so.
+ */
 export async function pageToImage(
   doc: PDFDocumentProxy,
   index: number,
@@ -56,7 +60,9 @@ export async function pageToImage(
   quality = 0.92,
 ) {
   const page = await doc.getPage(index + 1);
-  const viewport = page.getViewport({ scale: dpi / 72 });
+  const base = page.getViewport({ scale: dpi / 72 });
+  const fit = pixelScale(base.width, base.height);
+  const viewport = fit < 1 ? page.getViewport({ scale: (dpi / 72) * fit }) : base;
   const canvas = document.createElement("canvas");
   canvas.width = Math.floor(viewport.width);
   canvas.height = Math.floor(viewport.height);
@@ -70,5 +76,5 @@ export async function pageToImage(
   const blob = await new Promise<Blob | null>((r) => canvas.toBlob(r, type, quality));
   canvas.width = canvas.height = 0; // release memory on phones
   if (!blob) throw new Error("This browser could not create the image.");
-  return blob;
+  return { blob, scaledDown: fit < 1 };
 }

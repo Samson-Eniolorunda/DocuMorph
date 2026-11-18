@@ -1,8 +1,12 @@
 "use client";
 
-import { useId, useRef, useState } from "react";
-import { Upload } from "lucide-react";
+import { useRef, useState } from "react";
+import { Camera, FolderOpen } from "lucide-react";
+import { Button } from "@/components/ui/Button";
+import { Notice } from "@/components/ui/Feedback";
+import { cn } from "@/lib/cn";
 import { formatBytes, sniff, type FileKind } from "@/lib/files";
+import { largePdfWarning } from "@/lib/limits";
 
 const LABELS: Partial<Record<FileKind, string>> = {
   pdf: "PDF",
@@ -13,10 +17,16 @@ const LABELS: Partial<Record<FileKind, string>> = {
   "ole-office": "Office",
 };
 const MIME: Partial<Record<FileKind, string>> = {
-  pdf: "application/pdf",
+  pdf: "application/pdf,.pdf",
   jpg: "image/jpeg",
   png: "image/png",
   webp: "image/webp",
+};
+const OFFICE_MIME: Record<string, string> = {
+  docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  doc: "application/msword",
+  xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  xls: "application/vnd.ms-excel",
 };
 
 export interface Picked {
@@ -24,9 +34,23 @@ export interface Picked {
   kind: FileKind;
 }
 
+interface Props {
+  kinds: FileKind[];
+  /** For Office files the extension also matters (.docx or .xlsx). */
+  extensions?: string[];
+  multiple?: boolean;
+  maxBytes: number;
+  onFiles: (files: [Picked, ...Picked[]]) => void;
+  /** Offers a second button that opens the camera (images only). */
+  camera?: boolean;
+  /** Tools that can suggest alternatives for a file that is too big. */
+  tooLargeAdvice?: string;
+}
+
 /**
- * File picker with drag and drop. Files are checked by their contents, so a
- * renamed file is refused with a clear message, and by size.
+ * Chooses files. Files are identified by their first bytes, so a renamed file is refused with a clear
+ * message. The main control is a real button that opens the phone's own picker; "drop it here" is shown
+ * only where there is a mouse.
  */
 export function Dropzone({
   kinds,
@@ -34,54 +58,65 @@ export function Dropzone({
   multiple = false,
   maxBytes,
   onFiles,
-  hint,
-}: {
-  kinds: FileKind[];
-  /** For office files the extension also matters (.docx vs .xlsx). */
-  extensions?: string[];
-  multiple?: boolean;
-  maxBytes: number;
-  onFiles: (files: [Picked, ...Picked[]]) => void;
-  hint?: string;
-}) {
-  const id = useId();
+  camera = false,
+  tooLargeAdvice,
+}: Props) {
   const input = useRef<HTMLInputElement>(null);
+  const cameraInput = useRef<HTMLInputElement>(null);
   const [over, setOver] = useState(false);
-  const [error, setError] = useState("");
+  const [problems, setProblems] = useState<string[]>([]);
+  const [warning, setWarning] = useState("");
 
   const accept = extensions
-    ? extensions.map((e) => `.${e}`).join(",")
+    ? extensions
+        .flatMap((e) => [`.${e}`, OFFICE_MIME[e]])
+        .filter(Boolean)
+        .join(",")
     : kinds
         .map((k) => MIME[k])
         .filter(Boolean)
         .join(",");
-  const named = extensions ? extensions.map((e) => e.toUpperCase()).join(", ") : kinds.map((k) => LABELS[k]).join(", ");
+  const named = extensions
+    ? extensions.map((e) => `.${e}`).join(" or ")
+    : [...new Set(kinds.map((k) => LABELS[k]))].join(", ");
 
   async function take(list: FileList | null) {
     if (!list?.length) return;
-    setError("");
+    setProblems([]);
+    setWarning("");
     const files = multiple ? Array.from(list) : Array.from(list).slice(0, 1);
+    const issues: string[] = [];
+    if (!multiple && list.length > 1) issues.push("This tool takes one file at a time, so only the first was used.");
     const ok: Picked[] = [];
-    const problems: string[] = [];
     for (const file of files) {
       const kind = await sniff(file);
       const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
-      if (!kinds.includes(kind) || (extensions && !extensions.includes(ext)))
-        problems.push(`"${file.name}" is not a ${named} file.`);
+      if (kind === "heic")
+        issues.push(
+          `"${file.name}" is a HEIC photograph. On an iPhone, choose it from Photos instead, or set Settings > Camera > Formats > Most Compatible.`,
+        );
+      else if (!kinds.includes(kind) || (extensions && !extensions.includes(ext)))
+        issues.push(`"${file.name}" is not a ${named} file.`);
       else if (file.size > maxBytes)
-        problems.push(`"${file.name}" is ${formatBytes(file.size)}; the limit here is ${formatBytes(maxBytes)}.`);
+        issues.push(
+          `"${file.name}" is ${formatBytes(file.size)}. The limit here is ${formatBytes(maxBytes)}.${tooLargeAdvice ? ` ${tooLargeAdvice}` : ""}`,
+        );
       else ok.push({ file, kind });
     }
-    if (problems.length) setError(problems.join(" "));
+    setProblems(issues);
     const [first, ...rest] = ok;
-    if (first) onFiles([first, ...rest]);
+    if (first) {
+      const pdf = ok.find((p) => p.kind === "pdf");
+      setWarning((pdf && largePdfWarning(pdf.file)) || "");
+      onFiles([first, ...rest]);
+    }
     if (input.current) input.current.value = "";
+    if (cameraInput.current) cameraInput.current.value = "";
   }
 
   return (
     <div>
-      <label
-        htmlFor={id}
+      <div
         onDragOver={(e) => {
           e.preventDefault();
           setOver(true);
@@ -92,36 +127,56 @@ export function Dropzone({
           setOver(false);
           void take(e.dataTransfer.files);
         }}
-        className={`flex cursor-pointer flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed px-6 py-12 text-center transition-colors ${
-          over ? "border-accent bg-accent-soft" : "border-line bg-surface hover:border-subtle"
-        }`}
+        className={cn(
+          "transition-quick rounded-lg border-2 border-dashed p-5 sm:p-8",
+          over ? "border-accent bg-accent-tint" : "border-control bg-raised",
+        )}
       >
-        <span className="flex size-12 items-center justify-center rounded-full bg-accent-soft text-accent">
-          <Upload className="size-5" />
-        </span>
-        <span className="font-medium">
-          {multiple ? "Choose files" : "Choose a file"}{" "}
-          <span className="font-normal text-muted">or drop {multiple ? "them" : "it"} here</span>
-        </span>
-        <span className="text-xs text-subtle">
-          {named} · up to {formatBytes(maxBytes)}
-          {multiple ? " each" : ""}
-          {hint ? ` · ${hint}` : ""}
-        </span>
+        <div className="mx-auto flex max-w-sm flex-col items-center gap-3 text-center">
+          <Button variant="primary" size="lg" className="w-full" onClick={() => input.current?.click()}>
+            <FolderOpen className="size-5" aria-hidden /> {multiple ? "Choose files" : "Choose a file"}
+          </Button>
+          {camera && (
+            <Button variant="secondary" size="lg" className="w-full" onClick={() => cameraInput.current?.click()}>
+              <Camera className="size-5" aria-hidden /> Take a photo
+            </Button>
+          )}
+          <p className="text-body-sm text-muted">
+            {named}, up to <span className="font-mono">{formatBytes(maxBytes)}</span>
+            {multiple ? " each" : ""}.
+            <span className="hidden [@media(pointer:fine)]:inline"> Or drop {multiple ? "them" : "it"} here.</span>
+          </p>
+        </div>
         <input
           ref={input}
-          id={id}
           type="file"
           accept={accept}
           multiple={multiple}
-          className="sr-only"
+          hidden
           onChange={(e) => void take(e.target.files)}
         />
-      </label>
-      {error && (
-        <p role="alert" className="mt-3 text-sm text-danger">
-          {error}
-        </p>
+        {camera && (
+          <input
+            ref={cameraInput}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            hidden
+            onChange={(e) => void take(e.target.files)}
+          />
+        )}
+      </div>
+      {problems.length > 0 && (
+        <Notice tone="error" className="mt-3">
+          {problems.map((p) => (
+            <p key={p}>{p}</p>
+          ))}
+        </Notice>
+      )}
+      {warning && (
+        <Notice tone="warning" className="mt-3">
+          {warning}
+        </Notice>
       )}
     </div>
   );

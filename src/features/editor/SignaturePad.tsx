@@ -1,7 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { Eraser, X } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Eraser } from "lucide-react";
+import { Button } from "@/components/ui/Button";
+import { Dialog } from "@/components/ui/Dialog";
+import { Field } from "@/components/ui/Field";
+import { Notice } from "@/components/ui/Feedback";
+import { cn } from "@/lib/cn";
 import { context2d } from "@/lib/canvas";
 import { readBytes } from "@/lib/download";
 import { sniff } from "@/lib/files";
@@ -66,55 +71,99 @@ export async function imageFromFile(file: File): Promise<PlacedImage> {
 }
 
 type Tab = "draw" | "type" | "upload";
+type Point = readonly [number, number];
 
+const TABS: [Tab, string][] = [
+  ["draw", "Draw"],
+  ["type", "Type"],
+  ["upload", "Upload"],
+];
+
+/**
+ * A sheet for making a signature: drawn with a finger, typed in one bundled script face, or from a photo.
+ * Strokes are kept as points and redrawn whenever the sheet changes size, so turning the phone never
+ * moves a line away from where it was drawn, and a touch taken over by the system loses nothing.
+ */
 export function SignaturePad({ onDone, onClose }: { onDone: (img: PlacedImage) => void; onClose: () => void }) {
   const [tab, setTab] = useState<Tab>("draw");
   const [name, setName] = useState("");
   const [error, setError] = useState("");
   const pad = useRef<HTMLCanvasElement>(null);
-  const drawing = useRef(false);
-  const dialog = useRef<HTMLDialogElement>(null);
+  const strokes = useRef<Point[][]>([]);
+  const current = useRef<Point[] | null>(null);
 
-  useEffect(() => {
-    const d = dialog.current;
-    d?.showModal();
-    return () => d?.close();
+  const redraw = useCallback(() => {
+    const c = pad.current;
+    if (!c) return;
+    const ratio = Math.min(window.devicePixelRatio || 1, 2);
+    const w = c.clientWidth;
+    const h = c.clientHeight;
+    if (c.width !== Math.round(w * ratio) || c.height !== Math.round(h * ratio)) {
+      c.width = Math.round(w * ratio);
+      c.height = Math.round(h * ratio);
+    }
+    const ctx = context2d(c);
+    ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+    ctx.clearRect(0, 0, w, h);
+    ctx.lineWidth = 2.6;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.strokeStyle = INK;
+    for (const stroke of [...strokes.current, ...(current.current ? [current.current] : [])]) {
+      const [first, ...rest] = stroke;
+      if (!first) continue;
+      ctx.beginPath();
+      ctx.moveTo(first[0], first[1]);
+      if (rest.length === 0) ctx.lineTo(first[0] + 0.1, first[1] + 0.1);
+      // Smooth the line through the midpoints of neighbouring points.
+      for (let i = 0; i < rest.length; i++) {
+        const a = rest[i];
+        const b = rest[i + 1];
+        if (!a) continue;
+        if (b) ctx.quadraticCurveTo(a[0], a[1], (a[0] + b[0]) / 2, (a[1] + b[1]) / 2);
+        else ctx.lineTo(a[0], a[1]);
+      }
+      ctx.stroke();
+    }
   }, []);
 
   useEffect(() => {
     const c = pad.current;
     if (!c || tab !== "draw") return;
-    const ratio = Math.min(window.devicePixelRatio || 1, 2);
-    c.width = c.clientWidth * ratio;
-    c.height = c.clientHeight * ratio;
-    const ctx = context2d(c);
-    ctx.scale(ratio, ratio);
-    ctx.lineWidth = 2.4;
-    ctx.lineCap = "round";
-    ctx.lineJoin = "round";
-    ctx.strokeStyle = INK;
-  }, [tab]);
+    redraw();
+    const ro = new ResizeObserver(redraw);
+    ro.observe(c);
+    return () => ro.disconnect();
+  }, [tab, redraw]);
 
-  const point = (e: React.PointerEvent<HTMLCanvasElement>) => {
+  const point = (e: React.PointerEvent<HTMLCanvasElement>): Point => {
     const r = e.currentTarget.getBoundingClientRect();
-    return [e.clientX - r.left, e.clientY - r.top] as const;
+    return [e.clientX - r.left, e.clientY - r.top];
+  };
+
+  const finish = () => {
+    if (current.current) strokes.current.push(current.current);
+    current.current = null;
+    redraw();
   };
 
   async function applyDrawn() {
     const canvas = pad.current;
-    const img = canvas ? await trimmedPng(canvas) : null;
+    const img = canvas && strokes.current.length ? await trimmedPng(canvas) : null;
     if (!img) return setError("Draw your signature first.");
     onDone(img);
   }
 
   async function applyTyped() {
     if (!name.trim()) return setError("Type your name first.");
+    const family = getComputedStyle(document.documentElement).getPropertyValue("--font-script").trim() || "cursive";
+    await document.fonts.load(`110px ${family}`, name).catch(() => []);
     const c = document.createElement("canvas");
     c.width = 1200;
     c.height = 300;
     const ctx = context2d(c);
     ctx.fillStyle = INK;
-    ctx.font = "italic 110px 'Segoe Script', 'Brush Script MT', 'Snell Roundhand', cursive";
+    ctx.font = `110px ${family}`;
     ctx.textBaseline = "middle";
     ctx.fillText(name.trim(), 20, 150, 1160);
     const img = await trimmedPng(c);
@@ -131,119 +180,124 @@ export function SignaturePad({ onDone, onClose }: { onDone: (img: PlacedImage) =
   }
 
   return (
-    <dialog
-      ref={dialog}
-      onCancel={onClose}
-      className="m-auto w-[min(92vw,34rem)] rounded-2xl border border-line bg-surface p-0 text-fg backdrop:bg-black/50"
-    >
-      <div className="flex items-center justify-between border-b border-line px-5 py-3">
-        <h2 className="font-semibold">Add your signature</h2>
-        <button type="button" aria-label="Close" className="btn btn-quiet size-8 p-0" onClick={onClose}>
-          <X className="size-4" />
-        </button>
+    <Dialog open onClose={onClose} title="Add your signature">
+      <div role="tablist" aria-label="Signature type" className="flex gap-1 rounded-md bg-raised p-1">
+        {TABS.map(([t, label]) => (
+          <button
+            key={t}
+            id={`sig-tab-${t}`}
+            role="tab"
+            type="button"
+            aria-selected={tab === t}
+            aria-controls="sig-panel"
+            tabIndex={tab === t ? 0 : -1}
+            onClick={() => {
+              setTab(t);
+              setError("");
+            }}
+            onKeyDown={(e) => {
+              const k = TABS.findIndex(([id]) => id === tab);
+              const next = e.key === "ArrowRight" ? k + 1 : e.key === "ArrowLeft" ? k - 1 : null;
+              const target = next === null ? undefined : TABS[(next + TABS.length) % TABS.length];
+              if (target) {
+                setTab(target[0]);
+                document.getElementById(`sig-tab-${target[0]}`)?.focus();
+              }
+            }}
+            className={cn(
+              "transition-quick min-h-11 flex-1 rounded-sm font-medium",
+              tab === t ? "bg-surface shadow-sm" : "text-muted",
+            )}
+          >
+            {label}
+          </button>
+        ))}
       </div>
-      <div className="p-5">
-        <div role="tablist" className="flex gap-1 rounded-lg bg-raised p-1 text-sm">
-          {(["draw", "type", "upload"] as Tab[]).map((t) => (
-            <button
-              key={t}
-              role="tab"
-              type="button"
-              aria-selected={tab === t}
-              onClick={() => {
-                setTab(t);
-                setError("");
-              }}
-              className={`flex-1 rounded-md px-3 py-1.5 capitalize ${tab === t ? "bg-surface font-medium shadow-sm" : "text-muted"}`}
-            >
-              {t}
-            </button>
-          ))}
-        </div>
 
+      <div id="sig-panel" role="tabpanel" aria-labelledby={`sig-tab-${tab}`} className="mt-4 space-y-4">
         {tab === "draw" && (
-          <div className="mt-4">
-            <canvas
-              ref={pad}
-              className="h-44 w-full touch-none rounded-xl border border-dashed border-line bg-white"
-              onPointerDown={(e) => {
-                drawing.current = true;
-                e.currentTarget.setPointerCapture(e.pointerId);
-                const ctx = context2d(e.currentTarget);
-                const [x, y] = point(e);
-                ctx.beginPath();
-                ctx.moveTo(x, y);
-                ctx.lineTo(x + 0.1, y + 0.1);
-                ctx.stroke();
-              }}
-              onPointerMove={(e) => {
-                if (!drawing.current) return;
-                const ctx = context2d(e.currentTarget);
-                const [x, y] = point(e);
-                ctx.lineTo(x, y);
-                ctx.stroke();
-              }}
-              onPointerUp={() => (drawing.current = false)}
-            />
-            <div className="mt-3 flex justify-between">
-              <button
-                type="button"
-                className="btn btn-quiet"
+          <>
+            <div className="relative">
+              <canvas
+                ref={pad}
+                aria-label="Signature area. Draw with your finger or a mouse."
+                className="h-56 w-full touch-none rounded-lg border border-dashed border-control bg-white"
+                onPointerDown={(e) => {
+                  e.currentTarget.setPointerCapture(e.pointerId);
+                  current.current = [point(e)];
+                  setError("");
+                  redraw();
+                }}
+                onPointerMove={(e) => {
+                  if (!current.current) return;
+                  current.current.push(point(e));
+                  redraw();
+                }}
+                onPointerUp={finish}
+                onPointerCancel={finish}
+              />
+              <span
+                className="pointer-events-none absolute inset-x-6 bottom-12 border-b border-neutral-300"
+                aria-hidden
+              />
+            </div>
+            <div className="flex justify-end gap-3">
+              <Button
+                variant="secondary"
                 onClick={() => {
-                  const c = pad.current;
-                  if (c) context2d(c).clearRect(0, 0, c.width, c.height);
+                  strokes.current = [];
+                  current.current = null;
+                  redraw();
                 }}
               >
-                <Eraser className="size-4" /> Clear
-              </button>
-              <button type="button" className="btn btn-primary" onClick={applyDrawn}>
+                <Eraser className="size-5" aria-hidden /> Clear
+              </Button>
+              <Button variant="primary" onClick={applyDrawn}>
                 Use signature
-              </button>
+              </Button>
             </div>
-          </div>
+          </>
         )}
-
         {tab === "type" && (
-          <div className="mt-4 space-y-3">
-            <input
-              className="field"
-              placeholder="Your full name"
+          <>
+            <Field
+              label="Your name"
+              type="text"
+              autoComplete="name"
+              autoCapitalize="words"
+              spellCheck={false}
+              enterKeyHint="done"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              autoFocus
             />
             <p
-              className="min-h-16 rounded-xl border border-dashed border-line bg-white px-4 py-3 text-4xl italic"
-              style={{ color: INK, fontFamily: "'Segoe Script', 'Brush Script MT', 'Snell Roundhand', cursive" }}
+              className="min-h-16 truncate rounded-lg border border-line bg-white px-3 py-2 text-5xl text-[#1d2b64]"
+              style={{ fontFamily: "var(--font-script), cursive" }}
+              aria-hidden
             >
-              {name || " "}
+              {name || "Your name"}
             </p>
             <div className="flex justify-end">
-              <button type="button" className="btn btn-primary" onClick={applyTyped}>
+              <Button variant="primary" onClick={applyTyped}>
                 Use signature
-              </button>
+              </Button>
             </div>
-          </div>
+          </>
         )}
-
         {tab === "upload" && (
-          <label className="mt-4 flex cursor-pointer flex-col items-center gap-2 rounded-xl border border-dashed border-line px-4 py-10 text-center text-sm text-muted hover:border-subtle">
-            Choose a photo or scan of your signature (PNG, JPG or WebP). A PNG with a transparent background looks best.
+          <>
+            <p className="text-muted">Choose a photo or scan of your signature on white paper.</p>
             <input
               type="file"
               accept="image/png,image/jpeg,image/webp"
-              className="sr-only"
+              aria-label="Signature image"
+              className="block min-h-11 w-full"
               onChange={(e) => void applyUploaded(e.target.files?.[0])}
             />
-          </label>
+          </>
         )}
-
-        {error && (
-          <p role="alert" className="mt-3 text-sm text-danger">
-            {error}
-          </p>
-        )}
+        {error && <Notice tone="error">{error}</Notice>}
       </div>
-    </dialog>
+    </Dialog>
   );
 }

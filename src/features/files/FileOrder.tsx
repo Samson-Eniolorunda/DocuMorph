@@ -1,10 +1,12 @@
 "use client";
 
+import { useRef, useState } from "react";
 import { ArrowDown, ArrowUp, GripVertical, X } from "lucide-react";
-import { useState } from "react";
+import { IconButton } from "@/components/ui/Button";
+import { cn } from "@/lib/cn";
 import { formatBytes } from "@/lib/files";
 
-/** A list people can reorder by dragging or with the arrow buttons (keyboard friendly). */
+/** Reorders a list: press and drag the handle with a finger or mouse, or use Move up and Move down. */
 export function FileOrder<T extends { id: string; file: File }>({
   items,
   onChange,
@@ -13,6 +15,7 @@ export function FileOrder<T extends { id: string; file: File }>({
   onChange: (items: T[]) => void;
 }) {
   const [dragging, setDragging] = useState<number | null>(null);
+  const rows = useRef<(HTMLLIElement | null)[]>([]);
 
   const move = (from: number, to: number) => {
     if (to < 0 || to >= items.length || from === to) return;
@@ -23,56 +26,62 @@ export function FileOrder<T extends { id: string; file: File }>({
     onChange(next);
   };
 
+  const overRow = (y: number) =>
+    rows.current.findIndex((r) => r && y >= r.getBoundingClientRect().top && y <= r.getBoundingClientRect().bottom);
+
   return (
-    <ol className="divide-y divide-line rounded-2xl border border-line bg-surface">
+    <ol className="divide-y divide-line overflow-hidden rounded-lg border border-line bg-surface">
       {items.map((it, i) => (
         <li
           key={it.id}
-          draggable
-          onDragStart={() => setDragging(i)}
-          onDragOver={(e) => {
-            e.preventDefault();
-            if (dragging !== null && dragging !== i) {
-              move(dragging, i);
-              setDragging(i);
-            }
+          ref={(el) => {
+            rows.current[i] = el;
           }}
-          onDragEnd={() => setDragging(null)}
-          className={`flex items-center gap-3 px-3 py-2.5 ${dragging === i ? "opacity-50" : ""}`}
+          className={cn(
+            "flex flex-wrap items-center gap-x-1 gap-y-0 py-1 pl-1 pr-2",
+            dragging === i && "bg-accent-tint",
+          )}
         >
-          <GripVertical className="size-4 shrink-0 cursor-grab text-subtle" aria-hidden />
-          <span className="w-6 shrink-0 text-right font-mono text-xs text-subtle">{i + 1}</span>
-          <span className="min-w-0 flex-1">
-            <span className="block truncate text-sm">{it.file.name}</span>
-            <span className="text-xs text-subtle">{formatBytes(it.file.size)}</span>
+          <button
+            type="button"
+            aria-label={`Drag ${it.file.name} to a new position`}
+            className="flex size-11 shrink-0 cursor-grab touch-none items-center justify-center text-subtle"
+            onPointerDown={(e) => {
+              e.currentTarget.setPointerCapture(e.pointerId);
+              setDragging(i);
+            }}
+            onPointerMove={(e) => {
+              if (dragging === null) return;
+              const target = overRow(e.clientY);
+              if (target >= 0 && target !== dragging) {
+                move(dragging, target);
+                setDragging(target);
+              }
+            }}
+            onPointerUp={() => setDragging(null)}
+            onPointerCancel={() => setDragging(null)}
+          >
+            <GripVertical className="size-5" aria-hidden />
+          </button>
+          <span className="w-6 shrink-0 text-right font-mono text-body-sm text-subtle">{i + 1}</span>
+          <span className="min-w-0 flex-1 basis-40 px-2">
+            <span className="block truncate">{it.file.name}</span>
+            <span className="font-mono text-body-sm text-subtle">{formatBytes(it.file.size)}</span>
           </span>
-          <span className="flex shrink-0 gap-1">
-            <button
-              type="button"
-              aria-label={`Move ${it.file.name} up`}
-              className="btn btn-quiet size-8 p-0"
-              disabled={i === 0}
-              onClick={() => move(i, i - 1)}
-            >
-              <ArrowUp className="size-4" />
-            </button>
-            <button
-              type="button"
-              aria-label={`Move ${it.file.name} down`}
-              className="btn btn-quiet size-8 p-0"
+          <span className="ml-auto flex">
+            <IconButton label={`Move ${it.file.name} up`} disabled={i === 0} onClick={() => move(i, i - 1)}>
+              <ArrowUp className="size-5" />
+            </IconButton>
+            <IconButton
+              label={`Move ${it.file.name} down`}
               disabled={i === items.length - 1}
               onClick={() => move(i, i + 1)}
             >
-              <ArrowDown className="size-4" />
-            </button>
-            <button
-              type="button"
-              aria-label={`Remove ${it.file.name}`}
-              className="btn btn-quiet size-8 p-0"
-              onClick={() => onChange(items.filter((_, j) => j !== i))}
-            >
-              <X className="size-4" />
-            </button>
+              <ArrowDown className="size-5" />
+            </IconButton>
+            <IconButton label={`Remove ${it.file.name}`} onClick={() => onChange(items.filter((_, j) => j !== i))}>
+              <X className="size-5" />
+            </IconButton>
           </span>
         </li>
       ))}

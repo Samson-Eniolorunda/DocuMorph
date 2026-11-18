@@ -33,3 +33,18 @@ export async function zip(files: OutputFile[], name: string): Promise<OutputFile
 export const pdfBlob = (bytes: Uint8Array) => new Blob([bytes as BlobPart], { type: "application/pdf" });
 
 export const readBytes = async (file: Blob) => new Uint8Array(await file.arrayBuffer());
+
+/** True where the browser can hand files to the system share sheet (Files, WhatsApp, e-mail). */
+export function canShare(files: OutputFile[]) {
+  if (typeof navigator === "undefined" || !navigator.canShare) return false;
+  return navigator.canShare({ files: files.map((f) => new File([f.blob], f.name, { type: f.blob.type })) });
+}
+
+/** Opens the system share sheet. Resolves quietly when the person dismisses it. */
+export async function share(files: OutputFile[]) {
+  try {
+    await navigator.share({ files: files.map((f) => new File([f.blob], f.name, { type: f.blob.type })) });
+  } catch (e) {
+    if (!(e instanceof DOMException && e.name === "AbortError")) throw e;
+  }
+}

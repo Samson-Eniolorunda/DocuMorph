@@ -1,6 +1,7 @@
 // Image work in the browser with a canvas: convert, resize and compress.
 
 import { context2d } from "./canvas";
+import { pixelScale } from "./limits";
 import { fitToSize } from "./target-size";
 
 export type ImageType = "image/jpeg" | "image/png" | "image/webp";
@@ -15,10 +16,20 @@ export async function decode(file: Blob) {
   }
 }
 
+/** Pixel size of an image, read without keeping it in memory. */
+export async function readDimensions(file: Blob) {
+  const bitmap = await decode(file);
+  const size = { width: bitmap.width, height: bitmap.height };
+  bitmap.close();
+  return size;
+}
+
+/** Draws at the size asked for, or smaller where a phone could not allocate that many pixels. */
 export function draw(bitmap: ImageBitmap, width: number, height: number, type: ImageType) {
   const canvas = document.createElement("canvas");
-  canvas.width = Math.max(1, Math.round(width));
-  canvas.height = Math.max(1, Math.round(height));
+  const fit = pixelScale(width, height);
+  canvas.width = Math.max(1, Math.round(width * fit));
+  canvas.height = Math.max(1, Math.round(height * fit));
   const ctx = context2d(canvas);
   // JPEG has no transparency: put transparent areas on white, not black.
   if (type === "image/jpeg") {

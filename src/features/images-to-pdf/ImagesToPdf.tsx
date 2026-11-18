@@ -1,14 +1,19 @@
 "use client";
 
 import { useState } from "react";
-import { Images, Loader2 } from "lucide-react";
+import { FileImage } from "lucide-react";
+import { ActionBar } from "@/components/layout/ActionBar";
+import { Button } from "@/components/ui/Button";
+import { RadioGroup } from "@/components/ui/Choice";
+import { Notice } from "@/components/ui/Feedback";
 import { Dropzone } from "@/features/files/Dropzone";
 import { FileOrder, newId } from "@/features/files/FileOrder";
-import { ErrorNote, Results, explain } from "@/features/files/Results";
-import { DEVICE_MAX_BYTES, type FileKind } from "@/lib/files";
+import { Results } from "@/features/files/Results";
 import { pdfBlob, readBytes, type OutputFile } from "@/lib/download";
+import { explain } from "@/lib/errors";
+import { DEVICE_MAX_BYTES, type FileKind } from "@/lib/files";
 import { decode, draw, encode } from "@/lib/image";
-import { imagesToPdf, type PageSize, type PdfImageInput } from "@/lib/pdf/ops";
+import type { PageSize, PdfImageInput } from "@/lib/pdf/ops";
 
 type Item = { id: string; file: File; kind: FileKind };
 
@@ -32,9 +37,10 @@ export function ImagesToPdf() {
     setBusy(true);
     setError("");
     try {
-      const imgs = [];
-      for (const it of items) imgs.push(await toPdfImage(it));
-      setOut({ name: "images.pdf", blob: pdfBlob(await imagesToPdf(imgs, { size })) });
+      const { imagesToPdf } = await import("@/lib/pdf/ops");
+      const images: PdfImageInput[] = [];
+      for (const it of items) images.push(await toPdfImage(it));
+      setOut({ name: "images.pdf", blob: pdfBlob(await imagesToPdf(images, { size })) });
     } catch (e) {
       setError(explain(e));
     } finally {
@@ -49,38 +55,30 @@ export function ImagesToPdf() {
       <Dropzone
         kinds={["jpg", "png", "webp"]}
         multiple
+        camera
         maxBytes={DEVICE_MAX_BYTES}
         onFiles={(f) => setItems((cur) => [...cur, ...f.map((p) => ({ id: newId(), file: p.file, kind: p.kind }))])}
       />
       {items.length > 0 && (
         <>
           <FileOrder items={items} onChange={setItems} />
-          <fieldset className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm">
-            <legend className="mb-2 font-medium">Page size</legend>
-            {(
-              [
-                ["a4", "A4"],
-                ["letter", "US Letter"],
-                ["fit", "Same as each image"],
-              ] as const
-            ).map(([v, l]) => (
-              <label key={v} className="flex items-center gap-2">
-                <input
-                  type="radio"
-                  name="size"
-                  checked={size === v}
-                  onChange={() => setSize(v)}
-                  className="accent-[var(--accent)]"
-                />{" "}
-                {l}
-              </label>
-            ))}
-          </fieldset>
-          <ErrorNote message={error} />
-          <button type="button" className="btn btn-primary" disabled={busy} onClick={run}>
-            {busy ? <Loader2 className="size-4 animate-spin" /> : <Images className="size-4" />}
-            {busy ? "Creating…" : `Create PDF from ${items.length} image${items.length === 1 ? "" : "s"}`}
-          </button>
+          <RadioGroup
+            legend="Page size"
+            value={size}
+            onChange={setSize}
+            options={[
+              { value: "a4", label: "A4" },
+              { value: "letter", label: "US Letter" },
+              { value: "fit", label: "Same size as each image" },
+            ]}
+          />
+          {error && <Notice tone="error">{error}</Notice>}
+          <ActionBar>
+            <Button variant="primary" size="lg" busy={busy} onClick={run}>
+              <FileImage className="size-5" aria-hidden />{" "}
+              {busy ? "Creating…" : `Create PDF from ${items.length} image${items.length === 1 ? "" : "s"}`}
+            </Button>
+          </ActionBar>
         </>
       )}
     </div>

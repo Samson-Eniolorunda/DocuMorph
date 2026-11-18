@@ -1,12 +1,18 @@
 "use client";
 
 import { useState } from "react";
-import { Loader2, Scissors } from "lucide-react";
+import { Scissors } from "lucide-react";
+import { ActionBar } from "@/components/layout/ActionBar";
+import { Button } from "@/components/ui/Button";
+import { RadioGroup } from "@/components/ui/Choice";
+import { Notice } from "@/components/ui/Feedback";
+import { RangesField } from "@/components/ui/RangesField";
+import { Stepper } from "@/components/ui/Slider";
 import { Dropzone } from "@/features/files/Dropzone";
-import { ErrorNote, Results, explain } from "@/features/files/Results";
-import { DEVICE_MAX_BYTES, renameTo } from "@/lib/files";
+import { Results } from "@/features/files/Results";
 import { pdfBlob, readBytes, type OutputFile } from "@/lib/download";
-import { pageCount, split } from "@/lib/pdf/ops";
+import { explain } from "@/lib/errors";
+import { DEVICE_MAX_BYTES, formatBytes, renameTo } from "@/lib/files";
 import { chunkPages, groupLabel, parseRanges } from "@/lib/ranges";
 
 type Mode = "ranges" | "every" | "each";
@@ -25,6 +31,7 @@ export function SplitPdf() {
   async function open(f: File) {
     setError("");
     try {
+      const { pageCount } = await import("@/lib/pdf/ops");
       const b = await readBytes(f);
       const n = await pageCount(b);
       setFile(f);
@@ -38,18 +45,21 @@ export function SplitPdf() {
     }
   }
 
+  const parsed = mode === "ranges" ? parseRanges(ranges, pages) : null;
+  const rangeError = parsed && !parsed.ok ? parsed.error : undefined;
+
   async function run() {
     if (!bytes || !file) return;
     setError("");
     let groups: number[][];
-    if (mode === "ranges") {
-      const r = parseRanges(ranges, pages);
-      if (!r.ok) return setError(r.error);
-      groups = r.groups;
+    if (parsed) {
+      if (!parsed.ok) return;
+      groups = parsed.groups;
     } else groups = chunkPages(pages, mode === "each" ? 1 : every);
 
     setBusy(true);
     try {
+      const { split } = await import("@/lib/pdf/ops");
       const parts = await split(bytes, groups);
       setOut(
         parts.map((p, i) => ({
@@ -64,89 +74,65 @@ export function SplitPdf() {
     }
   }
 
+  const reset = () => {
+    setOut(null);
+    setFile(null);
+    setBytes(null);
+  };
+
   if (out)
-    return (
-      <Results
-        files={out}
-        zipName={renameTo(file?.name ?? "document.pdf", "zip", "-split")}
-        onReset={() => (setOut(null), setFile(null))}
-      />
-    );
+    return <Results files={out} zipName={renameTo(file?.name ?? "document.pdf", "zip", "-split")} onReset={reset} />;
 
   if (!file)
     return (
       <div className="space-y-3">
         <Dropzone kinds={["pdf"]} maxBytes={DEVICE_MAX_BYTES} onFiles={([p]) => void open(p.file)} />
-        <ErrorNote message={error} />
+        {error && <Notice tone="error">{error}</Notice>}
       </div>
     );
 
   return (
-    <div className="space-y-5 rounded-2xl border border-line bg-surface p-5">
-      <p className="text-sm text-muted">
-        {file.name} · {pages} page{pages === 1 ? "" : "s"}
+    <div className="space-y-5">
+      <p className="min-w-0 truncate text-muted">
+        {file.name}, <span className="font-mono">{formatBytes(file.size)}</span>, {pages} page{pages === 1 ? "" : "s"}
       </p>
-      <fieldset className="space-y-3 text-sm">
-        <legend className="mb-2 font-medium">How to split</legend>
-        <label className="flex items-center gap-2">
-          <input
-            type="radio"
-            checked={mode === "ranges"}
-            onChange={() => setMode("ranges")}
-            className="accent-[var(--accent)]"
-          />{" "}
-          Page ranges (one file per range)
-        </label>
-        {mode === "ranges" && (
-          <div className="pl-6">
-            <input
-              className="field max-w-sm"
-              value={ranges}
-              onChange={(e) => setRanges(e.target.value)}
-              aria-label="Page ranges"
-            />
-            <p className="mt-1 text-xs text-subtle">For example: 1-3, 5, 8- (8- means page 8 to the end)</p>
-          </div>
-        )}
-        <label className="flex items-center gap-2">
-          <input
-            type="radio"
-            checked={mode === "every"}
-            onChange={() => setMode("every")}
-            className="accent-[var(--accent)]"
-          />{" "}
-          Every
-          <input
-            type="number"
-            min={1}
-            max={pages}
-            value={every}
-            onChange={(e) => setEvery(Math.max(1, Number(e.target.value) || 1))}
-            className="field w-20"
-            aria-label="Pages per file"
-            onFocus={() => setMode("every")}
-          />
-          pages
-        </label>
-        <label className="flex items-center gap-2">
-          <input
-            type="radio"
-            checked={mode === "each"}
-            onChange={() => setMode("each")}
-            className="accent-[var(--accent)]"
-          />{" "}
-          Every page as its own file
-        </label>
-      </fieldset>
-      <ErrorNote message={error} />
-      <div className="flex gap-2">
-        <button type="button" className="btn btn-primary" disabled={busy} onClick={run}>
-          {busy ? <Loader2 className="size-4 animate-spin" /> : <Scissors className="size-4" />} Split PDF
-        </button>
-        <button type="button" className="btn btn-quiet" onClick={() => setFile(null)}>
+      <RadioGroup
+        legend="How to split"
+        value={mode}
+        onChange={setMode}
+        options={[
+          { value: "ranges", label: "By page ranges", hint: "One file for each range." },
+          { value: "every", label: "Every few pages" },
+          { value: "each", label: "Every page as its own file" },
+        ]}
+      />
+      {mode === "ranges" && (
+        <RangesField
+          label="Page ranges"
+          value={ranges}
+          onChange={setRanges}
+          error={ranges.trim() ? rangeError : undefined}
+          hint="For example 1-3, 5, 8- (8- means page 8 to the end)."
+        />
+      )}
+      {mode === "every" && (
+        <Stepper label="Pages per file" value={every} onChange={setEvery} min={1} max={Math.max(1, pages)} />
+      )}
+      {error && <Notice tone="error">{error}</Notice>}
+      <ActionBar>
+        <Button variant="secondary" size="lg" onClick={reset}>
           Choose another file
-        </button>
-      </div>
+        </Button>
+        <Button
+          variant="primary"
+          size="lg"
+          busy={busy}
+          disabled={Boolean(rangeError) || (mode === "ranges" && !ranges.trim())}
+          onClick={run}
+        >
+          <Scissors className="size-5" aria-hidden /> Split PDF
+        </Button>
+      </ActionBar>
     </div>
   );
 }

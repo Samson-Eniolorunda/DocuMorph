@@ -1,0 +1,33 @@
+import {
+  Combine,
+  FileArchive,
+  FileImage,
+  FileOutput,
+  FileSpreadsheet,
+  FileText,
+  Images,
+  LayoutGrid,
+  PenLine,
+  Repeat,
+  Scaling,
+  Scissors,
+  Shrink,
+  type LucideIcon,
+} from "lucide-react";
+
+export const TOOL_ICONS: Record<string, LucideIcon> = {
+  "edit-pdf": PenLine,
+  "merge-pdf": Combine,
+  "split-pdf": Scissors,
+  "organise-pdf": LayoutGrid,
+  "images-to-pdf": Images,
+  "pdf-to-images": FileImage,
+  "convert-image": Repeat,
+  "resize-image": Scaling,
+  "compress-image": Shrink,
+  "word-to-pdf": FileText,
+  "pdf-to-word": FileOutput,
+  "excel-to-pdf": FileSpreadsheet,
+  "pdf-to-excel": FileSpreadsheet,
+  "compress-pdf": FileArchive,
+};

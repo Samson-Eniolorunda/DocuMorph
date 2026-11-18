@@ -13,28 +13,28 @@ export interface LimitResult {
   reason?: "visitor" | "site";
 }
 
-type Counter = (key: string, ttlSeconds: number) => Promise<number>;
+export type Counter = (key: string, ttlSeconds: number, by?: number) => Promise<number>;
 
 const memory = new Map<string, { n: number; expires: number }>();
 
-export const memoryCounter: Counter = async (key, ttl) => {
+export const memoryCounter: Counter = async (key, ttl, by = 1) => {
   const now = Date.now();
   const hit = memory.get(key);
   if (!hit || hit.expires <= now) {
-    memory.set(key, { n: 1, expires: now + ttl * 1000 });
-    return 1;
+    memory.set(key, { n: by, expires: now + ttl * 1000 });
+    return by;
   }
-  hit.n += 1;
+  hit.n += by;
   return hit.n;
 };
 
 function upstashCounter(url: string, token: string): Counter {
-  return async (key, ttl) => {
+  return async (key, ttl, by = 1) => {
     const res = await fetch(`${url}/pipeline`, {
       method: "POST",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
       body: JSON.stringify([
-        ["INCR", key],
+        ["INCRBY", key, String(by)],
         ["EXPIRE", key, String(ttl), "NX"],
       ]),
       cache: "no-store",
@@ -65,4 +65,19 @@ export async function checkLimit(
     if (all > perSite) return { ok: false, remaining: 0, reason: "site" };
   }
   return { ok: true, remaining: perVisitor - mine };
+}
+
+/** Gives back one conversion, for a visitor whose conversion failed. */
+export async function refund(
+  visitor: string,
+  { perSite, today }: { perSite: number; today: string },
+  count: Counter = defaultCounter(),
+) {
+  await count(`dm:${today}:v:${visitor}`, DAY, -1);
+  if (perSite > 0) await count(`dm:${today}:site`, DAY, -1);
+}
+
+/** A separate, generous allowance for downloading and deleting results, so those calls cannot be used without limit. */
+export async function checkResultCalls(visitor: string, today: string, max = 60, count: Counter = defaultCounter()) {
+  return (await count(`dm:${today}:r:${visitor}`, DAY)) <= max;
 }
