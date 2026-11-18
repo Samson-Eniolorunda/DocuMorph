@@ -2,7 +2,7 @@ import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 import { TOOL_SLUGS, pdfFile, pick } from "./helpers";
 
-const PAGES = ["/", "/privacy", "/no-such-page", ...TOOL_SLUGS.map((s) => `/${s}`)];
+const PAGES = ["/", "/privacy", "/terms", "/no-such-page", ...TOOL_SLUGS.map((s) => `/${s}`)];
 
 for (const theme of ["light", "dark"] as const) {
   for (const url of PAGES) {
