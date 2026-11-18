@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
 import { Field, TextArea } from "@/components/ui/Field";
 import { Notice } from "@/components/ui/Feedback";
-import { FEEDBACK_MAX } from "@/schemas/feedback";
+import { FEEDBACK_MAX } from "@/config/feedback";
 
 type State = { kind: "editing" } | { kind: "sending" } | { kind: "sent" } | { kind: "failed"; message: string };
 

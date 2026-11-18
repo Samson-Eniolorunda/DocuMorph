@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const FEEDBACK_MAX = 2000;
+import { FEEDBACK_MAX } from "@/config/feedback";
 
 /** A feedback message. The e-mail address is optional and only used to reply. */
 export const feedbackSchema = z.object({
