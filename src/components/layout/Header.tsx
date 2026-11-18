@@ -1,13 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useState, useSyncExternalStore } from "react";
 import { LayoutGrid, Moon, Sun } from "lucide-react";
 import { Logo } from "./Logo";
 import { ToolList } from "./ToolList";
 import { Button, IconButton } from "@/components/ui/Button";
-import { Dialog } from "@/components/ui/Dialog";
+import { Dialog, afterSheetsClose } from "@/components/ui/Dialog";
 import { CoffeeLink } from "./CoffeeLink";
 import { FeedbackLink } from "@/features/feedback/FeedbackLink";
 
@@ -50,6 +50,7 @@ function ThemeToggle() {
 export function Header() {
   const [open, setOpen] = useState(false);
   const path = usePathname();
+  const router = useRouter();
   return (
     <header className="sticky top-0 z-40 border-b border-line bg-surface pt-[env(safe-area-inset-top)]">
       <div className="mx-auto flex h-14 max-w-6xl items-center justify-between pl-[max(1rem,env(safe-area-inset-left))] pr-[max(0.5rem,env(safe-area-inset-right))] sm:pl-[max(1.5rem,env(safe-area-inset-left))] sm:pr-[max(1rem,env(safe-area-inset-right))]">
@@ -64,7 +65,13 @@ export function Header() {
         </nav>
       </div>
       <Dialog open={open} onClose={() => setOpen(false)} title="All tools" side>
-        <ToolList current={path.slice(1)} onNavigate={() => setOpen(false)} />
+        <ToolList
+          current={path.slice(1)}
+          onNavigate={(href) => {
+            setOpen(false);
+            afterSheetsClose(() => router.push(href));
+          }}
+        />
         <div className="mt-6 flex flex-wrap items-center gap-x-5 border-t border-line pt-3 text-muted">
           <FeedbackLink className="inline-flex min-h-11 items-center underline-offset-4 hover:text-fg hover:underline" />
           <CoffeeLink />

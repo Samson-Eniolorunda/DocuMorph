@@ -5,6 +5,105 @@ import { X } from "lucide-react";
 import { IconButton } from "./Button";
 import { cn } from "@/lib/cn";
 
+// Android's Back gesture and button close the topmost sheet instead of leaving the page. Each open sheet
+// adds one history entry (keeping the router's own state in it) and removes it when it closes.
+const stack: { id: number; close: () => void }[] = [];
+let counter = 0;
+let skipPops = 0;
+let listening = false;
+let afterClose: (() => void) | null = null;
+
+/**
+ * Runs `fn` once every open sheet has finished closing, so a page change never races a sheet's history entry.
+ * Without an open sheet it runs at once.
+ */
+export function afterSheetsClose(fn: () => void) {
+  if (stack.length === 0 && skipPops === 0) fn();
+  else afterClose = fn;
+}
+
+function flushAfterClose() {
+  if (skipPops === 0 && stack.length === 0 && afterClose) {
+    const fn = afterClose;
+    afterClose = null;
+    fn();
+  }
+}
+
+function listen() {
+  if (listening) return;
+  listening = true;
+  window.addEventListener("popstate", () => {
+    if (skipPops > 0) {
+      skipPops -= 1;
+      flushAfterClose();
+      return;
+    }
+    stack.pop()?.close();
+    flushAfterClose();
+  });
+}
+
+function useBackToClose(open: boolean, onClose: () => void) {
+  const close = useRef(onClose);
+  useEffect(() => {
+    close.current = onClose;
+  });
+  useEffect(() => {
+    if (!open) return;
+    listen();
+    const id = ++counter;
+    const state: unknown = window.history.state;
+    window.history.pushState({ ...(typeof state === "object" && state ? state : {}), dmSheet: id }, "");
+    stack.push({ id, close: () => close.current() });
+    return () => {
+      const at = stack.findIndex((s) => s.id === id);
+      if (at >= 0) stack.splice(at, 1);
+      else return; // closed by Back: the entry is already gone
+      const now: unknown = window.history.state;
+      if (typeof now === "object" && now && (now as { dmSheet?: number }).dmSheet === id) {
+        skipPops += 1;
+        window.history.back();
+        return;
+      }
+      flushAfterClose();
+    };
+  }, [open]);
+}
+
+/** Dragging the top of a sheet down closes it (phones). Anything under a threshold springs back. */
+function useSwipeDown(ref: React.RefObject<HTMLDialogElement | null>, onClose: () => void) {
+  return {
+    onPointerDown(e: React.PointerEvent<HTMLElement>) {
+      const el = ref.current;
+      if (!el || !window.matchMedia("(max-width: 767px)").matches || (e.target as HTMLElement).closest("button"))
+        return;
+      const startY = e.clientY;
+      const startAt = e.timeStamp;
+      let dy = 0;
+      const handle = e.currentTarget;
+      handle.setPointerCapture(e.pointerId);
+      const move = (m: PointerEvent) => {
+        dy = Math.max(0, m.clientY - startY);
+        el.style.transition = "none";
+        el.style.transform = `translateY(${dy}px)`;
+      };
+      const end = (u: PointerEvent) => {
+        handle.removeEventListener("pointermove", move);
+        handle.removeEventListener("pointerup", end);
+        handle.removeEventListener("pointercancel", end);
+        el.style.transition = "";
+        const fast = dy / Math.max(1, u.timeStamp - startAt) > 0.6;
+        if (dy > 96 || (fast && dy > 24)) onClose();
+        el.style.transform = "";
+      };
+      handle.addEventListener("pointermove", move);
+      handle.addEventListener("pointerup", end);
+      handle.addEventListener("pointercancel", end);
+    },
+  };
+}
+
 /**
  * A modal dialog on the platform's own <dialog>: it traps focus, closes on Escape and
  * returns focus to where it was. On phones it is a sheet that rises from the bottom,
@@ -27,6 +126,8 @@ export function Dialog({
   side?: boolean;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
+  useBackToClose(open, onClose);
+  const swipe = useSwipeDown(ref, onClose);
 
   useEffect(() => {
     const el = ref.current;
@@ -50,11 +151,14 @@ export function Dialog({
       )}
     >
       <div className="flex max-h-[85dvh] flex-col md:max-h-[inherit]">
-        <div className="flex items-center justify-between gap-2 border-b border-line py-2 pl-4 pr-2">
-          <h2 className="text-title font-semibold">{title}</h2>
-          <IconButton label="Close" onClick={onClose}>
-            <X className="size-5" />
-          </IconButton>
+        <div {...swipe} className="flex touch-none flex-col border-b border-line md:touch-auto" data-sheet-handle>
+          <span aria-hidden className="mx-auto mt-2 h-1 w-10 rounded-full bg-control md:hidden" />
+          <div className="flex items-center justify-between gap-2 py-1 pl-4 pr-2">
+            <h2 className="text-title font-semibold">{title}</h2>
+            <IconButton label="Close" onClick={onClose}>
+              <X className="size-5" />
+            </IconButton>
+          </div>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4">{children}</div>
         {footer && (

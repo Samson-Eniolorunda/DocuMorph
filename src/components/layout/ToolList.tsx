@@ -11,7 +11,8 @@ export function ToolList({
   columns = false,
 }: {
   current?: string;
-  onNavigate?: () => void;
+  /** Called with the address instead of following the link at once, so a sheet can close first. */
+  onNavigate?: (href: string) => void;
   columns?: boolean;
 }) {
   return (
@@ -43,7 +44,15 @@ export function ToolList({
                 >
                   <Link
                     href={`/${t.slug}`}
-                    {...(onNavigate ? { onClick: onNavigate } : {})}
+                    {...(onNavigate
+                      ? {
+                          onClick: (e: React.MouseEvent) => {
+                            if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
+                            e.preventDefault();
+                            onNavigate(`/${t.slug}`);
+                          },
+                        }
+                      : {})}
                     aria-current={here ? "page" : undefined}
                     className={cn(
                       "transition-quick flex min-h-14 items-center gap-3 px-3 py-2.5 active:bg-raised hover:bg-raised",
