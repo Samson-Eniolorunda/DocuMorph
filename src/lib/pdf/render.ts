@@ -7,7 +7,7 @@ let lib: Promise<typeof import("pdfjs-dist")> | null = null;
 
 function pdfjs() {
   lib ??= import("pdfjs-dist").then((m) => {
-    m.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
+    m.GlobalWorkerOptions.workerSrc = new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url).toString();
     return m;
   });
   return lib;
