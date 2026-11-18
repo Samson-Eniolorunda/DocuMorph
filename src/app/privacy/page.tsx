@@ -3,6 +3,7 @@ import Link from "next/link";
 
 export const metadata: Metadata = {
   title: "Privacy",
+  alternates: { canonical: "/privacy" },
   description:
     "Which DocuMorph tools keep your files on your device, and what happens to files sent for server conversion.",
 };

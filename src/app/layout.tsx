@@ -16,6 +16,7 @@ export const metadata: Metadata = {
     "Edit, sign, merge, split and organise PDFs, and convert, resize and compress images, in your browser. Your files stay on your device.",
   applicationName: SITE.name,
   authors: [{ name: SITE.author.name, url: SITE.author.url }],
+  alternates: { canonical: "/" },
   openGraph: { type: "website", siteName: SITE.name, locale: "en_GB" },
   twitter: { card: "summary_large_image" },
 };

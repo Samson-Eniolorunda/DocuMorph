@@ -19,7 +19,11 @@ async function pdf(pages) {
 const file = async (name, pages) => ({ name, mimeType: "application/pdf", buffer: await pdf(pages) });
 
 const browser = await chromium.launch({ executablePath: process.env.PW_CHROMIUM_PATH, args: ["--no-sandbox"] });
-for (const [width, height] of [[360, 740], [390, 844], [1280, 800]]) {
+for (const [width, height] of [
+  [360, 740],
+  [390, 844],
+  [1280, 800],
+]) {
   for (const theme of ["light", "dark"]) {
     const ctx = await browser.newContext({ viewport: { width, height }, colorScheme: theme, hasTouch: width < 700 });
     const page = await ctx.newPage();
@@ -63,7 +67,13 @@ for (const [width, height] of [[360, 740], [390, 844], [1280, 800]]) {
     await page.goto(`${base}/word-to-pdf`);
     await shot("server-empty");
     await page.route("**/api/convert", () => undefined);
-    await pick([{ name: "letter.docx", mimeType: "application/octet-stream", buffer: Buffer.from([0x50, 0x4b, 3, 4, 1, 2, 3, 4]) }]);
+    await pick([
+      {
+        name: "letter.docx",
+        mimeType: "application/octet-stream",
+        buffer: Buffer.from([0x50, 0x4b, 3, 4, 1, 2, 3, 4]),
+      },
+    ]);
     await page.getByRole("button", { name: "Word to PDF" }).click();
     await page.waitForTimeout(300);
     await shot("server-working");

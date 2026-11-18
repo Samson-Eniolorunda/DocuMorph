@@ -84,75 +84,75 @@ checklist keeps the capability and section 9 asks the owner how it should behave
 
 #### A. Shell and navigation
 
-- [ ] **NAV-01** `both` — Start page at `/` with sticky header and footer (`main:index.html:53-653`; `src/components/Header.tsx:35`, `src/components/Footer.tsx:6`). In `v2` the start page is the list of tools, not a tool.
-- [ ] **NAV-02** `both` — Logo and "DocuMorph" wordmark link to the start page (`main:index.html:60-63`; `src/components/Header.tsx:37-39`).
-- [ ] **NAV-03** `main` — Header navigation naming the tools, with the current one highlighted (`main:index.html:65-85`). `v2` shows only "All tools" and "Privacy", and only from 640 px (`src/components/Header.tsx:41-46`).
+- [x] **NAV-01** `both` — Start page at `/` with sticky header and footer (`main:index.html:53-653`; `src/components/Header.tsx:35`, `src/components/Footer.tsx:6`). In `v2` the start page is the list of tools, not a tool.
+- [x] **NAV-02** `both` — Logo and "DocuMorph" wordmark link to the start page (`main:index.html:60-63`; `src/components/Header.tsx:37-39`).
+- [x] **NAV-03** `main` — Header navigation naming the tools, with the current one highlighted (`main:index.html:65-85`). `v2` shows only "All tools" and "Privacy", and only from 640 px (`src/components/Header.tsx:41-46`).
 - [ ] **NAV-04** `main` — "Feedback" item in the header opening the feedback dialog (`main:index.html:86-88`).
-- [ ] **NAV-05** `main` — Menu button on phones opening a full-screen menu (`main:index.html:91-98`, `main:assets/css/styles.css:285-340`). `v2` has no phone menu.
+- [x] **NAV-05** `main` — Menu button on phones opening a full-screen menu (`main:index.html:91-98`, `main:assets/css/styles.css:285-340`). `v2` has no phone menu.
 - [ ] **NAV-06** `main` — Phone menu items: the four tools, Feedback and Donate (`main:index.html:103-166`).
-- [ ] **NAV-07** `both` — Moving to another tool discards the file and settings of the previous one (`main:assets/js/scripts.js:324-341`; in `v2` each tool is a separate page).
-- [ ] **NAV-08** `both` — Light and dark appearance following the device setting (`main:index.html:15`; `src/app/layout.tsx:29`, `src/app/globals.css:4-33`).
-- [ ] **NAV-09** `both` — Responsive layout (`main:assets/css/styles.css:1417-1668`; Tailwind `sm`/`md`/`lg` classes throughout `v2`).
+- [x] **NAV-07** `both` — Moving to another tool discards the file and settings of the previous one (`main:assets/js/scripts.js:324-341`; in `v2` each tool is a separate page).
+- [x] **NAV-08** `both` — Light and dark appearance following the device setting (`main:index.html:15`; `src/app/layout.tsx:29`, `src/app/globals.css:4-33`).
+- [x] **NAV-09** `both` — Responsive layout (`main:assets/css/styles.css:1417-1668`; Tailwind `sm`/`md`/`lg` classes throughout `v2`).
 
 #### B. Convert
 
-- [ ] **CNV-01** `both` — A way to choose among the conversions (`main:index.html:171-212`; `v2`: the tool list, `src/app/page.tsx:65-93`).
-- [ ] **CNV-02** `both` — Word to PDF, `.doc` and `.docx` (`main:assets/js/scripts.js:386-390`; `src/lib/server-tools.ts:22-30`).
-- [ ] **CNV-03** `both` — PDF to Word (`main:assets/js/scripts.js:391-394`; `src/lib/server-tools.ts:31-39`).
-- [ ] **CNV-04** `both` — Excel to PDF, `.xls` and `.xlsx` (`main:assets/js/scripts.js:395-398`; `src/lib/server-tools.ts:40-48`).
-- [ ] **CNV-05** `both` — PDF to Excel (`main:assets/js/scripts.js:399-402`; `src/lib/server-tools.ts:49-57`).
-- [ ] **CNV-06** `both` — JPG to PNG (`main:assets/js/scripts.js:403-406`; `v2`: Convert image, in the browser, `src/tools/ImageTool.tsx:17-21`).
-- [ ] **CNV-07** `both` — PNG to JPG (`main:assets/js/scripts.js:407-410`; `src/tools/ImageTool.tsx:17-21`).
-- [ ] **CNV-08** `both` — The file picker is filtered to the tool's file types and a hint line names them and the size limit (`main:assets/js/scripts.js:372-436`; `src/components/Dropzone.tsx:40`, `:85-89`).
+- [x] **CNV-01** `both` — A way to choose among the conversions (`main:index.html:171-212`; `v2`: the tool list, `src/app/page.tsx:65-93`).
+- [x] **CNV-02** `both` — Word to PDF, `.doc` and `.docx` (`main:assets/js/scripts.js:386-390`; `src/lib/server-tools.ts:22-30`).
+- [x] **CNV-03** `both` — PDF to Word (`main:assets/js/scripts.js:391-394`; `src/lib/server-tools.ts:31-39`).
+- [x] **CNV-04** `both` — Excel to PDF, `.xls` and `.xlsx` (`main:assets/js/scripts.js:395-398`; `src/lib/server-tools.ts:40-48`).
+- [x] **CNV-05** `both` — PDF to Excel (`main:assets/js/scripts.js:399-402`; `src/lib/server-tools.ts:49-57`).
+- [x] **CNV-06** `both` — JPG to PNG (`main:assets/js/scripts.js:403-406`; `v2`: Convert image, in the browser, `src/tools/ImageTool.tsx:17-21`).
+- [x] **CNV-07** `both` — PNG to JPG (`main:assets/js/scripts.js:407-410`; `src/tools/ImageTool.tsx:17-21`).
+- [x] **CNV-08** `both` — The file picker is filtered to the tool's file types and a hint line names them and the size limit (`main:assets/js/scripts.js:372-436`; `src/components/Dropzone.tsx:40`, `:85-89`).
 
 #### C. Compress
 
-- [ ] **CMP-01** `both` — Compress a PDF or an image (`main:index.html:215-239`; `v2`: `/compress-pdf` and `/compress-image`).
-- [ ] **CMP-02** `both` — Choice between compressing by quality and to a target size (`main:index.html:244-265`; `src/tools/ImageTool.tsx:127-134`, images only).
-- [ ] **CMP-03** `both` — A quality control with a live value (`main:index.html:268-286`: slider 1–9 with words; `v2`: 10–100 % slider for images, `src/tools/ImageTool.tsx:157-160`, and three named presets for PDFs).
-- [ ] **CMP-04** `both` — PDF compression presets `screen`, `ebook`, `printer` (`main:assets/js/scripts.js:743-749`; `src/lib/server-tools.ts:66-75`).
-- [ ] **CMP-05** `both` — Image compression for JPEG, PNG and WebP (`main:assets/js/scripts.js:420`, `:753-762`; `src/tools/ImageTool.tsx:81`). BMP and TIFF input exist on `main` only.
-- [ ] **CMP-06** `both` — Image compression to a target size (`main:index.html:289-317`, MB or KB; `src/tools/ImageTool.tsx:135-139`, KB only).
+- [x] **CMP-01** `both` — Compress a PDF or an image (`main:index.html:215-239`; `v2`: `/compress-pdf` and `/compress-image`).
+- [x] **CMP-02** `both` — Choice between compressing by quality and to a target size (`main:index.html:244-265`; `src/tools/ImageTool.tsx:127-134`, images only).
+- [x] **CMP-03** `both` — A quality control with a live value (`main:index.html:268-286`: slider 1–9 with words; `v2`: 10–100 % slider for images, `src/tools/ImageTool.tsx:157-160`, and three named presets for PDFs).
+- [x] **CMP-04** `both` — PDF compression presets `screen`, `ebook`, `printer` (`main:assets/js/scripts.js:743-749`; `src/lib/server-tools.ts:66-75`).
+- [x] **CMP-05** `both` — Image compression for JPEG, PNG and WebP (`main:assets/js/scripts.js:420`, `:753-762`; `src/tools/ImageTool.tsx:81`). BMP and TIFF input exist on `main` only.
+- [x] **CMP-06** `both` — Image compression to a target size (`main:index.html:289-317`, MB or KB; `src/tools/ImageTool.tsx:135-139`, KB only).
 - [ ] **CMP-07** `main` *(decision)* — "Target Size" offered for PDFs but ignored (`main:assets/js/scripts.js:750-752`). `v2` does not offer it, which is the recommended outcome.
-- [ ] **CMP-08** `both` — The file's size is shown before starting (`main:assets/js/scripts.js:520-521`; `src/tools/ServerConvert.tsx:88-90`, `src/components/FileOrder.tsx:40`). The `v2` image tools show only a count (`src/tools/ImageTool.tsx:85-86`).
-- [ ] **CMP-09** `both` — Result shows the original size, the new size and the saving (`main:index.html:547-559`; `src/components/Results.tsx:27-31`, `src/tools/ServerConvert.tsx:58-60`).
+- [x] **CMP-08** `both` — The file's size is shown before starting (`main:assets/js/scripts.js:520-521`; `src/tools/ServerConvert.tsx:88-90`, `src/components/FileOrder.tsx:40`). The `v2` image tools show only a count (`src/tools/ImageTool.tsx:85-86`).
+- [x] **CMP-09** `both` — Result shows the original size, the new size and the saving (`main:index.html:547-559`; `src/components/Results.tsx:27-31`, `src/tools/ServerConvert.tsx:58-60`).
 
 #### D. Resize
 
-- [ ] **RSZ-01** `both` — Width and height in pixels; a blank field means automatic (`main:index.html:322-349`; `src/tools/ImageTool.tsx:104-111`).
-- [ ] **RSZ-02** `both` — Resize by percentage (`main:index.html:351-380`: 100/75/50/25 %; `src/tools/ImageTool.tsx:117-120`: slider 5–200 %).
-- [ ] **RSZ-03** `both` — The output keeps the input format (`main:assets/js/scripts.js:780-782`; `src/tools/ImageTool.tsx:25`, `:148`). BMP and TIFF input exist on `main` only.
-- [ ] **RSZ-04** `main` — The image's pixel dimensions are shown before starting (`main:assets/js/scripts.js:522-531`).
-- [ ] **RSZ-05** `main` — Result shows the original and new dimensions (`main:index.html:561-573`). `v2` shows file sizes only (`src/components/Results.tsx:27-31`).
+- [x] **RSZ-01** `both` — Width and height in pixels; a blank field means automatic (`main:index.html:322-349`; `src/tools/ImageTool.tsx:104-111`).
+- [x] **RSZ-02** `both` — Resize by percentage (`main:index.html:351-380`: 100/75/50/25 %; `src/tools/ImageTool.tsx:117-120`: slider 5–200 %).
+- [x] **RSZ-03** `both` — The output keeps the input format (`main:assets/js/scripts.js:780-782`; `src/tools/ImageTool.tsx:25`, `:148`). BMP and TIFF input exist on `main` only.
+- [x] **RSZ-04** `main` — The image's pixel dimensions are shown before starting (`main:assets/js/scripts.js:522-531`).
+- [x] **RSZ-05** `main` — Result shows the original and new dimensions (`main:index.html:561-573`). `v2` shows file sizes only (`src/components/Results.tsx:27-31`).
 
 #### E. Merge
 
-- [ ] **MRG-01** `both` — Merge PDFs (`main:index.html:385-406`; `src/tools/MergePdf.tsx:14-51`).
-- [ ] **MRG-02** `both` — Several PDFs picked or dropped at once, used in order (`main:assets/js/scripts.js:970-975`; `src/tools/MergePdf.tsx:37`).
-- [ ] **MRG-03** `both` — The selection is summarised with a count (`main:assets/js/scripts.js:534-537`; `src/tools/MergePdf.tsx:45`).
+- [x] **MRG-01** `both` — Merge PDFs (`main:index.html:385-406`; `src/tools/MergePdf.tsx:14-51`).
+- [x] **MRG-02** `both` — Several PDFs picked or dropped at once, used in order (`main:assets/js/scripts.js:970-975`; `src/tools/MergePdf.tsx:37`).
+- [x] **MRG-03** `both` — The selection is summarised with a count (`main:assets/js/scripts.js:534-537`; `src/tools/MergePdf.tsx:45`).
 
 #### F. File selection and job flow
 
-- [ ] **FLW-01** `both` — Drop zone with a highlight while dragging (`main:index.html:409-445`; `src/components/Dropzone.tsx:63-77`).
-- [ ] **FLW-02** `both` — Button opening the device file picker, filtered to the tool (`main:index.html:426-432`; `src/components/Dropzone.tsx:90`).
-- [ ] **FLW-03** `both` — Unsupported files are refused with an inline message naming them (`main:assets/js/scripts.js:222-275`; `src/components/Dropzone.tsx:50-56`, `:92-96`, checked by file signature).
-- [ ] **FLW-04** `both` — Over-size files are refused with a message (`main:assets/js/scripts.js:180-188`: 50 MB; `src/components/Dropzone.tsx:53`: 100 MB on the device, 4 MB for server tools, `src/lib/files.ts:46-48`).
+- [x] **FLW-01** `both` — Drop zone with a highlight while dragging (`main:index.html:409-445`; `src/components/Dropzone.tsx:63-77`).
+- [x] **FLW-02** `both` — Button opening the device file picker, filtered to the tool (`main:index.html:426-432`; `src/components/Dropzone.tsx:90`).
+- [x] **FLW-03** `both` — Unsupported files are refused with an inline message naming them (`main:assets/js/scripts.js:222-275`; `src/components/Dropzone.tsx:50-56`, `:92-96`, checked by file signature).
+- [x] **FLW-04** `both` — Over-size files are refused with a message (`main:assets/js/scripts.js:180-188`: 50 MB; `src/components/Dropzone.tsx:53`: 100 MB on the device, 4 MB for server tools, `src/lib/files.ts:46-48`).
 - [ ] **FLW-05** `main` — Repeated rejections open the feedback dialog (`main:assets/js/scripts.js:238-246`).
 - [ ] **FLW-06** `main` *(decision)* — "Uploading…" staging animation that is only a timer (`main:assets/js/scripts.js:498-510`). `v2` has none; recommended to stay removed.
-- [ ] **FLW-07** `both` — Ready screen showing the chosen file (`main:index.html:458-468`; `src/tools/ServerConvert.tsx:87-90`).
+- [x] **FLW-07** `both` — Ready screen showing the chosen file (`main:index.html:458-468`; `src/tools/ServerConvert.tsx:87-90`).
 - [ ] **FLW-08** `main` — Consent checkbox "I agree to the Terms & Privacy Policy" gating the start button (`main:index.html:471-482`).
-- [ ] **FLW-09** `both` — Start button labelled for the tool (`main:assets/js/scripts.js:539-544`; `src/tools/ServerConvert.tsx:106`, `src/tools/ImageTool.tsx:168`).
-- [ ] **FLW-10** `both` — A way back to choose another file (`main:index.html:495-497`; `src/tools/ServerConvert.tsx:108-110`, `src/tools/ImageTool.tsx:87-89`).
-- [ ] **FLW-11** `main` — Processing screen with a percentage and a progress bar (`main:index.html:502-509`). `v2` shows a spinner in the button (`src/tools/ServerConvert.tsx:106`).
-- [ ] **FLW-12** `main` — Real upload progress (`main:assets/js/scripts.js:963-989`).
+- [x] **FLW-09** `both` — Start button labelled for the tool (`main:assets/js/scripts.js:539-544`; `src/tools/ServerConvert.tsx:106`, `src/tools/ImageTool.tsx:168`).
+- [x] **FLW-10** `both` — A way back to choose another file (`main:index.html:495-497`; `src/tools/ServerConvert.tsx:108-110`, `src/tools/ImageTool.tsx:87-89`).
+- [x] **FLW-11** `main` — Processing screen with a percentage and a progress bar (`main:index.html:502-509`). `v2` shows a spinner in the button (`src/tools/ServerConvert.tsx:106`).
+- [x] **FLW-12** `main` — Real upload progress (`main:assets/js/scripts.js:963-989`).
 - [ ] **FLW-13** `main` — Direct browser upload to Vercel Blob for files up to 50 MB (`main:assets/js/scripts.js:910-961`).
 - [ ] **FLW-14** `main` — Separate iPhone/iPad upload route (`main:assets/js/scripts.js:845-908`).
-- [ ] **FLW-15** `both` — Conversion request to `/api/convert` (`main:assets/js/scripts.js:991-1008`; `src/tools/ServerConvert.tsx:25-29`).
-- [ ] **FLW-16** `both` — Failures are reported to the person (`main:assets/js/scripts.js:1012-1037`, by alert; `src/components/Results.tsx:68-75`, inline).
-- [ ] **FLW-17** `both` — Success screen with download and start again (`main:index.html:512-532`; `src/components/Results.tsx:49-63`, `src/tools/ServerConvert.tsx:61-73`).
-- [ ] **FLW-18** `both` — The output file name is shown (`main:index.html:544-545`; `src/components/Results.tsx:39`).
+- [x] **FLW-15** `both` — Conversion request to `/api/convert` (`main:assets/js/scripts.js:991-1008`; `src/tools/ServerConvert.tsx:25-29`).
+- [x] **FLW-16** `both` — Failures are reported to the person (`main:assets/js/scripts.js:1012-1037`, by alert; `src/components/Results.tsx:68-75`, inline).
+- [x] **FLW-17** `both` — Success screen with download and start again (`main:index.html:512-532`; `src/components/Results.tsx:49-63`, `src/tools/ServerConvert.tsx:61-73`).
+- [x] **FLW-18** `both` — The output file name is shown (`main:index.html:544-545`; `src/components/Results.tsx:39`).
 - [ ] **FLW-19** `main` *(decision)* — Result preview area that is never displayed (`main:index.html:534-542`). `v2` has none.
-- [ ] **FLW-20** `both` — Daily limit on conversions (`main:assets/js/scripts.js:292-317`: five, local storage; `src/app/api/convert/route.ts:18`, `:60-74`: ten by default, enforced on the server, server tools only).
+- [x] **FLW-20** `both` — Daily limit on conversions (`main:assets/js/scripts.js:292-317`: five, local storage; `src/app/api/convert/route.ts:18`, `:60-74`: ten by default, enforced on the server, server tools only).
 
 #### G. Feedback
 
@@ -174,9 +174,9 @@ checklist keeps the capability and section 9 asks the owner how it should behave
 #### I. Legal content, dialogs and footer
 
 - [ ] **LGL-01** `main` — Terms of Service, six sections (`main:index.html:669-732`).
-- [ ] **LGL-02** `both` — Privacy Policy (`main:index.html:733-764`, a dialog; `src/app/privacy/page.tsx:9-48`, a page, rewritten).
+- [x] **LGL-02** `both` — Privacy Policy (`main:index.html:733-764`, a dialog; `src/app/privacy/page.tsx:9-48`, a page, rewritten).
 - [ ] **LGL-03** `main` — Terms and Privacy open as dialogs that close from a button or the backdrop (`main:assets/js/scripts.js:343-352`).
-- [ ] **LGL-04** `both` — Footer links (`main:index.html:585-608`: Terms, Privacy, Feedback, Donate; `src/components/Footer.tsx:10-18`: Privacy, Source code, Built by).
+- [x] **LGL-04** `both` — Footer links (`main:index.html:585-608`: Terms, Privacy, Feedback, Donate; `src/components/Footer.tsx:10-18`: Privacy, Source code, Built by).
 - [ ] **LGL-05** `main` — "Powered by ConvertAPI" credit linking to convertapi.com (`main:index.html:610-618`).
 - [ ] **LGL-06** `main` — Copyright line with the current year (`main:index.html:620-622`).
 - [ ] **LGL-07** `main` — Social links to LinkedIn, GitHub and X (`main:index.html:625-650`).
@@ -185,112 +185,112 @@ checklist keeps the capability and section 9 asks the owner how it should behave
 
 - [ ] **API-01** `main` — `POST /api/blob-upload`, token handshake for Vercel Blob (`main:api/blob-upload.js:87-197`).
 - [ ] **API-02** `main` — `POST /api/native-upload`, one multipart file into Vercel Blob (`main:api/native-upload.js:16-84`).
-- [ ] **API-03** `both` — `POST /api/convert` calling ConvertAPI with the server-held secret (`main:api/convert.js:102-158`, JSON with a file URL; `src/app/api/convert/route.ts:29-101`, a multipart file and a listed tool).
+- [x] **API-03** `both` — `POST /api/convert` calling ConvertAPI with the server-held secret (`main:api/convert.js:102-158`, JSON with a file URL; `src/app/api/convert/route.ts:29-101`, a multipart file and a listed tool).
 - [ ] **API-04** `main` *(decision)* — The open multipart mode of `/api/convert` that streams anything to ConvertAPI (`main:api/convert.js:160-210`). Recommended to stay retired.
 - [ ] **API-05** `main` — `POST /api/form`, forwarding feedback to Formspree (`main:api/form.js:11-47`).
 - [ ] **API-06** `main` — `GET /api/wallets`, the twelve wallet addresses (`main:api/wallets.js:12-39`).
 
 #### K. Integrations and hosting
 
-- [ ] **INT-01** `both` — ConvertAPI v2 with the secret kept on the server (`main:api/convert.js:56-57`; `src/app/api/convert/route.ts:30`, `:81`).
+- [x] **INT-01** `both` — ConvertAPI v2 with the secret kept on the server (`main:api/convert.js:56-57`; `src/app/api/convert/route.ts:30`, `:81`).
 - [ ] **INT-02** `main` — Vercel Blob (`main:api/blob-upload.js:126`).
 - [ ] **INT-03** `main` — Formspree (`main:api/form.js:18`).
 - [ ] **INT-04** `main` — QR code generation for wallet addresses (`main:assets/js/scripts.js:1172`).
-- [ ] **INT-05** `both` — Deployment on Vercel (`main:README.md:113-118`; `src/app/api/convert/route.ts:15-16`).
+- [x] **INT-05** `both` — Deployment on Vercel (`main:README.md:113-118`; `src/app/api/convert/route.ts:15-16`).
 
 #### L. Search and sharing metadata
 
-- [ ] **SEO-01** `both` — Page title, description and author (`main:index.html:17-27`; `src/app/layout.tsx:11-20`).
-- [ ] **SEO-02** `both` — Open Graph title and description (`main:index.html:28-32`; `src/app/layout.tsx:18`).
-- [ ] **SEO-03** `both` — Favicon (`main:index.html:34-38`; `src/app/icon.svg`).
+- [x] **SEO-01** `both` — Page title, description and author (`main:index.html:17-27`; `src/app/layout.tsx:11-20`).
+- [x] **SEO-02** `both` — Open Graph title and description (`main:index.html:28-32`; `src/app/layout.tsx:18`).
+- [x] **SEO-03** `both` — Favicon (`main:index.html:34-38`; `src/app/icon.svg`).
 
 ### 2.2 Items that exist only in `v2` (65, all marked `v2`)
 
 #### M. Shell (7)
 
-- [ ] **SHL-01** `v2` — Home page listing all fourteen tools in four groups, each a card with name, summary and a "Processed on a server" badge where it applies (`src/app/page.tsx:65-93`, `src/lib/tools.ts:16-29`).
-- [ ] **SHL-02** `v2` — Home introduction: heading, one paragraph, "Edit a PDF" and "See all tools", and the line "9 of 14 tools never upload your files" (`src/app/page.tsx:44-63`).
-- [ ] **SHL-03** `v2` — Every tool on its own address with an "All tools" link, a title, a summary and a badge saying where the file is processed (`src/components/ToolShell.tsx:6-35`).
-- [ ] **SHL-04** `v2` — Manual light/dark switch, remembered in local storage under `theme` and applied before the first paint (`src/components/Header.tsx:15-31`, `src/app/layout.tsx:29`, `:35`).
-- [ ] **SHL-05** `v2` — "Skip to content" link (`src/app/layout.tsx:38-40`).
-- [ ] **SHL-06** `v2` — Header links "All tools" and "Privacy" (`src/components/Header.tsx:41-46`).
-- [ ] **SHL-07** `v2` — Footer statement that most tools do not upload files, with Privacy, Source code and "Built by" links (`src/components/Footer.tsx:8-18`).
+- [x] **SHL-01** `v2` — Home page listing all fourteen tools in four groups, each a card with name, summary and a "Processed on a server" badge where it applies (`src/app/page.tsx:65-93`, `src/lib/tools.ts:16-29`).
+- [x] **SHL-02** `v2` — Home introduction: heading, one paragraph, "Edit a PDF" and "See all tools", and the line "9 of 14 tools never upload your files" (`src/app/page.tsx:44-63`).
+- [x] **SHL-03** `v2` — Every tool on its own address with an "All tools" link, a title, a summary and a badge saying where the file is processed (`src/components/ToolShell.tsx:6-35`).
+- [x] **SHL-04** `v2` — Manual light/dark switch, remembered in local storage under `theme` and applied before the first paint (`src/components/Header.tsx:15-31`, `src/app/layout.tsx:29`, `:35`).
+- [x] **SHL-05** `v2` — "Skip to content" link (`src/app/layout.tsx:38-40`).
+- [x] **SHL-06** `v2` — Header links "All tools" and "Privacy" (`src/components/Header.tsx:41-46`).
+- [x] **SHL-07** `v2` — Footer statement that most tools do not upload files, with Privacy, Source code and "Built by" links (`src/components/Footer.tsx:8-18`).
 
 #### N. Edit PDF, `/edit-pdf` (23)
 
-- [ ] **EDT-01** `v2` — Open a PDF of up to 100 MB; pages are drawn as they come into view (`src/tools/editor/PdfEditor.tsx:268`, `src/tools/editor/EditorPage.tsx:39-57`).
-- [ ] **EDT-02** `v2` — Toolbar of seven tools (Select, Text, Cover, Highlight, Box, Image, Sign) with a hint line for the current one (`src/tools/editor/PdfEditor.tsx:32-40`, `:291-303`, `:370`).
-- [ ] **EDT-03** `v2` — Text: place, type, and set font (sans, serif, mono), size 6–96 pt, bold and colour (`src/tools/editor/PdfEditor.tsx:141-148`, `:329-353`).
-- [ ] **EDT-04** `v2` — Cover existing content with a filled box and retype over it (`src/tools/editor/PdfEditor.tsx:35`, `src/tools/editor/EditorPage.tsx:71-73`).
-- [ ] **EDT-05** `v2` — Highlight (`src/lib/pdf/ops.ts:226`).
-- [ ] **EDT-06** `v2` — Outline box (`src/lib/pdf/ops.ts:227`).
-- [ ] **EDT-07** `v2` — Colour of a cover, highlight or box (`src/tools/editor/PdfEditor.tsx:356-366`).
-- [ ] **EDT-08** `v2` — Place a PNG, JPG or WebP image (`src/tools/editor/PdfEditor.tsx:158-167`, `:373-388`).
-- [ ] **EDT-09** `v2` — Signature drawn by hand, trimmed to its ink (`src/tools/editor/SignaturePad.tsx:19-46`, `:158-197`).
-- [ ] **EDT-10** `v2` — Signature typed as a name in a script face (`src/tools/editor/SignaturePad.tsx:108-120`, `:200-212`).
-- [ ] **EDT-11** `v2` — Signature from an uploaded photo or scan (`src/tools/editor/SignaturePad.tsx:122-129`, `:214-219`).
-- [ ] **EDT-12** `v2` — Select, move and resize items; images keep their proportions (`src/tools/editor/EditorPage.tsx:98-121`).
-- [ ] **EDT-13** `v2` — Delete the selected item by button or key (`src/tools/editor/PdfEditor.tsx:130-135`, `:235-237`, `:312`).
-- [ ] **EDT-14** `v2` — Undo and redo, up to 100 steps, by button and keyboard (`src/tools/editor/PdfEditor.tsx:107-126`, `:228-234`, `:306-311`).
-- [ ] **EDT-15** `v2` — Detect and fill PDF form fields: text, multi-line text, tick boxes and choices (`src/lib/pdf/ops.ts:105-116`, `src/tools/editor/PdfEditor.tsx:410-435`).
-- [ ] **EDT-16** `v2` — Lock (flatten) the form when saving (`src/tools/editor/PdfEditor.tsx:436-439`, `src/lib/pdf/ops.ts:244`).
-- [ ] **EDT-17** `v2` — Mark pages for deletion or keep them; at least one page stays (`src/tools/editor/PdfEditor.tsx:457-470`, `src/lib/pdf/ops.ts:246-248`).
-- [ ] **EDT-18** `v2` — Save as `<name>-edited.pdf`, then continue editing and save again (`src/tools/editor/PdfEditor.tsx:201-220`, `:405-408`).
-- [ ] **EDT-19** `v2` — Edits land where they were placed, including on pages stored rotated (`src/lib/coords.ts:28-52`, `src/tools/editor/types.ts:29-37`).
-- [ ] **EDT-20** `v2` — Characters outside the standard PDF fonts (for example Yoruba tone marks) are written with a bundled Noto Sans, embedded as a subset (`src/lib/pdf/ops.ts:202-213`, `src/tools/editor/PdfEditor.tsx:210`).
-- [ ] **EDT-21** `v2` — Warnings before losing unsaved changes, on closing the PDF and on leaving the page (`src/tools/editor/PdfEditor.tsx:91`, `:256-261`).
-- [ ] **EDT-22** `v2` — Escape clears the selection (`src/tools/editor/PdfEditor.tsx:238-241`).
-- [ ] **EDT-23** `v2` — Password-protected and damaged PDFs are explained in a sentence (`src/components/Results.tsx:78-83`).
+- [x] **EDT-01** `v2` — Open a PDF of up to 100 MB; pages are drawn as they come into view (`src/tools/editor/PdfEditor.tsx:268`, `src/tools/editor/EditorPage.tsx:39-57`).
+- [x] **EDT-02** `v2` — Toolbar of seven tools (Select, Text, Cover, Highlight, Box, Image, Sign) with a hint line for the current one (`src/tools/editor/PdfEditor.tsx:32-40`, `:291-303`, `:370`).
+- [x] **EDT-03** `v2` — Text: place, type, and set font (sans, serif, mono), size 6–96 pt, bold and colour (`src/tools/editor/PdfEditor.tsx:141-148`, `:329-353`).
+- [x] **EDT-04** `v2` — Cover existing content with a filled box and retype over it (`src/tools/editor/PdfEditor.tsx:35`, `src/tools/editor/EditorPage.tsx:71-73`).
+- [x] **EDT-05** `v2` — Highlight (`src/lib/pdf/ops.ts:226`).
+- [x] **EDT-06** `v2` — Outline box (`src/lib/pdf/ops.ts:227`).
+- [x] **EDT-07** `v2` — Colour of a cover, highlight or box (`src/tools/editor/PdfEditor.tsx:356-366`).
+- [x] **EDT-08** `v2` — Place a PNG, JPG or WebP image (`src/tools/editor/PdfEditor.tsx:158-167`, `:373-388`).
+- [x] **EDT-09** `v2` — Signature drawn by hand, trimmed to its ink (`src/tools/editor/SignaturePad.tsx:19-46`, `:158-197`).
+- [x] **EDT-10** `v2` — Signature typed as a name in a script face (`src/tools/editor/SignaturePad.tsx:108-120`, `:200-212`).
+- [x] **EDT-11** `v2` — Signature from an uploaded photo or scan (`src/tools/editor/SignaturePad.tsx:122-129`, `:214-219`).
+- [x] **EDT-12** `v2` — Select, move and resize items; images keep their proportions (`src/tools/editor/EditorPage.tsx:98-121`).
+- [x] **EDT-13** `v2` — Delete the selected item by button or key (`src/tools/editor/PdfEditor.tsx:130-135`, `:235-237`, `:312`).
+- [x] **EDT-14** `v2` — Undo and redo, up to 100 steps, by button and keyboard (`src/tools/editor/PdfEditor.tsx:107-126`, `:228-234`, `:306-311`).
+- [x] **EDT-15** `v2` — Detect and fill PDF form fields: text, multi-line text, tick boxes and choices (`src/lib/pdf/ops.ts:105-116`, `src/tools/editor/PdfEditor.tsx:410-435`).
+- [x] **EDT-16** `v2` — Lock (flatten) the form when saving (`src/tools/editor/PdfEditor.tsx:436-439`, `src/lib/pdf/ops.ts:244`).
+- [x] **EDT-17** `v2` — Mark pages for deletion or keep them; at least one page stays (`src/tools/editor/PdfEditor.tsx:457-470`, `src/lib/pdf/ops.ts:246-248`).
+- [x] **EDT-18** `v2` — Save as `<name>-edited.pdf`, then continue editing and save again (`src/tools/editor/PdfEditor.tsx:201-220`, `:405-408`).
+- [x] **EDT-19** `v2` — Edits land where they were placed, including on pages stored rotated (`src/lib/coords.ts:28-52`, `src/tools/editor/types.ts:29-37`).
+- [x] **EDT-20** `v2` — Characters outside the standard PDF fonts (for example Yoruba tone marks) are written with a bundled Noto Sans, embedded as a subset (`src/lib/pdf/ops.ts:202-213`, `src/tools/editor/PdfEditor.tsx:210`).
+- [x] **EDT-21** `v2` — Warnings before losing unsaved changes, on closing the PDF and on leaving the page (`src/tools/editor/PdfEditor.tsx:91`, `:256-261`).
+- [x] **EDT-22** `v2` — Escape clears the selection (`src/tools/editor/PdfEditor.tsx:238-241`).
+- [x] **EDT-23** `v2` — Password-protected and damaged PDFs are explained in a sentence (`src/components/Results.tsx:78-83`).
 
 #### O. Merge, Split and Organise (11)
 
-- [ ] **MGX-01** `v2` — Reorder the files to merge by dragging or with arrow buttons, and remove one (`src/components/FileOrder.tsx:24-51`).
-- [ ] **MGX-02** `v2` — Merging needs at least two PDFs and says so; the result is `merged.pdf` (`src/tools/MergePdf.tsx:25`, `:43-45`).
-- [ ] **SPL-01** `v2` — Split by page ranges, pre-filled with two halves (`src/tools/SplitPdf.tsx:33-35`, `:44-47`).
-- [ ] **SPL-02** `v2` — Split every N pages (`src/tools/SplitPdf.tsx:88-90`, `src/lib/ranges.ts:27-32`).
-- [ ] **SPL-03** `v2` — Split every page into its own file (`src/tools/SplitPdf.tsx:93`).
-- [ ] **SPL-04** `v2` — Range mistakes are explained, and output files are named by their pages (`src/lib/ranges.ts:10-20`, `src/tools/SplitPdf.tsx:53`).
-- [ ] **ORG-01** `v2` — A preview of every page, drawn as it scrolls into view (`src/components/PageThumb.tsx:14-29`, `src/tools/OrganisePdf.tsx:91-94`).
-- [ ] **ORG-02** `v2` — Move a page earlier or later (`src/tools/OrganisePdf.tsx:97`, `:109`).
-- [ ] **ORG-03** `v2` — Rotate a page left or right (`src/tools/OrganisePdf.tsx:100-105`).
-- [ ] **ORG-04** `v2` — Delete or keep a page, with a count of pages kept (`src/tools/OrganisePdf.tsx:78-80`, `:106-108`).
-- [ ] **ORG-05** `v2` — Reset, and save as `<name>-organised.pdf`, from a bar that stays in view (`src/tools/OrganisePdf.tsx:38`, `:77-88`).
+- [x] **MGX-01** `v2` — Reorder the files to merge by dragging or with arrow buttons, and remove one (`src/components/FileOrder.tsx:24-51`).
+- [x] **MGX-02** `v2` — Merging needs at least two PDFs and says so; the result is `merged.pdf` (`src/tools/MergePdf.tsx:25`, `:43-45`).
+- [x] **SPL-01** `v2` — Split by page ranges, pre-filled with two halves (`src/tools/SplitPdf.tsx:33-35`, `:44-47`).
+- [x] **SPL-02** `v2` — Split every N pages (`src/tools/SplitPdf.tsx:88-90`, `src/lib/ranges.ts:27-32`).
+- [x] **SPL-03** `v2` — Split every page into its own file (`src/tools/SplitPdf.tsx:93`).
+- [x] **SPL-04** `v2` — Range mistakes are explained, and output files are named by their pages (`src/lib/ranges.ts:10-20`, `src/tools/SplitPdf.tsx:53`).
+- [x] **ORG-01** `v2` — A preview of every page, drawn as it scrolls into view (`src/components/PageThumb.tsx:14-29`, `src/tools/OrganisePdf.tsx:91-94`).
+- [x] **ORG-02** `v2` — Move a page earlier or later (`src/tools/OrganisePdf.tsx:97`, `:109`).
+- [x] **ORG-03** `v2` — Rotate a page left or right (`src/tools/OrganisePdf.tsx:100-105`).
+- [x] **ORG-04** `v2` — Delete or keep a page, with a count of pages kept (`src/tools/OrganisePdf.tsx:78-80`, `:106-108`).
+- [x] **ORG-05** `v2` — Reset, and save as `<name>-organised.pdf`, from a bar that stays in view (`src/tools/OrganisePdf.tsx:38`, `:77-88`).
 
 #### P. Images to PDF and PDF to images (4)
 
-- [ ] **I2P-01** `v2` — Several JPG, PNG or WebP images into one PDF, in an order the person sets (`src/tools/ImagesToPdf.tsx:16-22`, `:49-52`).
-- [ ] **I2P-02** `v2` — Page size A4, US Letter or the size of each image, with portrait or landscape chosen to suit (`src/tools/ImagesToPdf.tsx:53-66`, `src/lib/pdf/ops.ts:76-95`).
-- [ ] **P2I-01** `v2` — Each page saved as PNG or JPG at 72, 150 or 300 dpi (`src/tools/PdfToImages.tsx:13-17`, `:69-85`).
-- [ ] **P2I-02** `v2` — Optional page selection by ranges, with "Page k of n" progress (`src/tools/PdfToImages.tsx:31-35`, `:40`, `:86-89`).
+- [x] **I2P-01** `v2` — Several JPG, PNG or WebP images into one PDF, in an order the person sets (`src/tools/ImagesToPdf.tsx:16-22`, `:49-52`).
+- [x] **I2P-02** `v2` — Page size A4, US Letter or the size of each image, with portrait or landscape chosen to suit (`src/tools/ImagesToPdf.tsx:53-66`, `src/lib/pdf/ops.ts:76-95`).
+- [x] **P2I-01** `v2` — Each page saved as PNG or JPG at 72, 150 or 300 dpi (`src/tools/PdfToImages.tsx:13-17`, `:69-85`).
+- [x] **P2I-02** `v2` — Optional page selection by ranges, with "Page k of n" progress (`src/tools/PdfToImages.tsx:31-35`, `:40`, `:86-89`).
 
 #### Q. Image tools (6)
 
-- [ ] **IMG-01** `v2` — Several images processed in one go (`src/tools/ImageTool.tsx:44-62`, `:81`).
-- [ ] **IMG-02** `v2` — WebP as input and output, and an output format chooser including "Keep the same" (`src/tools/ImageTool.tsx:17-21`, `:145-155`).
-- [ ] **IMG-03** `v2` — Quality control when converting and resizing (`src/tools/ImageTool.tsx:156-161`).
-- [ ] **IMG-04** `v2` — "Keep proportions" when resizing to an exact size (`src/tools/ImageTool.tsx:112-114`, `src/lib/image.ts:41-57`).
-- [ ] **IMG-05** `v2` — Target-size compression says when the target could not be reached, and explains that PNG is saved as WebP (`src/tools/ImageTool.tsx:47-48`, `:65-66`, `:163`).
-- [ ] **IMG-06** `v2` — Photographs keep their orientation, and transparent areas become white in JPG (`src/lib/image.ts:11`, `:22-26`).
+- [x] **IMG-01** `v2` — Several images processed in one go (`src/tools/ImageTool.tsx:44-62`, `:81`).
+- [x] **IMG-02** `v2` — WebP as input and output, and an output format chooser including "Keep the same" (`src/tools/ImageTool.tsx:17-21`, `:145-155`).
+- [x] **IMG-03** `v2` — Quality control when converting and resizing (`src/tools/ImageTool.tsx:156-161`).
+- [x] **IMG-04** `v2` — "Keep proportions" when resizing to an exact size (`src/tools/ImageTool.tsx:112-114`, `src/lib/image.ts:41-57`).
+- [x] **IMG-05** `v2` — Target-size compression says when the target could not be reached, and explains that PNG is saved as WebP (`src/tools/ImageTool.tsx:47-48`, `:65-66`, `:163`).
+- [x] **IMG-06** `v2` — Photographs keep their orientation, and transparent areas become white in JPG (`src/lib/image.ts:11`, `:22-26`).
 
 #### R. Results and server tools (5)
 
-- [ ] **RES-01** `v2` — Several output files listed, each with its own "Save" (`src/components/Results.tsx:35-47`).
-- [ ] **RES-02** `v2` — "Save all as .zip", with duplicate names made unique (`src/components/Results.tsx:50-54`, `src/lib/download.ts:20-31`).
-- [ ] **SRV-01** `v2` — "Delete it now" removes the converted file from ConvertAPI (`src/tools/ServerConvert.tsx:40-44`, `:67-69`).
-- [ ] **SRV-02** `v2` — Each server tool states that the file is sent to ConvertAPI and is not stored by DocuMorph (`src/tools/ServerConvert.tsx:114-116`).
-- [ ] **SRV-03** `v2` — Files are identified by their first bytes in the browser and again on the server, so a renamed file is refused (`src/lib/files.ts:9-17`, `src/app/api/convert/route.ts:46-51`).
+- [x] **RES-01** `v2` — Several output files listed, each with its own "Save" (`src/components/Results.tsx:35-47`).
+- [x] **RES-02** `v2` — "Save all as .zip", with duplicate names made unique (`src/components/Results.tsx:50-54`, `src/lib/download.ts:20-31`).
+- [x] **SRV-01** `v2` — "Delete it now" removes the converted file from ConvertAPI (`src/tools/ServerConvert.tsx:40-44`, `:67-69`).
+- [x] **SRV-02** `v2` — Each server tool states that the file is sent to ConvertAPI and is not stored by DocuMorph (`src/tools/ServerConvert.tsx:114-116`).
+- [x] **SRV-03** `v2` — Files are identified by their first bytes in the browser and again on the server, so a renamed file is refused (`src/lib/files.ts:9-17`, `src/app/api/convert/route.ts:46-51`).
 
 #### S. API, security and metadata (9)
 
-- [ ] **APX-01** `v2` — `POST /api/convert` accepts only the five listed conversions and their listed options (`src/app/api/convert/route.ts:40-58`).
-- [ ] **APX-02** `v2` — Daily limit per visitor, counted by a hashed IP address that changes each day, with an optional site-wide cap and optional shared storage (`src/app/api/convert/route.ts:23-27`, `:60-74`; `src/lib/rate-limit.ts:48-68`).
-- [ ] **APX-03** `v2` — `DELETE /api/convert?fileId=…` (`src/app/api/convert/route.ts:104-113`).
-- [ ] **APX-04** `v2` — Readable refusals: not set up (503), too large (413), wrong type (415), limit reached (429), conversion failed (502), took too long (504) (`src/app/api/convert/route.ts:31`, `:45`, `:50`, `:64-69`, `:86`, `:96`).
-- [ ] **HDR-01** `v2` — Security headers on every response (`next.config.ts:5-11`, `:15-17`).
-- [ ] **HDR-02** `v2` — No third-party requests at run time: fonts and the PDF worker are served from the site itself (`src/app/layout.tsx:8-9`, `src/lib/pdf/render.ts:10`, `scripts/copy-pdf-worker.mjs:8-14`).
-- [ ] **MET-01** `v2` — A title, description and canonical address for every tool page (`src/app/edit-pdf/page.tsx:8`, `src/app/[tool]/page.tsx:14-17`).
-- [ ] **MET-02** `v2` — Generated share image (1200 × 630) and large Twitter card (`src/app/opengraph-image.tsx:5-28`, `src/app/layout.tsx:19`).
-- [ ] **MET-03** `v2` — Page language `en-GB` and browser theme colours for light and dark (`src/app/layout.tsx:22-27`, `:33`).
+- [x] **APX-01** `v2` — `POST /api/convert` accepts only the five listed conversions and their listed options (`src/app/api/convert/route.ts:40-58`).
+- [x] **APX-02** `v2` — Daily limit per visitor, counted by a hashed IP address that changes each day, with an optional site-wide cap and optional shared storage (`src/app/api/convert/route.ts:23-27`, `:60-74`; `src/lib/rate-limit.ts:48-68`).
+- [x] **APX-03** `v2` — `DELETE /api/convert?fileId=…` (`src/app/api/convert/route.ts:104-113`).
+- [x] **APX-04** `v2` — Readable refusals: not set up (503), too large (413), wrong type (415), limit reached (429), conversion failed (502), took too long (504) (`src/app/api/convert/route.ts:31`, `:45`, `:50`, `:64-69`, `:86`, `:96`).
+- [x] **HDR-01** `v2` — Security headers on every response (`next.config.ts:5-11`, `:15-17`).
+- [x] **HDR-02** `v2` — No third-party requests at run time: fonts and the PDF worker are served from the site itself (`src/app/layout.tsx:8-9`, `src/lib/pdf/render.ts:10`, `scripts/copy-pdf-worker.mjs:8-14`).
+- [x] **MET-01** `v2` — A title, description and canonical address for every tool page (`src/app/edit-pdf/page.tsx:8`, `src/app/[tool]/page.tsx:14-17`).
+- [x] **MET-02** `v2` — Generated share image (1200 × 630) and large Twitter card (`src/app/opengraph-image.tsx:5-28`, `src/app/layout.tsx:19`).
+- [x] **MET-03** `v2` — Page language `en-GB` and browser theme colours for light and dark (`src/app/layout.tsx:22-27`, `:33`).
 
 ### 2.3 Live on `main`, missing from `v2` (39 items)
 
