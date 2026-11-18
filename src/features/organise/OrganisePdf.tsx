@@ -136,7 +136,7 @@ export function OrganisePdf() {
             <button
               type="button"
               aria-label={`Drag page ${s.index + 1} to a new position`}
-              className="absolute left-1 top-1 z-10 flex size-11 cursor-grab touch-none items-center justify-center rounded-md bg-surface/90 text-subtle shadow-sm"
+              className="absolute left-2 top-2 z-10 flex size-11 cursor-grab touch-none items-center justify-center rounded-full border border-line bg-surface text-muted shadow-sm"
               onPointerDown={(e) => {
                 // Captured on the grid, which never moves, because moving a captured element drops the capture.
                 e.currentTarget.closest("ol")?.setPointerCapture(e.pointerId);

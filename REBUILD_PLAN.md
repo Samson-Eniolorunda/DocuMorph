@@ -22,6 +22,8 @@ again today against `git show origin/main:<path>` (viewport, inputs, media queri
 `v2`, which is the working tree; a path prefixed `main:` (for example `main:index.html:13`) refers to the live
 site.
 
+**Reading the checklist (session 2).** `[x]` is done, including where an owner decision changed how it works. `[-]` is dropped on purpose by an owner decision (section 9.1a). `[ ]` is still open.
+
 **Priority.** Most of DocuMorph's customers use phones. The mobile experience is therefore the first measure of
 this rebuild; section 13 sets it out and section 14 makes it a condition of release.
 
@@ -87,9 +89,9 @@ checklist keeps the capability and section 9 asks the owner how it should behave
 - [x] **NAV-01** `both` — Start page at `/` with sticky header and footer (`main:index.html:53-653`; `src/components/Header.tsx:35`, `src/components/Footer.tsx:6`). In `v2` the start page is the list of tools, not a tool.
 - [x] **NAV-02** `both` — Logo and "DocuMorph" wordmark link to the start page (`main:index.html:60-63`; `src/components/Header.tsx:37-39`).
 - [x] **NAV-03** `main` — Header navigation naming the tools, with the current one highlighted (`main:index.html:65-85`). `v2` shows only "All tools" and "Privacy", and only from 640 px (`src/components/Header.tsx:41-46`).
-- [ ] **NAV-04** `main` — "Feedback" item in the header opening the feedback dialog (`main:index.html:86-88`).
+- [x] **NAV-04** `main` — "Feedback" item in the header opening the feedback dialog (`main:index.html:86-88`).
 - [x] **NAV-05** `main` — Menu button on phones opening a full-screen menu (`main:index.html:91-98`, `main:assets/css/styles.css:285-340`). `v2` has no phone menu.
-- [ ] **NAV-06** `main` — Phone menu items: the four tools, Feedback and Donate (`main:index.html:103-166`).
+- [x] **NAV-06** `main` — Phone menu items: the four tools, Feedback and Donate (`main:index.html:103-166`).
 - [x] **NAV-07** `both` — Moving to another tool discards the file and settings of the previous one (`main:assets/js/scripts.js:324-341`; in `v2` each tool is a separate page).
 - [x] **NAV-08** `both` — Light and dark appearance following the device setting (`main:index.html:15`; `src/app/layout.tsx:29`, `src/app/globals.css:4-33`).
 - [x] **NAV-09** `both` — Responsive layout (`main:assets/css/styles.css:1417-1668`; Tailwind `sm`/`md`/`lg` classes throughout `v2`).
@@ -113,7 +115,7 @@ checklist keeps the capability and section 9 asks the owner how it should behave
 - [x] **CMP-04** `both` — PDF compression presets `screen`, `ebook`, `printer` (`main:assets/js/scripts.js:743-749`; `src/lib/server-tools.ts:66-75`).
 - [x] **CMP-05** `both` — Image compression for JPEG, PNG and WebP (`main:assets/js/scripts.js:420`, `:753-762`; `src/tools/ImageTool.tsx:81`). BMP and TIFF input exist on `main` only.
 - [x] **CMP-06** `both` — Image compression to a target size (`main:index.html:289-317`, MB or KB; `src/tools/ImageTool.tsx:135-139`, KB only).
-- [ ] **CMP-07** `main` *(decision)* — "Target Size" offered for PDFs but ignored (`main:assets/js/scripts.js:750-752`). `v2` does not offer it, which is the recommended outcome.
+- [-] **CMP-07** `main` *(decision)* — "Target Size" offered for PDFs but ignored (`main:assets/js/scripts.js:750-752`). `v2` does not offer it, which is the recommended outcome.
 - [x] **CMP-08** `both` — The file's size is shown before starting (`main:assets/js/scripts.js:520-521`; `src/tools/ServerConvert.tsx:88-90`, `src/components/FileOrder.tsx:40`). The `v2` image tools show only a count (`src/tools/ImageTool.tsx:85-86`).
 - [x] **CMP-09** `both` — Result shows the original size, the new size and the saving (`main:index.html:547-559`; `src/components/Results.tsx:27-31`, `src/tools/ServerConvert.tsx:58-60`).
 
@@ -137,65 +139,65 @@ checklist keeps the capability and section 9 asks the owner how it should behave
 - [x] **FLW-02** `both` — Button opening the device file picker, filtered to the tool (`main:index.html:426-432`; `src/components/Dropzone.tsx:90`).
 - [x] **FLW-03** `both` — Unsupported files are refused with an inline message naming them (`main:assets/js/scripts.js:222-275`; `src/components/Dropzone.tsx:50-56`, `:92-96`, checked by file signature).
 - [x] **FLW-04** `both` — Over-size files are refused with a message (`main:assets/js/scripts.js:180-188`: 50 MB; `src/components/Dropzone.tsx:53`: 100 MB on the device, 4 MB for server tools, `src/lib/files.ts:46-48`).
-- [ ] **FLW-05** `main` — Repeated rejections open the feedback dialog (`main:assets/js/scripts.js:238-246`).
-- [ ] **FLW-06** `main` *(decision)* — "Uploading…" staging animation that is only a timer (`main:assets/js/scripts.js:498-510`). `v2` has none; recommended to stay removed.
+- [-] **FLW-05** `main` — Repeated rejections open the feedback dialog (`main:assets/js/scripts.js:238-246`).
+- [-] **FLW-06** `main` *(decision)* — "Uploading…" staging animation that is only a timer (`main:assets/js/scripts.js:498-510`). `v2` has none; recommended to stay removed.
 - [x] **FLW-07** `both` — Ready screen showing the chosen file (`main:index.html:458-468`; `src/tools/ServerConvert.tsx:87-90`).
-- [ ] **FLW-08** `main` — Consent checkbox "I agree to the Terms & Privacy Policy" gating the start button (`main:index.html:471-482`).
+- [-] **FLW-08** `main` — Consent checkbox "I agree to the Terms & Privacy Policy" gating the start button (`main:index.html:471-482`).
 - [x] **FLW-09** `both` — Start button labelled for the tool (`main:assets/js/scripts.js:539-544`; `src/tools/ServerConvert.tsx:106`, `src/tools/ImageTool.tsx:168`).
 - [x] **FLW-10** `both` — A way back to choose another file (`main:index.html:495-497`; `src/tools/ServerConvert.tsx:108-110`, `src/tools/ImageTool.tsx:87-89`).
 - [x] **FLW-11** `main` — Processing screen with a percentage and a progress bar (`main:index.html:502-509`). `v2` shows a spinner in the button (`src/tools/ServerConvert.tsx:106`).
 - [x] **FLW-12** `main` — Real upload progress (`main:assets/js/scripts.js:963-989`).
-- [ ] **FLW-13** `main` — Direct browser upload to Vercel Blob for files up to 50 MB (`main:assets/js/scripts.js:910-961`).
-- [ ] **FLW-14** `main` — Separate iPhone/iPad upload route (`main:assets/js/scripts.js:845-908`).
+- [-] **FLW-13** `main` — Direct browser upload to Vercel Blob for files up to 50 MB (`main:assets/js/scripts.js:910-961`).
+- [-] **FLW-14** `main` — Separate iPhone/iPad upload route (`main:assets/js/scripts.js:845-908`).
 - [x] **FLW-15** `both` — Conversion request to `/api/convert` (`main:assets/js/scripts.js:991-1008`; `src/tools/ServerConvert.tsx:25-29`).
 - [x] **FLW-16** `both` — Failures are reported to the person (`main:assets/js/scripts.js:1012-1037`, by alert; `src/components/Results.tsx:68-75`, inline).
 - [x] **FLW-17** `both` — Success screen with download and start again (`main:index.html:512-532`; `src/components/Results.tsx:49-63`, `src/tools/ServerConvert.tsx:61-73`).
 - [x] **FLW-18** `both` — The output file name is shown (`main:index.html:544-545`; `src/components/Results.tsx:39`).
-- [ ] **FLW-19** `main` *(decision)* — Result preview area that is never displayed (`main:index.html:534-542`). `v2` has none.
+- [-] **FLW-19** `main` *(decision)* — Result preview area that is never displayed (`main:index.html:534-542`). `v2` has none.
 - [x] **FLW-20** `both` — Daily limit on conversions (`main:assets/js/scripts.js:292-317`: five, local storage; `src/app/api/convert/route.ts:18`, `:60-74`: ten by default, enforced on the server, server tools only).
 
 #### G. Feedback
 
-- [ ] **FBK-01** `main` — Feedback dialog reachable from the header, the phone menu and the footer (`main:index.html:766-845`).
-- [ ] **FBK-02** `main` — Category chooser: New Tool, Bug Report, Feedback, Other (`main:index.html:779-816`).
-- [ ] **FBK-03** `main` — Optional e-mail address field (`main:index.html:818-827`).
-- [ ] **FBK-04** `main` — Required message field (`main:index.html:829-839`).
-- [ ] **FBK-05** `main` — Submission to `/api/form` with sending, sent and failed states (`main:assets/js/scripts.js:354-370`).
+- [x] **FBK-01** `main` — Feedback dialog reachable from the header, the phone menu and the footer (`main:index.html:766-845`).
+- [x] **FBK-02** `main` — Category chooser: New Tool, Bug Report, Feedback, Other (`main:index.html:779-816`).
+- [x] **FBK-03** `main` — Optional e-mail address field (`main:index.html:818-827`).
+- [x] **FBK-04** `main` — Required message field (`main:index.html:829-839`).
+- [x] **FBK-05** `main` — Submission to `/api/form` with sending, sent and failed states (`main:assets/js/scripts.js:354-370`).
 
 #### H. Donations
 
-- [ ] **DON-01** `main` — Donation dialog reachable from the phone menu, the footer and the success screen (`main:index.html:847-1006`).
-- [ ] **DON-02** `main` — Coin chooser with seven entries (`main:index.html:866-938`).
-- [ ] **DON-03** `main` — USDT network chooser with six networks (`main:index.html:940-969`).
-- [ ] **DON-04** `main` — Wallet address for the chosen coin, loaded from `/api/wallets` (`main:index.html:971-981`, `main:assets/js/scripts.js:1136-1164`).
-- [ ] **DON-05** `main` — QR code of the address (`main:assets/js/scripts.js:1165-1175`).
-- [ ] **DON-06** `main` — Copy controls with a "Copied!" confirmation (`main:assets/js/scripts.js:1182-1195`).
+- [x] **DON-01** `main` — Donation dialog reachable from the phone menu, the footer and the success screen (`main:index.html:847-1006`).
+- [-] **DON-02** `main` — Coin chooser with seven entries (`main:index.html:866-938`).
+- [-] **DON-03** `main` — USDT network chooser with six networks (`main:index.html:940-969`).
+- [-] **DON-04** `main` — Wallet address for the chosen coin, loaded from `/api/wallets` (`main:index.html:971-981`, `main:assets/js/scripts.js:1136-1164`).
+- [-] **DON-05** `main` — QR code of the address (`main:assets/js/scripts.js:1165-1175`).
+- [-] **DON-06** `main` — Copy controls with a "Copied!" confirmation (`main:assets/js/scripts.js:1182-1195`).
 
 #### I. Legal content, dialogs and footer
 
-- [ ] **LGL-01** `main` — Terms of Service, six sections (`main:index.html:669-732`).
+- [x] **LGL-01** `main` — Terms of Service, six sections (`main:index.html:669-732`).
 - [x] **LGL-02** `both` — Privacy Policy (`main:index.html:733-764`, a dialog; `src/app/privacy/page.tsx:9-48`, a page, rewritten).
-- [ ] **LGL-03** `main` — Terms and Privacy open as dialogs that close from a button or the backdrop (`main:assets/js/scripts.js:343-352`).
+- [x] **LGL-03** `main` — Terms and Privacy open as dialogs that close from a button or the backdrop (`main:assets/js/scripts.js:343-352`).
 - [x] **LGL-04** `both` — Footer links (`main:index.html:585-608`: Terms, Privacy, Feedback, Donate; `src/components/Footer.tsx:10-18`: Privacy, Source code, Built by).
-- [ ] **LGL-05** `main` — "Powered by ConvertAPI" credit linking to convertapi.com (`main:index.html:610-618`).
-- [ ] **LGL-06** `main` — Copyright line with the current year (`main:index.html:620-622`).
-- [ ] **LGL-07** `main` — Social links to LinkedIn, GitHub and X (`main:index.html:625-650`).
+- [-] **LGL-05** `main` — "Powered by ConvertAPI" credit linking to convertapi.com (`main:index.html:610-618`).
+- [x] **LGL-06** `main` — Copyright line with the current year (`main:index.html:620-622`).
+- [-] **LGL-07** `main` — Social links to LinkedIn, GitHub and X (`main:index.html:625-650`).
 
 #### J. API endpoints
 
-- [ ] **API-01** `main` — `POST /api/blob-upload`, token handshake for Vercel Blob (`main:api/blob-upload.js:87-197`).
-- [ ] **API-02** `main` — `POST /api/native-upload`, one multipart file into Vercel Blob (`main:api/native-upload.js:16-84`).
+- [-] **API-01** `main` — `POST /api/blob-upload`, token handshake for Vercel Blob (`main:api/blob-upload.js:87-197`).
+- [-] **API-02** `main` — `POST /api/native-upload`, one multipart file into Vercel Blob (`main:api/native-upload.js:16-84`).
 - [x] **API-03** `both` — `POST /api/convert` calling ConvertAPI with the server-held secret (`main:api/convert.js:102-158`, JSON with a file URL; `src/app/api/convert/route.ts:29-101`, a multipart file and a listed tool).
-- [ ] **API-04** `main` *(decision)* — The open multipart mode of `/api/convert` that streams anything to ConvertAPI (`main:api/convert.js:160-210`). Recommended to stay retired.
-- [ ] **API-05** `main` — `POST /api/form`, forwarding feedback to Formspree (`main:api/form.js:11-47`).
-- [ ] **API-06** `main` — `GET /api/wallets`, the twelve wallet addresses (`main:api/wallets.js:12-39`).
+- [-] **API-04** `main` *(decision)* — The open multipart mode of `/api/convert` that streams anything to ConvertAPI (`main:api/convert.js:160-210`). Recommended to stay retired.
+- [x] **API-05** `main` — `POST /api/form`, forwarding feedback to Formspree (`main:api/form.js:11-47`).
+- [-] **API-06** `main` — `GET /api/wallets`, the twelve wallet addresses (`main:api/wallets.js:12-39`).
 
 #### K. Integrations and hosting
 
 - [x] **INT-01** `both` — ConvertAPI v2 with the secret kept on the server (`main:api/convert.js:56-57`; `src/app/api/convert/route.ts:30`, `:81`).
-- [ ] **INT-02** `main` — Vercel Blob (`main:api/blob-upload.js:126`).
-- [ ] **INT-03** `main` — Formspree (`main:api/form.js:18`).
-- [ ] **INT-04** `main` — QR code generation for wallet addresses (`main:assets/js/scripts.js:1172`).
+- [-] **INT-02** `main` — Vercel Blob (`main:api/blob-upload.js:126`).
+- [x] **INT-03** `main` — Formspree (`main:api/form.js:18`).
+- [-] **INT-04** `main` — QR code generation for wallet addresses (`main:assets/js/scripts.js:1172`).
 - [x] **INT-05** `both` — Deployment on Vercel (`main:README.md:113-118`; `src/app/api/convert/route.ts:15-16`).
 
 #### L. Search and sharing metadata
@@ -1022,6 +1024,20 @@ the ConvertAPI test allowance before phase 2; access to real phones before phase
 | D16 | Controls changed in `v2` (section 2.4): percentage sliders in place of the 1–9 slider and the four fixed scales | Accept `v2`'s |
 | D17 | Public repository and licence. `main`'s README said MIT; there is no `LICENSE` file on either branch | Confirm; the file is added on a "yes" |
 | D18 | **How the rebuild goes live**: it replaces the site that runs `main`. Confirm that `main` and `v2` stay untouched until then and name who presses the button | Preview first, then the owner's approval |
+
+### 9.1a Owner decisions of 19 November 2026 (applied in session 2)
+
+| # | Decision | What was built |
+| --- | --- | --- |
+| D1 | Feedback: bring it back, small | "Send feedback" in the footer and the phone Tools sheet opens a form (message required, optional e-mail, the page it was sent from). `POST /api/feedback` validates with zod, limits to 5 a day per visitor, and e-mails the owner only through Resend (`RESEND_API_KEY`, `FEEDBACK_TO_EMAIL`). Nothing is stored. No automatic pop-up after rejected files (FLW-05 stays out) |
+| D2 | Donations: no wallets; one "Buy me a coffee" link | `NEXT_PUBLIC_BUYMEACOFFEE_URL`. Footer, Tools sheet and a quiet line on the success screen. Plain text and a Lucide coffee cup; no branded button. Hidden when unset. Coins, QR code and `/api/wallets` are not rebuilt |
+| D3 | Large files | Browser tools take up to 100 MB, with a phone warning from 25 MB. Server conversions stay at 4 MB, with a clear message. **The 4 MB limit is Vercel's request-body limit (4.5 MB), not the converters'**: raising it would need uploads straight to storage, which the plan avoids |
+| D4 | Terms and consent | `/terms` beside `/privacy`; one line under every upload area; no tick box, no cookie banner (no tracking cookies). On device tools the line says the file is processed on the device and not uploaded, because "deleted straight after" would be untrue there |
+| D5 | Footer | Owner's name (links to `NEXT_PUBLIC_PORTFOLIO_URL`, plain text when unset), Privacy, Terms, Feedback, Buy me a coffee. "Powered by ConvertAPI" and social links are gone |
+| D6 | Four defective behaviours stay out | CMP-07, FLW-06, FLW-19, API-04 |
+| D17 | Licence | Proprietary: `LICENSE`, `"license": "UNLICENSED"`, no open-source claim anywhere |
+| Domain | `*.vercel.app` for now | The site address comes only from `NEXT_PUBLIC_SITE_URL`, which a production build now requires |
+| Converter | ConvertAPI removed | Word and Excel to PDF: Gotenberg on Cloud Run (`infra/gotenberg/`). PDF to Word and PDF to Excel: Adobe PDF Services free tier, with a monthly and a daily cap for the whole site. Compress PDF: in the browser |
 
 ### 9.2 Environment variable names (values are never to be sent in chat or committed)
 

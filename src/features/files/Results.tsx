@@ -118,7 +118,8 @@ export function Results({
 
       {SITE.coffeeUrl && (
         <p className="mt-4 text-body-sm text-subtle">
-          DocuMorph is free and has no adverts. If it saved you time, you can <CoffeeLink className="text-accent" />.
+          DocuMorph is free and has no adverts. If it saved you time, you can{" "}
+          <CoffeeLink inline className="text-accent" />.
         </p>
       )}
 

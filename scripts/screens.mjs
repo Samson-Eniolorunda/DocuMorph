@@ -23,6 +23,7 @@ const pages = [
   "pdf-to-excel",
   "compress-pdf",
   "privacy",
+  "terms",
   "no-such-page",
 ];
 const list = only ? only.split(",") : pages;
