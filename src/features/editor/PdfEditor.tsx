@@ -98,6 +98,7 @@ export function PdfEditor() {
   const [area, setArea] = useState<HTMLDivElement | null>(null);
   const [current, setCurrent] = useState(1);
   const imageInput = useRef<HTMLInputElement>(null);
+  const scroller = useRef<HTMLDivElement>(null);
 
   const dirty = edits.length > 0 || deleted.size > 0 || Object.keys(values).length > 0;
   const sel = edits.find((e) => e.id === selected);
@@ -239,6 +240,20 @@ export function PdfEditor() {
     }
   }
 
+  function closeTextSheet() {
+    setSheet(null);
+    const t = sel?.type === "text" ? sel : null;
+    if (t && !t.text.trim()) {
+      setHist((h) =>
+        replace(
+          h,
+          h.present.filter((e) => e.id !== t.id),
+        ),
+      );
+      setSelected(null);
+    }
+  }
+
   function chooseTool(t: ToolName) {
     setTool(t);
     setSelected(null);
@@ -341,7 +356,8 @@ export function PdfEditor() {
     let frame = 0;
     const update = () => {
       frame = 0;
-      const mid = window.innerHeight / 2;
+      const box = scroller.current?.getBoundingClientRect();
+      const mid = box ? box.top + box.height / 2 : window.innerHeight / 2;
       const pages = Array.from(area.querySelectorAll<HTMLElement>("[data-page]"));
       const hit = pages.find((p) => p.getBoundingClientRect().bottom > mid);
       if (hit) setCurrent(Number(hit.dataset.page));
@@ -349,10 +365,11 @@ export function PdfEditor() {
     const onScroll = () => {
       if (!frame) frame = requestAnimationFrame(update);
     };
-    window.addEventListener("scroll", onScroll, { passive: true });
+    const host = scroller.current;
+    host?.addEventListener("scroll", onScroll, { passive: true });
     update();
     return () => {
-      window.removeEventListener("scroll", onScroll);
+      host?.removeEventListener("scroll", onScroll);
       cancelAnimationFrame(frame);
     };
   }, [area, sizes.length]);
@@ -390,10 +407,16 @@ export function PdfEditor() {
       return n;
     });
 
+  // While a document is open the editor takes the whole screen: its own slim bar replaces the site header,
+  // so two bars never stack and the page gets all the room.
   return (
-    <div>
+    <div
+      ref={scroller}
+      data-editor-scroll
+      className="fixed inset-0 z-50 overflow-y-auto overscroll-contain bg-bg px-3 pt-[env(safe-area-inset-top)] sm:px-6"
+    >
       {/* Top bar: close, page, undo, redo, save */}
-      <div className="sticky top-14 z-20 -mx-4 flex items-center gap-1 border-b border-line bg-surface px-2 sm:mx-0 sm:rounded-lg sm:border">
+      <div className="sticky top-0 z-20 -mx-3 flex items-center gap-1 border-b border-line bg-surface px-2 sm:-mx-6">
         <IconButton label="Close PDF" onClick={() => (dirty && !saved ? setSheet("close") : close())}>
           <X className="size-5" />
         </IconButton>
@@ -493,6 +516,7 @@ export function PdfEditor() {
                 onPlace={place}
                 onEditText={(id) => {
                   setSelected(id);
+                  checkpoint();
                   setSheet("text");
                 }}
                 onChange={change}
@@ -514,7 +538,13 @@ export function PdfEditor() {
               aria-label="Selected item"
             >
               {text && (
-                <Button variant="secondary" onClick={() => setSheet("text")}>
+                <Button
+                  variant="secondary"
+                  onClick={() => {
+                    checkpoint();
+                    setSheet("text");
+                  }}
+                >
                   <Type className="size-5" aria-hidden /> Edit
                 </Button>
               )}
@@ -562,10 +592,10 @@ export function PdfEditor() {
       {/* Sheets */}
       <Dialog
         open={sheet === "text"}
-        onClose={() => setSheet(null)}
+        onClose={() => sheet === "text" && closeTextSheet()}
         title="Text"
         footer={
-          <Button variant="primary" size="lg" onClick={() => setSheet(null)}>
+          <Button variant="primary" size="lg" onClick={closeTextSheet}>
             Done
           </Button>
         }
@@ -579,7 +609,6 @@ export function PdfEditor() {
               autoCapitalize="sentences"
               spellCheck
               enterKeyHint="enter"
-              onFocus={checkpoint}
             />
           )}
           <Stepper

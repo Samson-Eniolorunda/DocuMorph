@@ -134,7 +134,7 @@ function ServerConvertTool({ tool }: { tool: ServerTool }) {
         ) : (
           <>
             <Button variant="secondary" size="lg" onClick={() => setFile(null)}>
-              Choose another file
+              Change file
             </Button>
             <Button variant="primary" size="lg" onClick={run}>
               <Cloud className="size-5" aria-hidden /> {error ? "Try again" : tool.name}

@@ -121,7 +121,7 @@ export function SplitPdf() {
       {error && <Notice tone="error">{error}</Notice>}
       <ActionBar>
         <Button variant="secondary" size="lg" onClick={reset}>
-          Choose another file
+          Change file
         </Button>
         <Button
           variant="primary"

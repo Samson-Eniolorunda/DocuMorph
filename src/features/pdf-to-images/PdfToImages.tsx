@@ -141,7 +141,7 @@ export function PdfToImages() {
         ) : (
           <>
             <Button variant="secondary" size="lg" onClick={pdf.reset}>
-              Choose another file
+              Change file
             </Button>
             <Button variant="primary" size="lg" disabled={Boolean(rangeError)} onClick={run}>
               <FileImage className="size-5" aria-hidden /> Create images
