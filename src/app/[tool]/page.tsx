@@ -1,27 +1,29 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { ToolShell } from "@/components/ToolShell";
-import { SERVER_TOOLS, serverToolBySlug } from "@/lib/server-tools";
-import { ServerConvert } from "@/tools/ServerConvert";
+import { ToolShell } from "@/components/layout/ToolShell";
+import { ToolView } from "@/components/layout/ToolView";
+import { TOOLS, toolBySlug } from "@/config/tools";
 
-// The server conversions: /word-to-pdf, /pdf-to-word, /excel-to-pdf, /pdf-to-excel, /compress-pdf.
+// Every tool lives at /<slug>, generated from the one registry.
 export const dynamicParams = false;
 
 export function generateStaticParams() {
-  return SERVER_TOOLS.map((t) => ({ tool: t.slug }));
+  return TOOLS.map((t) => ({ tool: t.slug }));
 }
 
 export async function generateMetadata({ params }: { params: Promise<{ tool: string }> }): Promise<Metadata> {
-  const t = serverToolBySlug((await params).tool);
-  return t ? { title: t.name, description: t.summary, alternates: { canonical: `/${t.slug}` } } : {};
+  const t = toolBySlug((await params).tool);
+  if (!t) return {};
+  const note = t.where === "device" ? " Free, in your browser: your files are not uploaded." : "";
+  return { title: t.name, description: `${t.summary}${note}`, alternates: { canonical: `/${t.slug}` } };
 }
 
 export default async function Page({ params }: { params: Promise<{ tool: string }> }) {
   const { tool } = await params;
-  if (!serverToolBySlug(tool)) notFound();
+  if (!toolBySlug(tool)) notFound();
   return (
-    <ToolShell slug={tool}>
-      <ServerConvert slug={tool} />
+    <ToolShell slug={tool} wide={tool === "edit-pdf"}>
+      <ToolView slug={tool} />
     </ToolShell>
   );
 }

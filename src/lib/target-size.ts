@@ -30,6 +30,6 @@ export async function fitToSize(
   if (best) return { ...best, fits: true };
   // Even the lowest quality tried is too big: return the smallest result.
   const floor = await encode(min);
-  const pick = floor.size < (smallest?.blob.size ?? Infinity) ? { blob: floor, quality: min } : smallest!;
+  const pick = smallest && smallest.blob.size <= floor.size ? smallest : { blob: floor, quality: min };
   return { ...pick, fits: pick.blob.size <= targetBytes };
 }

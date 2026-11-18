@@ -1,5 +1,6 @@
 // Image work in the browser with a canvas: convert, resize and compress.
 
+import { context2d } from "./canvas";
 import { fitToSize } from "./target-size";
 
 export type ImageType = "image/jpeg" | "image/png" | "image/webp";
@@ -18,7 +19,7 @@ export function draw(bitmap: ImageBitmap, width: number, height: number, type: I
   const canvas = document.createElement("canvas");
   canvas.width = Math.max(1, Math.round(width));
   canvas.height = Math.max(1, Math.round(height));
-  const ctx = canvas.getContext("2d")!;
+  const ctx = context2d(canvas);
   // JPEG has no transparency: put transparent areas on white, not black.
   if (type === "image/jpeg") {
     ctx.fillStyle = "#ffffff";
@@ -33,13 +34,22 @@ export async function encode(canvas: HTMLCanvasElement, type: ImageType, quality
   const blob = await new Promise<Blob | null>((r) => canvas.toBlob(r, type, quality));
   if (!blob) throw new Error("This browser could not create the image.");
   // Browsers fall back to PNG for types they cannot write (older Safari and WebP).
-  if (blob.type !== type) throw new Error(`This browser cannot save ${EXT[type].toUpperCase()} images. Choose another format.`);
+  if (blob.type !== type)
+    throw new Error(`This browser cannot save ${EXT[type].toUpperCase()} images. Choose another format.`);
   return blob;
 }
 
 /** Target size from width, height and "keep proportions". */
-export function targetDimensions(src: { width: number; height: number }, want: { width?: number; height?: number; percent?: number }, keepRatio = true) {
-  if (want.percent) return { width: Math.round((src.width * want.percent) / 100), height: Math.round((src.height * want.percent) / 100) };
+export function targetDimensions(
+  src: { width: number; height: number },
+  want: { width?: number | undefined; height?: number | undefined; percent?: number | undefined },
+  keepRatio = true,
+) {
+  if (want.percent)
+    return {
+      width: Math.round((src.width * want.percent) / 100),
+      height: Math.round((src.height * want.percent) / 100),
+    };
   const r = src.width / src.height;
   let w = want.width || 0;
   let h = want.height || 0;

@@ -22,7 +22,7 @@ export async function sniff(file: Blob): Promise<FileKind> {
   return detectKind(head);
 }
 
-export const extOf = (name: string) => (name.includes(".") ? name.split(".").pop()!.toLowerCase() : "");
+export const extOf = (name: string) => (name.includes(".") ? (name.split(".").pop() ?? "").toLowerCase() : "");
 
 /** "Report.final.pdf" + "png" → "Report.final.png"; adds a suffix when asked. */
 export function renameTo(name: string, ext: string, suffix = "") {
@@ -39,7 +39,8 @@ export function formatBytes(n: number) {
 }
 
 /** Percentage saved, e.g. 1000 → 600 is 40. Negative when the file grew. */
-export const savedPercent = (before: number, after: number) => (before > 0 ? Math.round((1 - after / before) * 100) : 0);
+export const savedPercent = (before: number, after: number) =>
+  before > 0 ? Math.round((1 - after / before) * 100) : 0;
 
 export const MB = 1024 * 1024;
 /** Files processed on this device: limited only to keep phones responsive. */

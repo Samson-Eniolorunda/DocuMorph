@@ -2,6 +2,7 @@
 // loaded on first use, from this site, so pages that do not show PDFs stay light.
 
 import type { PDFDocumentProxy } from "pdfjs-dist";
+import { context2d } from "../canvas";
 
 let lib: Promise<typeof import("pdfjs-dist")> | null = null;
 
@@ -27,7 +28,12 @@ export interface RenderedPage {
 }
 
 /** Draws page `index` (zero-based) at `cssWidth` pixels wide, sharp on high-density screens. */
-export async function renderPage(doc: PDFDocumentProxy, index: number, cssWidth: number, canvas = document.createElement("canvas")): Promise<RenderedPage> {
+export async function renderPage(
+  doc: PDFDocumentProxy,
+  index: number,
+  cssWidth: number,
+  canvas = document.createElement("canvas"),
+): Promise<RenderedPage> {
   const page = await doc.getPage(index + 1);
   const base = page.getViewport({ scale: 1 });
   const ratio = Math.min(window.devicePixelRatio || 1, 2);
@@ -36,19 +42,25 @@ export async function renderPage(doc: PDFDocumentProxy, index: number, cssWidth:
   canvas.height = Math.floor(viewport.height);
   canvas.style.width = `${cssWidth}px`;
   canvas.style.height = `${(cssWidth * base.height) / base.width}px`;
-  await page.render({ canvas, canvasContext: canvas.getContext("2d")!, viewport }).promise;
+  await page.render({ canvas, canvasContext: context2d(canvas), viewport }).promise;
   page.cleanup();
   return { canvas, width: base.width, height: base.height };
 }
 
 /** Renders a page to an image file at a given resolution (dots per inch). */
-export async function pageToImage(doc: PDFDocumentProxy, index: number, dpi: number, type: "image/png" | "image/jpeg", quality = 0.92) {
+export async function pageToImage(
+  doc: PDFDocumentProxy,
+  index: number,
+  dpi: number,
+  type: "image/png" | "image/jpeg",
+  quality = 0.92,
+) {
   const page = await doc.getPage(index + 1);
   const viewport = page.getViewport({ scale: dpi / 72 });
   const canvas = document.createElement("canvas");
   canvas.width = Math.floor(viewport.width);
   canvas.height = Math.floor(viewport.height);
-  const ctx = canvas.getContext("2d")!;
+  const ctx = context2d(canvas);
   if (type === "image/jpeg") {
     ctx.fillStyle = "#ffffff";
     ctx.fillRect(0, 0, canvas.width, canvas.height);

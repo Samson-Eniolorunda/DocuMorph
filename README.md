@@ -38,12 +38,12 @@ Checks: `npm run typecheck`, `npm run lint`, `npm test` (unit tests with Vitest)
 
 ## Settings
 
-| Name | Required | Purpose |
-| --- | --- | --- |
-| `CONVERTAPI_SECRET` | For the server tools | ConvertAPI secret. Without it the server tools answer "not set up". |
-| `CONVERT_DAILY_PER_VISITOR` | No | Server conversions allowed per visitor per day (default 10). |
-| `CONVERT_DAILY_SITE_CAP` | No | Server conversions allowed for the whole site per day (default: no cap). |
-| `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN` | No | Shares the daily counts across server instances. Without them each instance counts on its own. |
-| `NEXT_PUBLIC_SITE_URL` | No | Public address, for link previews. |
+| Name                                                 | Required             | Purpose                                                                                        |
+| ---------------------------------------------------- | -------------------- | ---------------------------------------------------------------------------------------------- |
+| `CONVERTAPI_SECRET`                                  | For the server tools | ConvertAPI secret. Without it the server tools answer "not set up".                            |
+| `CONVERT_DAILY_PER_VISITOR`                          | No                   | Server conversions allowed per visitor per day (default 10).                                   |
+| `CONVERT_DAILY_SITE_CAP`                             | No                   | Server conversions allowed for the whole site per day (default: no cap).                       |
+| `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN` | No                   | Shares the daily counts across server instances. Without them each instance counts on its own. |
+| `NEXT_PUBLIC_SITE_URL`                               | No                   | Public address, for link previews.                                                             |
 
 See `.env.example`.

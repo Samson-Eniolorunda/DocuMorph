@@ -17,8 +17,8 @@ import {
   Shrink,
   type LucideIcon,
 } from "lucide-react";
-import { GROUPS, TOOLS } from "@/lib/tools";
-import { WhereBadge } from "@/components/ToolShell";
+import { GROUPS, TOOLS } from "@/config/tools";
+import { WhereBadge } from "@/components/layout/ToolShell";
 
 const ICONS: Record<string, LucideIcon> = {
   "edit-pdf": PenLine,
@@ -67,14 +67,19 @@ export default function Home() {
           <div key={group} className="mt-10 first:mt-0">
             <h2 className="text-sm font-semibold uppercase tracking-wider text-subtle">{group}</h2>
             {group === "Office and compression" && (
-              <p className="mt-1 text-sm text-muted">These need a conversion server. Files up to 4 MB are sent to ConvertAPI and are not stored by DocuMorph.</p>
+              <p className="mt-1 text-sm text-muted">
+                These need a conversion server. Files up to 4 MB are sent to ConvertAPI and are not stored by DocuMorph.
+              </p>
             )}
             <ul className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {TOOLS.filter((t) => t.group === group).map((t) => {
                 const Icon = ICONS[t.slug] ?? FileText;
                 return (
                   <li key={t.slug}>
-                    <Link href={`/${t.slug}`} className="group flex h-full flex-col rounded-2xl border border-line bg-surface p-5 transition-colors hover:border-accent">
+                    <Link
+                      href={`/${t.slug}`}
+                      className="group flex h-full flex-col rounded-2xl border border-line bg-surface p-5 transition-colors hover:border-accent"
+                    >
                       <span className="flex items-start justify-between gap-3">
                         <span className="flex size-10 items-center justify-center rounded-xl bg-accent-soft text-accent">
                           <Icon className="size-5" />

@@ -27,7 +27,13 @@ export async function pageCount(bytes: Uint8Array) {
 
 export function geometryOf(page: PDFPage): PageGeometry {
   const box = page.getCropBox();
-  return { width: box.width, height: box.height, x0: box.x, y0: box.y, rotation: normaliseRotation(page.getRotation().angle) };
+  return {
+    width: box.width,
+    height: box.height,
+    x0: box.x,
+    y0: box.y,
+    rotation: normaliseRotation(page.getRotation().angle),
+  };
 }
 
 /* ---------- Merge, organise, split ---------- */
@@ -52,7 +58,7 @@ export async function organise(bytes: Uint8Array, pages: { index: number; rotate
     pages.map((p) => p.index),
   );
   copied.forEach((page, i) => {
-    const turn = normaliseRotation(page.getRotation().angle + pages[i].rotate);
+    const turn = normaliseRotation(page.getRotation().angle + (pages[i]?.rotate ?? 0));
     page.setRotation(degrees(turn));
     out.addPage(page);
   });
@@ -60,7 +66,14 @@ export async function organise(bytes: Uint8Array, pages: { index: number; rotate
 }
 
 export async function split(bytes: Uint8Array, groups: number[][]) {
-  return Promise.all(groups.map((g) => organise(bytes, g.map((index) => ({ index, rotate: 0 })))));
+  return Promise.all(
+    groups.map((g) =>
+      organise(
+        bytes,
+        g.map((index) => ({ index, rotate: 0 })),
+      ),
+    ),
+  );
 }
 
 /* ---------- Images to PDF ---------- */
@@ -73,7 +86,10 @@ export interface PdfImageInput {
 export type PageSize = "fit" | "a4" | "letter";
 const SIZES = { a4: [595.28, 841.89], letter: [612, 792] } as const;
 
-export async function imagesToPdf(images: PdfImageInput[], { size = "a4", margin = 24 }: { size?: PageSize; margin?: number } = {}) {
+export async function imagesToPdf(
+  images: PdfImageInput[],
+  { size = "a4", margin = 24 }: { size?: PageSize; margin?: number } = {},
+) {
   const out = await PDFDocument.create();
   for (const img of images) {
     const embedded = img.kind === "png" ? await out.embedPng(img.bytes) : await out.embedJpg(img.bytes);
@@ -107,10 +123,13 @@ export async function readFields(bytes: Uint8Array): Promise<FieldInfo[]> {
   const out: FieldInfo[] = [];
   for (const f of doc.getForm().getFields()) {
     const name = f.getName();
-    if (f instanceof PDFTextField) out.push({ name, type: "text", value: f.getText() ?? "", multiline: f.isMultiline() });
+    if (f instanceof PDFTextField)
+      out.push({ name, type: "text", value: f.getText() ?? "", multiline: f.isMultiline() });
     else if (f instanceof PDFCheckBox) out.push({ name, type: "checkbox", value: f.isChecked() });
-    else if (f instanceof PDFDropdown || f instanceof PDFOptionList) out.push({ name, type: "choice", value: f.getSelected()[0] ?? "", options: f.getOptions() });
-    else if (f instanceof PDFRadioGroup) out.push({ name, type: "choice", value: f.getSelected() ?? "", options: f.getOptions() });
+    else if (f instanceof PDFDropdown || f instanceof PDFOptionList)
+      out.push({ name, type: "choice", value: f.getSelected()[0] ?? "", options: f.getOptions() });
+    else if (f instanceof PDFRadioGroup)
+      out.push({ name, type: "choice", value: f.getSelected() ?? "", options: f.getOptions() });
   }
   return out;
 }
@@ -155,7 +174,8 @@ export interface EditOptions {
 export function hexToRgb(hex: string) {
   const m = hex.replace("#", "").match(/^([0-9a-f]{6}|[0-9a-f]{3})$/i);
   if (!m) return rgb(0, 0, 0);
-  const full = m[1].length === 3 ? m[1].replace(/(.)/g, "$1$1") : m[1];
+  const digits = m[1] ?? "000000";
+  const full = digits.length === 3 ? digits.replace(/(.)/g, "$1$1") : digits;
   const n = parseInt(full, 16);
   return rgb(((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255);
 }
@@ -187,8 +207,7 @@ async function setFields(doc: PDFDocument, fields: Record<string, string | boole
     else if (f instanceof PDFCheckBox) {
       if (value) f.check();
       else f.uncheck();
-    }
-    else if ((f instanceof PDFDropdown || f instanceof PDFOptionList) && value) f.select(String(value));
+    } else if ((f instanceof PDFDropdown || f instanceof PDFOptionList) && value) f.select(String(value));
     else if (f instanceof PDFRadioGroup && value) f.select(String(value));
   }
 }
@@ -201,8 +220,11 @@ export async function applyEdits(bytes: Uint8Array, edits: Edit[], opts: EditOpt
 
   const fontFor = async (e: Extract<Edit, { type: "text" }>) => {
     const key = `${e.font}-${e.bold}`;
-    if (!fontCache.has(key)) fontCache.set(key, await doc.embedFont(STANDARD[e.font][e.bold ? 1 : 0]));
-    const std = fontCache.get(key)!;
+    let std = fontCache.get(key);
+    if (!std) {
+      std = await doc.embedFont(STANDARD[e.font][e.bold ? 1 : 0]);
+      fontCache.set(key, std);
+    }
     if (fitsStandardFont(std, e.text)) return std;
     if (!opts.loadUnicodeFont) throw new Error("Some characters cannot be written with the standard PDF fonts.");
     if (!unicode) {
@@ -223,7 +245,8 @@ export async function applyEdits(bytes: Uint8Array, edits: Edit[], opts: EditOpt
       const at = placeBox(g, e.x, e.y, e.h);
       const common = { x: at.x, y: at.y, width: e.w, height: e.h, rotate: degrees(at.rotate) };
       if (e.style === "whiteout") page.drawRectangle({ ...common, color: hexToRgb(e.color || "#ffffff") });
-      else if (e.style === "highlight") page.drawRectangle({ ...common, color: hexToRgb(e.color || "#ffe14d"), opacity: 0.4 });
+      else if (e.style === "highlight")
+        page.drawRectangle({ ...common, color: hexToRgb(e.color || "#ffe14d"), opacity: 0.4 });
       else page.drawRectangle({ ...common, borderColor: hexToRgb(e.color || "#d92d20"), borderWidth: 1.5 });
     } else if (e.type === "image") {
       const img = e.kind === "png" ? await doc.embedPng(e.bytes) : await doc.embedJpg(e.bytes);
@@ -236,7 +259,14 @@ export async function applyEdits(bytes: Uint8Array, edits: Edit[], opts: EditOpt
         // Baseline of each line, measured on the displayed page.
         const baseline = e.y + ascent + i * e.size * LINE_HEIGHT;
         const at = placeBox(g, e.x, baseline, 0);
-        page.drawText(line, { x: at.x, y: at.y, size: e.size, font, color: hexToRgb(e.color), rotate: degrees(at.rotate) });
+        page.drawText(line, {
+          x: at.x,
+          y: at.y,
+          size: e.size,
+          font,
+          color: hexToRgb(e.color),
+          rotate: degrees(at.rotate),
+        });
       });
     }
   }

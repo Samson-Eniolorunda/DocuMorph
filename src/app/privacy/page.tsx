@@ -3,7 +3,8 @@ import Link from "next/link";
 
 export const metadata: Metadata = {
   title: "Privacy",
-  description: "Which DocuMorph tools keep your files on your device, and what happens to files sent for server conversion.",
+  description:
+    "Which DocuMorph tools keep your files on your device, and what happens to files sent for server conversion.",
 };
 
 export default function Privacy() {
@@ -23,11 +24,16 @@ export default function Privacy() {
       <p className="mt-2 text-muted">
         Word to PDF, PDF to Word, Excel to PDF, PDF to Excel and Compress PDF need a conversion server. For these, your
         file (up to 4 MB) is sent through DocuMorph directly to{" "}
-        <a href="https://www.convertapi.com" className="underline underline-offset-4" target="_blank" rel="noopener noreferrer">
+        <a
+          href="https://www.convertapi.com"
+          className="underline underline-offset-4"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
           ConvertAPI
         </a>
-        . DocuMorph does not store it. ConvertAPI keeps the converted file for up to 3 hours so you can download it; after
-        downloading, you can delete it straight away with the &quot;Delete it now&quot; button.
+        . DocuMorph does not store it. ConvertAPI keeps the converted file for up to 3 hours so you can download it;
+        after downloading, you can delete it straight away with the &quot;Delete it now&quot; button.
       </p>
 
       <h2 className="mt-10 text-xl font-semibold">What is recorded</h2>

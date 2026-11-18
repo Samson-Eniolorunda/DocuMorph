@@ -16,7 +16,8 @@ export function parseRanges(input: string, pageCount: number): RangeResult {
     const from = m[1] ? Number(m[1]) : 1;
     const to = m[2] ? (m[3] ? Number(m[3]) : pageCount) : from;
     if (from < 1 || to < 1) return { ok: false, error: "Pages start at 1." };
-    if (from > pageCount || to > pageCount) return { ok: false, error: `This document has ${pageCount} page${pageCount === 1 ? "" : "s"}.` };
+    if (from > pageCount || to > pageCount)
+      return { ok: false, error: `This document has ${pageCount} page${pageCount === 1 ? "" : "s"}.` };
     if (from > to) return { ok: false, error: `"${part}" runs backwards; write it as ${to}-${from}.` };
     groups.push(Array.from({ length: to - from + 1 }, (_, i) => from - 1 + i));
   }
@@ -32,4 +33,8 @@ export function chunkPages(pageCount: number, size: number): number[][] {
 }
 
 /** Short label for a group, used in file names: [0,1,2] → "1-3", [4] → "5". */
-export const groupLabel = (g: number[]) => (g.length === 1 ? `${g[0] + 1}` : `${g[0] + 1}-${g[g.length - 1] + 1}`);
+export const groupLabel = (g: number[]) => {
+  const first = (g[0] ?? 0) + 1;
+  const last = (g[g.length - 1] ?? 0) + 1;
+  return first === last ? `${first}` : `${first}-${last}`;
+};

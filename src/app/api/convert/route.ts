@@ -9,8 +9,8 @@
 
 import { NextResponse } from "next/server";
 import { detectKind, extOf, SERVER_MAX_BYTES } from "@/lib/files";
-import { checkLimit } from "@/lib/rate-limit";
-import { serverToolBySlug } from "@/lib/server-tools";
+import { checkLimit } from "@/server/rate-limit";
+import { serverToolBySlug } from "@/config/server-tools";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -18,10 +18,12 @@ export const maxDuration = 60;
 const PER_VISITOR = Number(process.env.CONVERT_DAILY_PER_VISITOR ?? 10);
 const PER_SITE = Number(process.env.CONVERT_DAILY_SITE_CAP ?? 0); // 0 = no site-wide cap
 
-const fail = (status: number, error: string) => NextResponse.json({ error }, { status, headers: { "Cache-Control": "no-store" } });
+const fail = (status: number, error: string) =>
+  NextResponse.json({ error }, { status, headers: { "Cache-Control": "no-store" } });
 
 async function visitorKey(req: Request, today: string) {
-  const ip = (req.headers.get("x-forwarded-for") ?? "").split(",")[0].trim() || req.headers.get("x-real-ip") || "unknown";
+  const ip =
+    (req.headers.get("x-forwarded-for") ?? "").split(",")[0]?.trim() || req.headers.get("x-real-ip") || "unknown";
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(`${today}:${ip}`));
   return Buffer.from(digest).toString("base64url").slice(0, 22);
 }
@@ -93,11 +95,20 @@ export async function POST(req: Request) {
 
   if (!res.ok || !data?.Files?.length) {
     console.error("ConvertAPI error", res.status, data?.Message);
-    return fail(502, res.status === 401 ? "Server conversions are not available right now." : "The file could not be converted. It may be damaged or protected.");
+    return fail(
+      502,
+      res.status === 401
+        ? "Server conversions are not available right now."
+        : "The file could not be converted. It may be damaged or protected.",
+    );
   }
 
   const out = data.Files[0];
-  return NextResponse.json({ name: out.FileName, size: out.FileSize, url: out.Url, fileId: out.FileId }, { headers: { "Cache-Control": "no-store" } });
+  if (!out) return fail(502, "The file could not be converted. It may be damaged or protected.");
+  return NextResponse.json(
+    { name: out.FileName, size: out.FileSize, url: out.Url, fileId: out.FileId },
+    { headers: { "Cache-Control": "no-store" } },
+  );
 }
 
 /** Deletes a converted file from ConvertAPI before its 3-hour expiry. */
@@ -106,7 +117,10 @@ export async function DELETE(req: Request) {
   if (!/^[A-Za-z0-9_-]{8,128}$/.test(fileId)) return fail(400, "Unknown file.");
   const secret = process.env.CONVERTAPI_SECRET;
   if (!secret) return fail(503, "Server conversions are not set up on this site.");
-  const res = await fetch(`https://v2.convertapi.com/d/${fileId}?Secret=${encodeURIComponent(secret)}`, { method: "DELETE", cache: "no-store" }).catch(() => null);
+  const res = await fetch(`https://v2.convertapi.com/d/${fileId}?Secret=${encodeURIComponent(secret)}`, {
+    method: "DELETE",
+    cache: "no-store",
+  }).catch(() => null);
   // 404 means it is already gone, which is the outcome we want.
   if (res && (res.ok || res.status === 404)) return NextResponse.json({ deleted: true });
   return fail(502, "The file could not be deleted now; ConvertAPI removes it within 3 hours.");
