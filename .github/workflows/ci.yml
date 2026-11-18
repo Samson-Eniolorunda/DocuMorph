@@ -3,6 +3,8 @@ on:
   push:
     branches: [rebuild/production]
   pull_request:
+env:
+  NEXT_PUBLIC_SITE_URL: https://documorph.example
 jobs:
   checks:
     runs-on: ubuntu-latest
@@ -16,5 +18,8 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
+      - run: npm run budgets
       - run: npx playwright install --with-deps chromium
       - run: npm run e2e
+        env:
+          NEXT_PUBLIC_SITE_URL: http://127.0.0.1:3100

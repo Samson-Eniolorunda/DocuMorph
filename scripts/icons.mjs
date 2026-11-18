@@ -12,15 +12,21 @@ const svg = (body) => `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 3
 const rounded = svg(`<rect width="32" height="32" rx="8" fill="#0f766e"/>${MARK}`);
 const square = svg(`<rect width="32" height="32" fill="#0f766e"/>${MARK}`);
 // Maskable: the mark is drawn inside the central 80 % so any mask shape keeps it whole.
-const maskable = svg(`<rect width="32" height="32" fill="#0f766e"/><g transform="translate(3.2 3.2) scale(0.8)">${MARK}</g>`);
+const maskable = svg(
+  `<rect width="32" height="32" fill="#0f766e"/><g transform="translate(3.2 3.2) scale(0.8)">${MARK}</g>`,
+);
 
 const executablePath = process.env.PW_CHROMIUM_PATH;
-const browser = await chromium.launch(executablePath ? { executablePath, args: ["--no-sandbox"] } : { args: ["--no-sandbox"] });
+const browser = await chromium.launch(
+  executablePath ? { executablePath, args: ["--no-sandbox"] } : { args: ["--no-sandbox"] },
+);
 const page = await browser.newPage();
 
 async function png(markup, size) {
   await page.setViewportSize({ width: size, height: size });
-  await page.setContent(`<body style="margin:0;background:transparent">${markup.replace("<svg ", `<svg width="${size}" height="${size}" `)}</body>`);
+  await page.setContent(
+    `<body style="margin:0;background:transparent">${markup.replace("<svg ", `<svg width="${size}" height="${size}" `)}</body>`,
+  );
   return page.screenshot({ omitBackground: true, type: "png" });
 }
 

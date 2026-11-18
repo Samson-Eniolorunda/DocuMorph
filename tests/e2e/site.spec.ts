@@ -82,3 +82,25 @@ test("Compress PDF runs on the device and offers a smaller file or says it canno
   await expect(page.getByText("Your file is ready")).toBeVisible();
   await expect(page.getByText("report-compressed.pdf")).toBeVisible();
 });
+
+test("every tool has its own share image", async ({ page, request }) => {
+  const seen = new Set<string>();
+  for (const slug of ["merge-pdf", "word-to-pdf", "compress-pdf"]) {
+    await page.goto(`/${slug}`);
+    const url = await page.locator('meta[property="og:image"]').getAttribute("content");
+    expect(url).toContain(`/${slug}/opengraph-image`);
+    const res = await request.get(url ?? "");
+    expect(res.status()).toBe(200);
+    expect(res.headers()["content-type"]).toBe("image/png");
+    seen.add(url ?? "");
+  }
+  expect(seen.size).toBe(3);
+});
+
+test("the icon set is linked: favicon, Apple touch icon and the manifest's PNGs", async ({ page, request }) => {
+  await page.goto("/");
+  await expect(page.locator('link[rel="apple-touch-icon"]')).toHaveCount(1);
+  const manifest = await (await request.get("/manifest.webmanifest")).json();
+  for (const icon of manifest.icons as { src: string }[]) expect((await request.get(icon.src)).status()).toBe(200);
+  expect((await request.get("/favicon.ico")).status()).toBe(200);
+});

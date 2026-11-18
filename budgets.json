@@ -1,0 +1,9 @@
+{
+  "pages": {
+    "/": { "jsKb": 190, "cssKb": 12 },
+    "/merge-pdf": { "jsKb": 195, "cssKb": 12 },
+    "/compress-image": { "jsKb": 195, "cssKb": 12 },
+    "/edit-pdf": { "jsKb": 200, "cssKb": 12 },
+    "/privacy": { "jsKb": 190, "cssKb": 12 }
+  }
+}
