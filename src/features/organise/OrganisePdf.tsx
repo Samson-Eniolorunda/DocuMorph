@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { ArrowLeft, ArrowRight, RotateCcw, RotateCw, Save, Trash2, Undo2 } from "lucide-react";
+import { useRef, useState } from "react";
+import { ArrowLeft, ArrowRight, GripVertical, RotateCcw, RotateCw, Save, Trash2, Undo2 } from "lucide-react";
 import { ActionBar } from "@/components/layout/ActionBar";
 import { Button } from "@/components/ui/Button";
 import { Notice } from "@/components/ui/Feedback";
@@ -25,6 +25,14 @@ export function OrganisePdf() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [out, setOut] = useState<OutputFile | null>(null);
+  const [dragging, setDragging] = useState<number | null>(null);
+  // Pointer events can arrive faster than React renders, so the position being dragged is also kept here.
+  const dragAt = useRef<number | null>(null);
+  const drag = (i: number | null) => {
+    dragAt.current = i;
+    setDragging(i);
+  };
+  const cells = useRef<(HTMLLIElement | null)[]>([]);
 
   const update = (i: number, change: Partial<Slot>) =>
     setSlots((s) => s.map((x, j) => (j === i ? { ...x, ...change } : x)));
@@ -38,6 +46,13 @@ export function OrganisePdf() {
     });
     setSelected(to);
   };
+
+  /** The cell under a point, for dragging a page across the grid. */
+  const cellAt = (x: number, y: number) =>
+    cells.current.findIndex((c) => {
+      const r = c?.getBoundingClientRect();
+      return r && x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
+    });
 
   async function save() {
     if (!pdf.bytes || !pdf.file) return;
@@ -90,12 +105,47 @@ export function OrganisePdf() {
     <div className="space-y-4">
       <p className="text-muted">
         {pdf.file?.name}: <span className="font-mono">{kept}</span> of <span className="font-mono">{slots.length}</span>{" "}
-        pages kept. Tap a page, then use the buttons below.
+        pages kept. Drag a page by its handle to move it, or tap a page and use the buttons below.
       </p>
       {error && <Notice tone="error">{error}</Notice>}
-      <ol className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+      <ol
+        className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5"
+        onPointerMove={(e) => {
+          const from = dragAt.current;
+          if (from === null) return;
+          // Near the top or bottom edge the page scrolls, so a page can be carried a long way.
+          if (e.clientY < 90) window.scrollBy(0, -14);
+          else if (e.clientY > window.innerHeight - 150) window.scrollBy(0, 14);
+          const target = cellAt(e.clientX, e.clientY);
+          if (target >= 0 && target !== from) {
+            move(from, target);
+            drag(target);
+          }
+        }}
+        onPointerUp={() => drag(null)}
+        onPointerCancel={() => drag(null)}
+      >
         {slots.map((s, i) => (
-          <li key={s.index}>
+          <li
+            key={s.index}
+            ref={(el) => {
+              cells.current[i] = el;
+            }}
+            className={cn("relative", dragging === i && "z-10 opacity-80")}
+          >
+            <button
+              type="button"
+              aria-label={`Drag page ${s.index + 1} to a new position`}
+              className="absolute left-1 top-1 z-10 flex size-11 cursor-grab touch-none items-center justify-center rounded-md bg-surface/90 text-subtle shadow-sm"
+              onPointerDown={(e) => {
+                // Captured on the grid, which never moves, because moving a captured element drops the capture.
+                e.currentTarget.closest("ol")?.setPointerCapture(e.pointerId);
+                drag(i);
+                setSelected(i);
+              }}
+            >
+              <GripVertical className="size-5" aria-hidden />
+            </button>
             <button
               type="button"
               aria-pressed={selected === i}

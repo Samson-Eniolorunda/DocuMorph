@@ -54,6 +54,42 @@ test("split: ranges, a mistyped range is explained, results zip", async ({ page 
   expect(zip.name).toBe("doc-split.zip");
 });
 
+test("split: tapping thumbnails fills the range field, and typing changes the selection", async ({ page }) => {
+  await page.goto("/split-pdf");
+  await pick(page, [await pdfFile("doc.pdf", 6)]);
+  const field = page.getByRole("textbox", { name: "Page ranges" });
+  await field.fill("");
+  for (const n of [1, 2, 3, 5]) await page.getByRole("button", { name: `Page ${n}`, exact: true }).click();
+  await expect(field).toHaveValue("1-3, 5");
+  await page.getByRole("button", { name: "Page 2", exact: true }).click();
+  await expect(field).toHaveValue("1, 3, 5");
+  await field.fill("4-6");
+  await expect(page.getByRole("button", { name: "Page 5", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByRole("button", { name: "Page 1", exact: true })).toHaveAttribute("aria-pressed", "false");
+});
+
+test("organise: a page can be dragged to a new position by its handle", async ({ page }) => {
+  await page.goto("/organise-pdf");
+  await pick(page, [await pdfFile("doc.pdf", 3)]);
+  const handle = page.getByRole("button", { name: "Drag page 1 to a new position" });
+  await expect(page.getByRole("button", { name: "Drag page 3 to a new position" })).toBeVisible();
+  const from = await handle.boundingBox();
+  const to = await page.getByRole("button", { name: /^Page 3/ }).boundingBox();
+  if (!from || !to) throw new Error("no boxes");
+  await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(to.x + to.width / 2, to.y + to.height / 2, { steps: 12 });
+  await page.mouse.up();
+  const order = await page
+    .locator("ol > li > button[aria-pressed]")
+    .evaluateAll((els) => els.map((e) => e.getAttribute("aria-label")));
+  expect(order[2]).toMatch(/^Page 1/);
+  await page.getByRole("button", { name: "Save PDF" }).click();
+  const file = await saved(page, () => page.getByRole("button", { name: "Save", exact: true }).click());
+  const out = await PDFDocument.load(file.bytes);
+  expect(out.getPageCount()).toBe(3);
+});
+
 test("organise: rotate, delete and save", async ({ page }) => {
   await page.goto("/organise-pdf");
   await pick(page, [await pdfFile("doc.pdf", 3)]);

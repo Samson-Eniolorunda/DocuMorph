@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { detectKind, formatBytes, renameTo, savedPercent } from "@/lib/files";
-import { chunkPages, groupLabel, parseRanges } from "@/lib/ranges";
+import { chunkPages, groupLabel, pagesInRanges, parseRanges, rangesFromPages } from "@/lib/ranges";
 import { displaySize, displayToPdf, placeBox, type PageGeometry } from "@/lib/coords";
 import { fitToSize } from "@/lib/target-size";
 import { checkLimit, memoryCounter } from "@/server/rate-limit";
@@ -130,5 +130,23 @@ describe("server tools", () => {
     expect(serverToolBySlug("pdf-to-excel")).toMatchObject({ engine: "adobe", outExt: "xlsx" });
     expect(serverToolBySlug("nope")).toBeUndefined();
     expect(SERVER_TOOLS).toHaveLength(4);
+  });
+});
+
+describe("page picking from thumbnails", () => {
+  it("writes chosen pages as the shortest ranges", () => {
+    expect(rangesFromPages([0, 1, 2, 4])).toBe("1-3, 5");
+    expect(rangesFromPages([4, 0, 2, 1, 1])).toBe("1-3, 5");
+    expect(rangesFromPages([])).toBe("");
+    expect(rangesFromPages([6])).toBe("7");
+  });
+  it("reads typed ranges as chosen pages, and nothing while the text is not valid", () => {
+    expect([...pagesInRanges("1-3, 5", 6)]).toEqual([0, 1, 2, 4]);
+    expect(pagesInRanges("", 6).size).toBe(0);
+    expect(pagesInRanges("9", 6).size).toBe(0);
+    expect(pagesInRanges("1-", 3).size).toBe(3);
+  });
+  it("round-trips", () => {
+    expect(rangesFromPages(pagesInRanges("2, 4-5, 9", 9))).toBe("2, 4-5, 9");
   });
 });

@@ -32,6 +32,7 @@ import { Field, Select, TextArea } from "@/components/ui/Field";
 import { Notice } from "@/components/ui/Feedback";
 import { Stepper } from "@/components/ui/Slider";
 import { Dropzone } from "@/features/files/Dropzone";
+import { PageThumb } from "@/features/files/PageThumb";
 import { usePdf } from "@/features/files/usePdf";
 import { canShare, download, pdfBlob, share, type OutputFile } from "@/lib/download";
 import { explain } from "@/lib/errors";
@@ -666,12 +667,13 @@ export function PdfEditor() {
       </Dialog>
 
       <Dialog open={sheet === "pages"} onClose={() => setSheet(null)} title="Pages">
-        <ul className="divide-y divide-line">
+        <ol className="grid grid-cols-3 gap-2 sm:grid-cols-4">
           {sizes.map((_, i) => (
-            <li key={i} className="flex items-center justify-between gap-2 py-1">
+            <li key={i} className={cn("rounded-md border border-line p-1.5", deleted.has(i) && "opacity-60")}>
               <button
                 type="button"
-                className="min-h-11 flex-1 rounded-md px-2 text-left hover:bg-raised"
+                aria-label={`Go to page ${i + 1}${deleted.has(i) ? ", will be removed" : ""}`}
+                className="flex w-full flex-col items-center gap-1 rounded-md hover:bg-raised"
                 onClick={() => {
                   setSheet(null);
                   document
@@ -679,16 +681,16 @@ export function PdfEditor() {
                     ?.scrollIntoView({ behavior: "smooth", block: "start" });
                 }}
               >
-                <span className="font-mono">Page {i + 1}</span>
-                {deleted.has(i) && <span className="text-subtle"> · will be removed</span>}
+                {pdf.doc && <PageThumb doc={pdf.doc} index={i} width={84} />}
+                <span className="font-mono text-caption">{i + 1}</span>
               </button>
-              <Button variant="ghost" onClick={() => togglePage(i)}>
+              <Button variant="ghost" className="mt-0.5 w-full" onClick={() => togglePage(i)}>
                 {deleted.has(i) ? "Keep" : "Delete"}
               </Button>
             </li>
           ))}
-        </ul>
-        <p className="mt-3 text-body-sm text-subtle">At least one page is always kept.</p>
+        </ol>
+        <p className="mt-3 text-body-sm text-subtle">Tap a page to go to it. At least one page is always kept.</p>
       </Dialog>
 
       <Dialog

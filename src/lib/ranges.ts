@@ -38,3 +38,24 @@ export const groupLabel = (g: number[]) => {
   const last = (g[g.length - 1] ?? 0) + 1;
   return first === last ? `${first}` : `${first}-${last}`;
 };
+
+/** The pages (zero-based) named by a typed range, or none when the text is blank or not yet a valid range. */
+export function pagesInRanges(input: string, pageCount: number): Set<number> {
+  const parsed = parseRanges(input, pageCount);
+  return new Set(parsed.ok ? parsed.groups.flat() : []);
+}
+
+/** Pages (zero-based) as the shortest typed ranges: [0, 1, 2, 4] gives "1-3, 5". */
+export function rangesFromPages(pages: Iterable<number>): string {
+  const sorted = [...new Set(pages)].sort((a, b) => a - b);
+  const parts: string[] = [];
+  for (let i = 0; i < sorted.length;) {
+    let j = i;
+    while (sorted[j + 1] === (sorted[j] ?? 0) + 1) j++;
+    const from = (sorted[i] ?? 0) + 1;
+    const to = (sorted[j] ?? 0) + 1;
+    parts.push(from === to ? `${from}` : `${from}-${to}`);
+    i = j + 1;
+  }
+  return parts.join(", ");
+}

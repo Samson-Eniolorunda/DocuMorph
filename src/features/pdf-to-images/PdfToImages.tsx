@@ -13,7 +13,8 @@ import { usePdf } from "@/features/files/usePdf";
 import type { OutputFile } from "@/lib/download";
 import { explain } from "@/lib/errors";
 import { DEVICE_MAX_BYTES, formatBytes, renameTo } from "@/lib/files";
-import { parseRanges } from "@/lib/ranges";
+import { pagesInRanges, parseRanges, rangesFromPages } from "@/lib/ranges";
+import { PagePicker } from "@/features/files/PagePicker";
 
 const DPI = [
   [72, "Screen (72 dpi)"],
@@ -121,6 +122,17 @@ export function PdfToImages() {
         error={rangeError}
         placeholder="For example 1-3, 6"
       />
+      {pdf.doc && (
+        <PagePicker
+          doc={pdf.doc}
+          selected={pagesInRanges(which, n)}
+          onToggle={(i) => {
+            const chosen = pagesInRanges(which, n);
+            if (!chosen.delete(i)) chosen.add(i);
+            setWhich(rangesFromPages(chosen));
+          }}
+        />
+      )}
       {error && <Notice tone="error">{error}</Notice>}
       <ActionBar
         status={

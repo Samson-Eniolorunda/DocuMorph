@@ -9,17 +9,20 @@ import { Notice } from "@/components/ui/Feedback";
 import { RangesField } from "@/components/ui/RangesField";
 import { Stepper } from "@/components/ui/Slider";
 import { Dropzone } from "@/features/files/Dropzone";
+import { PagePicker } from "@/features/files/PagePicker";
+import { usePdf } from "@/features/files/usePdf";
 import { Results } from "@/features/files/Results";
-import { pdfBlob, readBytes, type OutputFile } from "@/lib/download";
+import { pdfBlob, type OutputFile } from "@/lib/download";
 import { explain } from "@/lib/errors";
 import { DEVICE_MAX_BYTES, formatBytes, renameTo } from "@/lib/files";
-import { chunkPages, groupLabel, parseRanges } from "@/lib/ranges";
+import { chunkPages, groupLabel, pagesInRanges, parseRanges, rangesFromPages } from "@/lib/ranges";
 
 type Mode = "ranges" | "every" | "each";
 
 export function SplitPdf() {
-  const [file, setFile] = useState<File | null>(null);
-  const [bytes, setBytes] = useState<Uint8Array | null>(null);
+  const pdf = usePdf();
+  const file = pdf.file;
+  const bytes = pdf.bytes;
   const [pages, setPages] = useState(0);
   const [mode, setMode] = useState<Mode>("ranges");
   const [ranges, setRanges] = useState("");
@@ -30,20 +33,20 @@ export function SplitPdf() {
 
   async function open(f: File) {
     setError("");
-    try {
-      const { pageCount } = await import("@/lib/pdf/ops");
-      const b = await readBytes(f);
-      const n = await pageCount(b);
-      setFile(f);
-      setBytes(b);
-      setPages(n);
-      const half = Math.ceil(n / 2);
-      const span = (from: number, to: number) => (from === to ? `${from}` : `${from}-${to}`);
-      setRanges(n > 1 ? `${span(1, half)}, ${span(half + 1, n)}` : "1");
-    } catch (e) {
-      setError(explain(e));
-    }
+    const doc = await pdf.load(f);
+    if (!doc) return;
+    const n = doc.numPages;
+    setPages(n);
+    const half = Math.ceil(n / 2);
+    const span = (from: number, to: number) => (from === to ? `${from}` : `${from}-${to}`);
+    setRanges(n > 1 ? `${span(1, half)}, ${span(half + 1, n)}` : "1");
   }
+
+  const toggle = (index: number) => {
+    const chosen = pagesInRanges(ranges, pages);
+    if (!chosen.delete(index)) chosen.add(index);
+    setRanges(rangesFromPages(chosen));
+  };
 
   const parsed = mode === "ranges" ? parseRanges(ranges, pages) : null;
   const rangeError = parsed && !parsed.ok ? parsed.error : undefined;
@@ -76,8 +79,7 @@ export function SplitPdf() {
 
   const reset = () => {
     setOut(null);
-    setFile(null);
-    setBytes(null);
+    pdf.reset();
   };
 
   if (out)
@@ -87,7 +89,8 @@ export function SplitPdf() {
     return (
       <div className="space-y-3">
         <Dropzone kinds={["pdf"]} maxBytes={DEVICE_MAX_BYTES} onFiles={([p]) => void open(p.file)} />
-        {error && <Notice tone="error">{error}</Notice>}
+        {pdf.loading && <p className="text-muted">Opening…</p>}
+        {(error || pdf.error) && <Notice tone="error">{error || pdf.error}</Notice>}
       </div>
     );
 
@@ -114,6 +117,9 @@ export function SplitPdf() {
           error={ranges.trim() ? rangeError : undefined}
           hint="For example 1-3, 5, 8- (8- means page 8 to the end)."
         />
+      )}
+      {mode === "ranges" && pdf.doc && (
+        <PagePicker doc={pdf.doc} selected={pagesInRanges(ranges, pages)} onToggle={toggle} />
       )}
       {mode === "every" && (
         <Stepper label="Pages per file" value={every} onChange={setEvery} min={1} max={Math.max(1, pages)} />

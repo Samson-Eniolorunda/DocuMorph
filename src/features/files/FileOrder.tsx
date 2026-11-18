@@ -15,6 +15,12 @@ export function FileOrder<T extends { id: string; file: File }>({
   onChange: (items: T[]) => void;
 }) {
   const [dragging, setDragging] = useState<number | null>(null);
+  // Pointer events can arrive faster than React renders, so the row being dragged is also kept here.
+  const dragAt = useRef<number | null>(null);
+  const drag = (i: number | null) => {
+    dragAt.current = i;
+    setDragging(i);
+  };
   const rows = useRef<(HTMLLIElement | null)[]>([]);
 
   const move = (from: number, to: number) => {
@@ -30,7 +36,20 @@ export function FileOrder<T extends { id: string; file: File }>({
     rows.current.findIndex((r) => r && y >= r.getBoundingClientRect().top && y <= r.getBoundingClientRect().bottom);
 
   return (
-    <ol className="divide-y divide-line overflow-hidden rounded-lg border border-line bg-surface">
+    <ol
+      className="divide-y divide-line overflow-hidden rounded-lg border border-line bg-surface"
+      onPointerMove={(e) => {
+        const from = dragAt.current;
+        if (from === null) return;
+        const target = overRow(e.clientY);
+        if (target >= 0 && target !== from) {
+          move(from, target);
+          drag(target);
+        }
+      }}
+      onPointerUp={() => drag(null)}
+      onPointerCancel={() => drag(null)}
+    >
       {items.map((it, i) => (
         <li
           key={it.id}
@@ -47,19 +66,10 @@ export function FileOrder<T extends { id: string; file: File }>({
             aria-label={`Drag ${it.file.name} to a new position`}
             className="flex size-11 shrink-0 cursor-grab touch-none items-center justify-center text-subtle"
             onPointerDown={(e) => {
-              e.currentTarget.setPointerCapture(e.pointerId);
-              setDragging(i);
+              // Captured on the list, which never moves: moving a captured element drops the capture.
+              e.currentTarget.closest("ol")?.setPointerCapture(e.pointerId);
+              drag(i);
             }}
-            onPointerMove={(e) => {
-              if (dragging === null) return;
-              const target = overRow(e.clientY);
-              if (target >= 0 && target !== dragging) {
-                move(dragging, target);
-                setDragging(target);
-              }
-            }}
-            onPointerUp={() => setDragging(null)}
-            onPointerCancel={() => setDragging(null)}
           >
             <GripVertical className="size-5" aria-hidden />
           </button>
