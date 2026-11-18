@@ -19,7 +19,7 @@ test("the Tools button opens a sheet listing every tool, with the current one ma
   await page.goto("/merge-pdf");
   await page.getByRole("button", { name: "Tools" }).click();
   const sheet = page.getByRole("dialog", { name: "All tools" });
-  await expect(sheet.locator("a")).toHaveCount(14);
+  await expect(sheet.locator("ul a")).toHaveCount(14);
   await expect(sheet.locator('a[aria-current="page"]')).toHaveText(/Merge PDF/);
   await sheet.locator('a[href="/split-pdf"]').click();
   await expect(page).toHaveURL(/split-pdf/);

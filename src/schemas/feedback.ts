@@ -24,7 +24,7 @@ export const feedbackSchema = z.object({
     .optional()
     .catch(undefined),
   /** A field people never see. Only software fills it in. */
-  website: z.string().max(0).optional(),
+  website: z.string().max(200).optional(),
 });
 
 export type Feedback = z.infer<typeof feedbackSchema>;

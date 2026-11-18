@@ -9,34 +9,40 @@ const DOCX = {
 
 test("a server tool states where the file goes before a file is chosen", async ({ page }) => {
   await page.goto("/word-to-pdf");
-  await expect(page.getByText(/Sent to ConvertAPI/)).toBeVisible();
+  await expect(page.getByText(/Sent to a conversion service/)).toBeVisible();
+  await expect(
+    page.getByText("Files are processed for this conversion only and deleted straight after."),
+  ).toBeVisible();
   await expect(page.getByText(/up to 4 MB/).first()).toBeVisible();
 });
 
-test("converts, fetches the file from this site, and tells the visitor what is left", async ({ page }) => {
+test("converts, receives the file in the same response, and tells the visitor what is left", async ({ page }) => {
   await page.route("**/api/convert", (route) =>
-    route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({
-        name: "letter.pdf",
-        size: 8,
-        fileId: "abcdef1234567890",
-        token: "tokentokentokentoken",
-        remaining: 7,
-      }),
-    }),
-  );
-  await page.route("**/api/convert/result?**", (route) =>
-    route.fulfill({ status: 200, contentType: "application/pdf", body: "%PDF-1.4" }),
+    route.fulfill({ status: 200, contentType: "application/pdf", headers: { "X-Remaining": "7" }, body: "%PDF-1.4" }),
   );
   await page.goto("/word-to-pdf");
   await pick(page, [DOCX]);
   await page.getByRole("button", { name: "Word to PDF" }).click();
   await expect(page.getByText("Your file is ready")).toBeVisible();
   await expect(page.getByText("letter.pdf")).toBeVisible();
-  await expect(page.getByText(/deleted from ConvertAPI/)).toBeVisible();
-  await expect(page.getByText("7")).toBeVisible();
+  await expect(page.getByText(/not kept on the server/)).toBeVisible();
+  await expect(page.getByText("7", { exact: true })).toBeVisible();
+});
+
+test("shows the busy message for PDF to Word when the allowance is used up", async ({ page }) => {
+  await page.route("**/api/convert", (route) =>
+    route.fulfill({
+      status: 503,
+      contentType: "application/json",
+      body: JSON.stringify({
+        error: "PDF to Word is busy today, please try tomorrow. The tools that run in your browser still work.",
+      }),
+    }),
+  );
+  await page.goto("/pdf-to-word");
+  await pick(page, [{ name: "a.pdf", mimeType: "application/pdf", buffer: Buffer.from("%PDF-1.4 test") }]);
+  await page.getByRole("button", { name: "PDF to Word" }).click();
+  await expect(page.locator("main").getByRole("alert")).toContainText("PDF to Word is busy today, please try tomorrow");
 });
 
 test("shows the server's reason when the limit is reached, and keeps the file", async ({ page }) => {
