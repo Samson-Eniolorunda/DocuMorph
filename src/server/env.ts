@@ -12,11 +12,11 @@ const text = z.string().trim().min(1).optional();
 
 const schema = z.object({
   CONVERT_DAILY_PER_VISITOR: positiveInt(10).pipe(z.number().min(1)),
-  CONVERT_DAILY_SITE_CAP: positiveInt(0),
+  CONVERT_DAILY_SITE_CAP: positiveInt(200),
   UPSTASH_REDIS_REST_URL: z.url().optional(),
   UPSTASH_REDIS_REST_TOKEN: text,
   // Word and Excel to PDF: a self-hosted Gotenberg service (see infra/gotenberg).
-  GOTENBERG_URL: z.url().optional(),
+  GOTENBERG_URL: z.url({ protocol: /^https$/ }).optional(),
   GOTENBERG_USERNAME: text,
   GOTENBERG_PASSWORD: text,
   // PDF to Word and PDF to Excel: Adobe PDF Services, free tier of 500 transactions a month.

@@ -52,3 +52,5 @@ export const MB = 1024 * 1024;
 export const DEVICE_MAX_BYTES = 100 * MB;
 /** Files sent to the server: Vercel accepts request bodies up to 4.5 MB. */
 export const SERVER_MAX_BYTES = 4 * MB;
+/** Vercel refuses function responses over 4.5 MB; a result larger than this is declined before it is sent. */
+export const SERVER_RESULT_MAX_BYTES = 4_500_000;

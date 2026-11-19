@@ -1,6 +1,18 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { PDFDocument, degrees } from "pdf-lib";
-import { applyEdits, imagesToPdf, merge, organise, pageCount, readFields, split, type Edit } from "@/lib/pdf/ops";
+import { PDFDict, PDFHexString, PDFName, PDFNumber } from "pdf-lib";
+import {
+  applyEdits,
+  imagesToPdf,
+  merge,
+  organise,
+  pageCount,
+  readFields,
+  split,
+  tidyPdf,
+  type Edit,
+} from "@/lib/pdf/ops";
+import { pagesAsPictures } from "@/features/compress-pdf/pictures";
 
 async function makePdf(n: number, rotate = 0) {
   const doc = await PDFDocument.create();
@@ -148,5 +160,87 @@ describe("pdf operations", () => {
 
     const flat = await applyEdits(bytes, [], { fields: { full_name: "Ada" }, flattenForm: true });
     expect(await readFields(flat)).toEqual([]);
+  });
+});
+
+/** A PDF whose trailer carries an /Encrypt dictionary, as an owner-password-only file does. */
+async function ownerPasswordPdf() {
+  const doc = await PDFDocument.create();
+  doc.addPage([200, 200]).drawText("Secret", { x: 20, y: 100, size: 12 });
+  const dict = PDFDict.withContext(doc.context);
+  dict.set(PDFName.of("Filter"), PDFName.of("Standard"));
+  dict.set(PDFName.of("V"), PDFNumber.of(1));
+  dict.set(PDFName.of("R"), PDFNumber.of(2));
+  dict.set(PDFName.of("P"), PDFNumber.of(-3904));
+  dict.set(PDFName.of("O"), PDFHexString.of("00".repeat(32)));
+  dict.set(PDFName.of("U"), PDFHexString.of("00".repeat(32)));
+  doc.context.trailerInfo.Encrypt = doc.context.register(dict);
+  return doc.save({ useObjectStreams: false });
+}
+
+describe("light compression", () => {
+  it("refuses a protected PDF with a clear message instead of writing a corrupt file", async () => {
+    await expect(tidyPdf(await ownerPasswordPdf())).rejects.toThrow(
+      "This PDF is protected, so it cannot be compressed here.",
+    );
+  });
+  it("still tidies an ordinary PDF", async () => {
+    expect(await pageCount(await tidyPdf(await makePdf(2)))).toBe(2);
+  });
+});
+
+describe("pages as pictures", () => {
+  const make = (renderFails = false) => {
+    const destroy = vi.fn().mockResolvedValue(undefined);
+    const doc = { numPages: 3, loadingTask: { destroy } };
+    return {
+      destroy,
+      deps: {
+        open: async () => doc,
+        render: async (_d: typeof doc, i: number) => {
+          if (renderFails && i === 1) throw new Error("render failed");
+          return i;
+        },
+      },
+    };
+  };
+  it("destroys the pdf.js document after success", async () => {
+    const { deps, destroy } = make();
+    expect(
+      await pagesAsPictures(
+        new Uint8Array(),
+        { dpi: 96, quality: 0.6 },
+        deps,
+        () => undefined,
+        () => false,
+      ),
+    ).toEqual([0, 1, 2]);
+    expect(destroy).toHaveBeenCalledTimes(1);
+  });
+  it("destroys it after a failure", async () => {
+    const { deps, destroy } = make(true);
+    await expect(
+      pagesAsPictures(
+        new Uint8Array(),
+        { dpi: 96, quality: 0.6 },
+        deps,
+        () => undefined,
+        () => false,
+      ),
+    ).rejects.toThrow("render failed");
+    expect(destroy).toHaveBeenCalledTimes(1);
+  });
+  it("destroys it after a cancellation", async () => {
+    const { deps, destroy } = make();
+    expect(
+      await pagesAsPictures(
+        new Uint8Array(),
+        { dpi: 96, quality: 0.6 },
+        deps,
+        () => undefined,
+        () => true,
+      ),
+    ).toBeNull();
+    expect(destroy).toHaveBeenCalledTimes(1);
   });
 });

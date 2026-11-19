@@ -13,8 +13,15 @@ import type { AdobeConfig } from "./env";
 const BASE = "https://pdf-services.adobe.io";
 
 export type AdobeTarget = "docx" | "xlsx";
-export type AdobeOutcome =
-  { ok: true; bytes: Uint8Array } | { ok: false; reason: "timeout" | "unauthorised" | "quota" | "failed" };
+type Reason = "timeout" | "unauthorised" | "quota" | "failed";
+/**
+ * `accepted` is true once Adobe accepted the export job: from then on the free allowance may have been spent,
+ * so it must not be given back. `cleanup` deletes the uploaded file and the result from Adobe; the caller runs it
+ * after the response has been sent, so the visitor is not kept waiting.
+ */
+export type AdobeOutcome = { accepted: boolean; cleanup: () => Promise<void> } & (
+  { ok: true; bytes: Uint8Array } | { ok: false; reason: Reason }
+);
 
 const MEDIA: Record<AdobeTarget, string> = {
   docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -25,7 +32,7 @@ const isZip = (b: Uint8Array) => b.length > 4 && b[0] === 0x50 && b[1] === 0x4b 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 class Stop extends Error {
-  constructor(readonly reason: "timeout" | "unauthorised" | "quota" | "failed") {
+  constructor(readonly reason: Reason) {
     super(reason);
   }
 }
@@ -35,7 +42,7 @@ export async function exportPdf(
   file: File,
   target: AdobeTarget,
   {
-    budgetMs = 55_000,
+    budgetMs = 45_000,
     pollMs = 1_500,
     fetcher = fetch,
   }: { budgetMs?: number; pollMs?: number; fetcher?: typeof fetch } = {},
@@ -56,8 +63,23 @@ export async function exportPdf(
     if (!res.ok) throw new Stop("failed");
   };
 
-  let assetId: string | null = null;
+  const assets: string[] = [];
   let access = "";
+  let accepted = false;
+  const cleanup = async () => {
+    if (!access) return;
+    // Best effort and bounded: the upload and the result are both removed.
+    await Promise.all(
+      assets.map((id) =>
+        fetcher(`${BASE}/assets/${encodeURIComponent(id)}`, {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${access}`, "x-api-key": config.clientId },
+          signal: AbortSignal.timeout(4_000),
+          cache: "no-store",
+        }).catch(() => undefined),
+      ),
+    );
+  };
   try {
     const tokenRes = await call(`${BASE}/token`, {
       method: "POST",
@@ -80,7 +102,7 @@ export async function exportPdf(
       assetID?: string;
     };
     if (!uploadUri || !assetID) throw new Stop("failed");
-    assetId = assetID;
+    assets.push(assetID);
 
     status(
       await call(uploadUri, {
@@ -96,6 +118,7 @@ export async function exportPdf(
       body: JSON.stringify({ assetID, targetFormat: target, ocrLang: "en-US" }),
     });
     status(job);
+    accepted = true;
     const location = job.headers.get("location");
     if (!location || !location.startsWith(`${BASE}/`)) throw new Stop("failed");
 
@@ -105,32 +128,24 @@ export async function exportPdf(
       status(poll);
       const state = (await poll.json().catch(() => null)) as {
         status?: string;
-        asset?: { downloadUri?: string };
+        asset?: { downloadUri?: string; assetID?: string };
         resource?: { downloadUri?: string };
       } | null;
       if (state?.status === "failed") throw new Stop("failed");
       if (state?.status === "done") {
+        const resultId = state.asset?.assetID;
+        if (resultId && !assets.includes(resultId)) assets.push(resultId);
         const downloadUri = state.asset?.downloadUri ?? state.resource?.downloadUri;
         if (!downloadUri) throw new Stop("failed");
         const out = await call(downloadUri, {});
         status(out);
         const bytes = new Uint8Array(await out.arrayBuffer());
         if (!isZip(bytes)) throw new Stop("failed");
-        return { ok: true, bytes };
+        return { ok: true, bytes, accepted, cleanup };
       }
     }
   } catch (err) {
-    return { ok: false, reason: err instanceof Stop ? err.reason : "failed" };
-  } finally {
-    if (assetId && access) {
-      // Best effort and bounded: the visitor is not kept waiting for it.
-      await fetcher(`${BASE}/assets/${encodeURIComponent(assetId)}`, {
-        method: "DELETE",
-        headers: { Authorization: `Bearer ${access}`, "x-api-key": config.clientId },
-        signal: AbortSignal.timeout(4_000),
-        cache: "no-store",
-      }).catch(() => undefined);
-    }
+    return { ok: false, reason: err instanceof Stop ? err.reason : "failed", accepted, cleanup };
   }
 }
 

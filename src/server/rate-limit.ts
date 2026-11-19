@@ -40,8 +40,13 @@ function upstashCounter(url: string, token: string): Counter {
       cache: "no-store",
     });
     if (!res.ok) throw new Error(`Rate limit store answered ${res.status}`);
-    const out = (await res.json()) as { result: number }[];
-    return Number(out[0]?.result ?? 0);
+    const out = (await res.json().catch(() => null)) as { result?: unknown; error?: unknown }[] | null;
+    if (!Array.isArray(out) || out.length < 2) throw new Error("Rate limit store gave an unexpected answer");
+    for (const entry of out) {
+      if (!entry || entry.error !== undefined || typeof entry.result !== "number")
+        throw new Error("Rate limit store reported an error");
+    }
+    return out[0]!.result as number;
   };
 }
 
@@ -84,7 +89,7 @@ export async function refund(
 export async function reserveAdobe(
   { monthly, daily, now = new Date() }: { monthly: number; daily: number; now?: Date },
   count: Counter = defaultCounter(),
-): Promise<{ ok: true } | { ok: false; reason: "month" | "day" }> {
+): Promise<{ ok: true; day: string; month: string } | { ok: false; reason: "month" | "day" }> {
   const day = now.toISOString().slice(0, 10);
   const month = day.slice(0, 7);
   const m = await count(`dm:adobe:m:${month}`, 35 * DAY);
@@ -98,24 +103,28 @@ export async function reserveAdobe(
     await count(`dm:adobe:m:${month}`, 35 * DAY, -1);
     return { ok: false, reason: "day" };
   }
-  return { ok: true };
+  return { ok: true, day, month };
 }
 
-/** Gives back one unit, when Adobe was never reached or refused the file. */
-export async function releaseAdobe(now = new Date(), count: Counter = defaultCounter()) {
-  const day = now.toISOString().slice(0, 10);
+/** Gives back one unit, in the day and month it was taken from (not those of the moment of release). */
+export async function releaseAdobe({ day, month }: { day: string; month: string }, count: Counter = defaultCounter()) {
   await count(`dm:adobe:d:${day}`, DAY, -1);
-  await count(`dm:adobe:m:${day.slice(0, 7)}`, 35 * DAY, -1);
+  await count(`dm:adobe:m:${month}`, 35 * DAY, -1);
 }
 
 export const hasSharedStore = () => Boolean(process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN);
 
-/** A small daily allowance for feedback messages. Counted when the message is accepted. */
+/**
+ * A small daily allowance for feedback messages, per visitor and for the whole site. Counted when the message is
+ * accepted; a visitor who is over their own allowance does not use up the site's.
+ */
 export async function checkFeedbackCalls(
   visitor: string,
   today: string,
   max: number,
+  siteMax: number,
   count: Counter = defaultCounter(),
 ) {
-  return (await count(`dm:${today}:f:${visitor}`, DAY)) <= max;
+  if ((await count(`dm:${today}:f:${visitor}`, DAY)) > max) return false;
+  return (await count(`dm:${today}:f:site`, DAY)) <= siteMax;
 }

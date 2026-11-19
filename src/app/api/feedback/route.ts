@@ -11,6 +11,7 @@ export const maxDuration = 15;
 
 const MAX_BODY_BYTES = 16 * 1024;
 export const FEEDBACK_PER_DAY = 5;
+export const FEEDBACK_SITE_PER_DAY = 30;
 
 export async function POST(req: Request) {
   const config = loadEnv();
@@ -35,8 +36,13 @@ export async function POST(req: Request) {
   if (parsed.data.website) return Response.json({ sent: true });
 
   const today = new Date().toISOString().slice(0, 10);
-  const allowed = await checkFeedbackCalls(await visitorKey(req, today), today, FEEDBACK_PER_DAY).catch(() => false);
-  if (!allowed) return fail(429, "You have sent several messages today. Please try again tomorrow.");
+  const allowed = await checkFeedbackCalls(
+    await visitorKey(req, today),
+    today,
+    FEEDBACK_PER_DAY,
+    FEEDBACK_SITE_PER_DAY,
+  ).catch(() => false);
+  if (!allowed) return fail(429, "Too many messages have been sent today. Please try again tomorrow.");
 
   const sent = await sendFeedback({ apiKey: config.env.RESEND_API_KEY, to: config.env.FEEDBACK_TO_EMAIL }, parsed.data);
   if (!sent.ok) {

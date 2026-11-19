@@ -5,7 +5,7 @@ describe("server settings", () => {
   it("uses defaults when nothing is set", () => {
     const r = loadEnv({});
     expect(r.ok && r.env.CONVERT_DAILY_PER_VISITOR).toBe(10);
-    expect(r.ok && r.env.CONVERT_DAILY_SITE_CAP).toBe(0);
+    expect(r.ok && r.env.CONVERT_DAILY_SITE_CAP).toBe(200);
     expect(r.ok && r.env.ADOBE_MONTHLY_CAP).toBe(450);
     expect(r.ok && r.env.ADOBE_DAILY_CAP).toBe(25);
   });
@@ -25,6 +25,12 @@ describe("server settings", () => {
 
   it("refuses a malformed store address", () => {
     expect(loadEnv({ UPSTASH_REDIS_REST_URL: "not a url", UPSTASH_REDIS_REST_TOKEN: "t" }).ok).toBe(false);
+  });
+
+  it("requires the converter address to be https", () => {
+    expect(loadEnv({ GOTENBERG_URL: "http://office.example" }).ok).toBe(false);
+    expect(loadEnv({ GOTENBERG_URL: "ftp://office.example" }).ok).toBe(false);
+    expect(loadEnv({ GOTENBERG_URL: "https://office.example" }).ok).toBe(true);
   });
 
   it("refuses a malformed feedback address and a malformed converter address", () => {

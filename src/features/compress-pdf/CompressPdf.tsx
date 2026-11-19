@@ -12,6 +12,8 @@ import { pdfBlob, readBytes, type OutputFile } from "@/lib/download";
 import { explain } from "@/lib/errors";
 import { DEVICE_MAX_BYTES, formatBytes, renameTo } from "@/lib/files";
 import { largePdfWarning } from "@/lib/limits";
+import type { PDFDocumentProxy } from "pdfjs-dist";
+import { pagesAsPictures } from "./pictures";
 
 type Mode = "tidy" | "screen" | "ebook" | "printer";
 
@@ -42,15 +44,14 @@ export function CompressPdf() {
       if (mode === "tidy") result = await ops.tidyPdf(bytes);
       else {
         const { openPdf, pageToJpeg } = await import("@/lib/pdf/render");
-        const doc = await openPdf(bytes);
-        const level = LEVELS[mode];
-        const pages = [];
-        setProgress({ done: 0, total: doc.numPages });
-        for (let i = 0; i < doc.numPages; i++) {
-          if (cancelled.current) return;
-          pages.push(await pageToJpeg(doc, i, level.dpi, level.quality));
-          setProgress({ done: i + 1, total: doc.numPages });
-        }
+        const pages = await pagesAsPictures<PDFDocumentProxy, Awaited<ReturnType<typeof pageToJpeg>>>(
+          bytes,
+          LEVELS[mode],
+          { open: openPdf, render: pageToJpeg },
+          (done, total) => setProgress({ done, total }),
+          () => cancelled.current,
+        );
+        if (!pages) return;
         result = await ops.pdfFromJpegs(pages);
       }
       const blob = pdfBlob(result);

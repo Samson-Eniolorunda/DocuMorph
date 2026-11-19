@@ -5,17 +5,18 @@
 // - the file's first bytes and its extension must match the tool, so renamed files are refused;
 // - files up to 4 MB, because Vercel accepts request bodies up to 4.5 MB;
 // - a daily limit per visitor and an optional site-wide cap, spent only when a conversion succeeds;
+// - results over 4.5 MB (Vercel's response limit) are refused before sending;
 // - for Adobe, a monthly and a daily cap on the whole site so the free allowance is never exceeded;
 // - nothing is written anywhere: the converted file is sent back in the same response;
 // - visitors are counted by a hashed address, never the address itself.
 
 import { serverToolBySlug } from "@/config/server-tools";
-import { detectKind, extOf, SERVER_MAX_BYTES } from "@/lib/files";
+import { detectKind, extOf, SERVER_MAX_BYTES, SERVER_RESULT_MAX_BYTES } from "@/lib/files";
 import { convertFields } from "@/schemas/convert";
 import { exportPdf, adobeMediaType, type AdobeTarget } from "@/server/adobe";
 import { adobeConfig, gotenbergConfig, loadEnv } from "@/server/env";
 import { officeToPdf } from "@/server/gotenberg";
-import { fail, visitorKey } from "@/server/http";
+import { afterResponse, fail, visitorKey } from "@/server/http";
 import { checkLimit, hasSharedStore, refund, releaseAdobe, reserveAdobe } from "@/server/rate-limit";
 
 export const runtime = "nodejs";
@@ -24,15 +25,6 @@ export const maxDuration = 60;
 const PDF_TYPE = "application/pdf";
 const busy = (name: string) =>
   `${name} is busy today, please try tomorrow. The tools that run in your browser still work.`;
-
-/** A single-chunk stream, so a result larger than Vercel's buffered response limit is still delivered. */
-const streamOf = (bytes: Uint8Array) =>
-  new ReadableStream<Uint8Array>({
-    start(controller) {
-      controller.enqueue(bytes);
-      controller.close();
-    },
-  });
 
 export async function POST(req: Request) {
   const config = loadEnv();
@@ -56,7 +48,8 @@ export async function POST(req: Request) {
 
   const gotenberg = gotenbergConfig(env);
   const adobe = adobeConfig(env);
-  if (tool.engine === "gotenberg" ? !gotenberg : !adobe || !hasSharedStore())
+  // Every server tool costs money or a free allowance, so none runs without the store that shares the counts.
+  if (!(tool.engine === "gotenberg" ? gotenberg : adobe) || !hasSharedStore())
     return fail(503, "This conversion is not set up on this site.");
 
   const file = form.get("file");
@@ -92,10 +85,11 @@ export async function POST(req: Request) {
 
   let bytes: Uint8Array;
   let failure: "timeout" | "unauthorised" | "quota" | "unavailable" | "failed" | null = null;
-  let adobeSpent = false;
+  // Set once Adobe's allowance is spent; cleared when its job is accepted, because from then on it may have been used.
+  let reservation: { day: string; month: string } | null = null;
   const giveBack = async () => {
     await refund(visitor, limits).catch(() => undefined);
-    if (adobeSpent) await releaseAdobe().catch(() => undefined);
+    if (reservation) await releaseAdobe(reservation).catch(() => undefined);
   };
 
   if (tool.engine === "gotenberg" && gotenberg) {
@@ -112,13 +106,15 @@ export async function POST(req: Request) {
         await refund(visitor, limits).catch(() => undefined);
         return fail(503, busy(tool.name));
       }
-      adobeSpent = true;
+      reservation = { day: reserved.day, month: reserved.month };
     } catch (err) {
       console.error("Adobe cap check failed", err);
       await refund(visitor, limits).catch(() => undefined);
       return fail(503, "Server conversions are paused for a moment. Please try again shortly.");
     }
     const out = await exportPdf(adobe, file, tool.outExt as AdobeTarget);
+    await afterResponse(out.cleanup);
+    if (out.accepted) reservation = null;
     if (out.ok) bytes = out.bytes;
     else {
       failure = out.reason;
@@ -138,8 +134,16 @@ export async function POST(req: Request) {
     return fail(502, "The file could not be converted. It may be damaged or protected.");
   }
 
+  if (bytes.byteLength > SERVER_RESULT_MAX_BYTES) {
+    await giveBack();
+    return fail(
+      413,
+      "The converted file is larger than the 4.5 MB this site can send back. Please try a smaller or simpler file.",
+    );
+  }
+
   const type = tool.outExt === "pdf" ? PDF_TYPE : adobeMediaType(tool.outExt as AdobeTarget);
-  return new Response(streamOf(bytes), {
+  return new Response(bytes as BodyInit, {
     headers: {
       "Content-Type": type,
       "Content-Length": String(bytes.byteLength),

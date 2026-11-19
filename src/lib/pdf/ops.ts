@@ -124,6 +124,9 @@ export async function pdfFromJpegs(pages: { bytes: Uint8Array; width: number; he
 /** A lossless tidy-up: drops metadata and packs objects into compressed streams. Text stays text. */
 export async function tidyPdf(bytes: Uint8Array) {
   const doc = await PDFDocument.load(bytes, LOAD);
+  // Re-packing a protected file would write its encrypted strings and streams out as if they were plain, which
+  // corrupts it. Refuse rather than risk a damaged download.
+  if (doc.isEncrypted) throw new Error("This PDF is protected, so it cannot be compressed here.");
   doc.setTitle("");
   doc.setAuthor("");
   doc.setSubject("");

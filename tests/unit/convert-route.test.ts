@@ -28,6 +28,9 @@ interface Net {
   gotenberg: () => Response | Promise<Response>;
   adobeJob: () => Response;
   counters: Map<string, number>;
+  resultAssetId?: string;
+  downloadFails?: boolean;
+  uploadFails?: boolean;
 }
 let net: Net;
 
@@ -44,11 +47,15 @@ function handler(url: string, init: RequestInit = {}): Response | Promise<Respon
   if (url === "https://pdf-services.adobe.io/token") return Response.json({ access_token: "tok" });
   if (url === "https://pdf-services.adobe.io/assets" && init.method === "POST")
     return Response.json({ uploadUri: "https://upload.test/put?sig=1", assetID: "asset-1" });
-  if (url.startsWith("https://upload.test/")) return new Response(null, { status: 200 });
+  if (url.startsWith("https://upload.test/")) return new Response(null, { status: net.uploadFails ? 500 : 200 });
   if (url === "https://pdf-services.adobe.io/operation/exportpdf") return net.adobeJob();
   if (url === "https://pdf-services.adobe.io/operation/exportpdf/job-1/status")
-    return Response.json({ status: "done", asset: { downloadUri: "https://download.test/out" } });
-  if (url === "https://download.test/out") return new Response(new Uint8Array(ZIP), { status: 200 });
+    return Response.json({
+      status: "done",
+      asset: { downloadUri: "https://download.test/out", ...(net.resultAssetId ? { assetID: net.resultAssetId } : {}) },
+    });
+  if (url === "https://download.test/out")
+    return net.downloadFails ? new Response("x", { status: 500 }) : new Response(new Uint8Array(ZIP), { status: 200 });
   if (url.startsWith("https://pdf-services.adobe.io/assets/") && init.method === "DELETE")
     return new Response(null, { status: 204 });
   return new Response("unexpected", { status: 500 });
@@ -101,6 +108,43 @@ describe("POST /api/convert: refusals", () => {
     vi.stubEnv("UPSTASH_REDIS_REST_TOKEN", "");
     expect((await POST(convertRequest({ tool: "pdf-to-word", file: pdf() }))).status).toBe(503);
     expect(upstream()).toHaveLength(0);
+  });
+
+  it("answers 503 for Word to PDF too when there is no shared store, so the site-wide cap can be trusted", async () => {
+    vi.stubEnv("UPSTASH_REDIS_REST_URL", "");
+    vi.stubEnv("UPSTASH_REDIS_REST_TOKEN", "");
+    const res = await POST(convertRequest({ tool: "word-to-pdf", file: docx() }));
+    expect(res.status).toBe(503);
+    expect(upstream()).toHaveLength(0);
+  });
+
+  it("applies a site-wide cap of 200 a day by default", async () => {
+    net.counters.set(`dm:${new Date().toISOString().slice(0, 10)}:site`, 200);
+    const res = await POST(convertRequest({ tool: "word-to-pdf", file: docx() }));
+    expect(res.status).toBe(429);
+    expect(upstream()).toHaveLength(0);
+  });
+
+  it("counts every address in one IPv6 /64 as one visitor", async () => {
+    vi.stubEnv("CONVERT_DAILY_PER_VISITOR", "1");
+    expect((await POST(convertRequest({ tool: "word-to-pdf", file: docx() }, "2001:db8:1:2:aaaa::1"))).status).toBe(
+      200,
+    );
+    expect((await POST(convertRequest({ tool: "word-to-pdf", file: docx() }, "2001:db8:1:2:bbbb::9"))).status).toBe(
+      429,
+    );
+    expect((await POST(convertRequest({ tool: "word-to-pdf", file: docx() }, "2001:db8:1:3::1"))).status).toBe(200);
+  });
+
+  it("refuses a result larger than 4.5 MB with a clear message, and gives the conversion back", async () => {
+    vi.stubEnv("CONVERT_DAILY_PER_VISITOR", "1");
+    const address = ip();
+    net.gotenberg = () => new Response(new Uint8Array([...PDF, ...new Array(4_600_000).fill(1)]), { status: 200 });
+    const res = await POST(convertRequest({ tool: "word-to-pdf", file: docx() }, address));
+    expect(res.status).toBe(413);
+    expect((await res.json()).error).toMatch(/4\.5 MB/);
+    net.gotenberg = () => pdfBytes();
+    expect((await POST(convertRequest({ tool: "word-to-pdf", file: docx() }, address))).status).toBe(200);
   });
 
   it("answers 503 when a limit is mistyped, rather than running without it", async () => {
@@ -242,6 +286,30 @@ describe("PDF to Word and Excel (Adobe PDF Services)", () => {
     expect(res.status).toBe(502);
     expect(adobeCount("dm:adobe:m:")).toBe(0);
     expect(adobeCount("dm:adobe:d:")).toBe(0);
+  });
+
+  it("deletes both the uploaded file and the result at Adobe", async () => {
+    net.resultAssetId = "result-9";
+    await POST(convertRequest({ tool: "pdf-to-word", file: pdf() }));
+    const deletes = upstream()
+      .filter((c) => c.init.method === "DELETE")
+      .map((c) => new URL(c.url).pathname);
+    expect(deletes.sort()).toEqual(["/assets/asset-1", "/assets/result-9"]);
+  });
+
+  it("keeps the allowance spent when the job was accepted and a later step fails", async () => {
+    net.downloadFails = true;
+    const res = await POST(convertRequest({ tool: "pdf-to-word", file: pdf() }));
+    expect(res.status).toBe(502);
+    expect(adobeCount("dm:adobe:m:")).toBe(1);
+    expect(adobeCount("dm:adobe:d:")).toBe(1);
+  });
+
+  it("gives the allowance back when it fails before the job is accepted (upload)", async () => {
+    net.uploadFails = true;
+    const res = await POST(convertRequest({ tool: "pdf-to-word", file: pdf() }));
+    expect(res.status).toBe(502);
+    expect(adobeCount("dm:adobe:m:")).toBe(0);
   });
 
   it("treats Adobe's rate limit as busy (503)", async () => {
