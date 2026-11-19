@@ -72,7 +72,7 @@ export function Header() {
             afterSheetsClose(() => router.push(href));
           }}
         />
-        <div className="mt-6 flex flex-wrap items-center gap-x-5 border-t border-line pt-3 text-muted">
+        <div className="mt-6 flex flex-wrap items-center justify-between gap-x-5 border-t border-line pt-3 text-muted">
           <FeedbackLink className="inline-flex min-h-11 items-center underline-offset-4 hover:text-fg hover:underline" />
           <CoffeeLink />
         </div>

@@ -10,16 +10,18 @@ export function Footer() {
     <footer className="border-t border-line">
       <div className="mx-auto max-w-6xl px-4 py-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] text-body-sm text-muted sm:px-6">
         <p className="max-w-[68ch]">Most tools work entirely on your device, so those files are never uploaded.</p>
-        <nav aria-label="Footer" className="mt-2 grid grid-cols-2 gap-x-5 sm:flex sm:flex-wrap sm:items-center">
-          <Link href="/privacy" className={LINK}>
-            Privacy
-          </Link>
-          <Link href="/terms" className={`${LINK} justify-self-end sm:justify-self-auto`}>
-            Terms
-          </Link>
-          <FeedbackLink className={LINK} />
-          <CoffeeLink className="justify-self-end sm:ml-auto sm:justify-self-auto" />
-        </nav>
+        <div className="mt-2 flex flex-wrap items-center gap-x-5 gap-y-1">
+          <nav aria-label="Footer" className="flex flex-wrap items-center gap-x-5">
+            <Link href="/privacy" className={LINK}>
+              Privacy
+            </Link>
+            <Link href="/terms" className={LINK}>
+              Terms
+            </Link>
+            <FeedbackLink className={LINK} />
+          </nav>
+          <CoffeeLink className="ml-auto rounded-full border border-line px-4 text-fg transition-colors hover:border-accent hover:no-underline" />
+        </div>
         <p className="mt-1 flex min-h-11 items-center">
           <span>
             © {new Date().getFullYear()}{" "}
