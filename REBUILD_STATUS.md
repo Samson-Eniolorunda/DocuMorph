@@ -1,3 +1,17 @@
+# DocuMorph rebuild: status after session 4
+
+Session 4 (overnight routine, 19 November 2026), all on `rebuild/production`; `main` and `v2` untouched, no pull request, nothing merged or deployed. See `OVERNIGHT_PROGRESS.md`.
+
+1. **Self-review of session 3.** All 11 fixes hold. Two defects fixed: a request refused by the site cap no longer spends the visitor's or the site's count (tested); the status text wrongly said Adobe's unit is given back for an over-size result (it is not, correctly).
+2. **Mobile pass.** `tests/e2e/responsive.spec.ts`: every page and several loaded states at 360, 390, 430, 768, 1280 and 1536 px, light and dark, for sideways scroll, 44 px targets and button order; plus sheet drag handles, reduced motion and the safe-area viewport setting. One defect fixed: the upload area put "Take a photo" right of the primary button. Not done: screenshot review by eye, and real devices.
+3. **PDF to Excel kept** (Adobe): unit tests for route, target and content type; new end-to-end tests for success, wrong file type and the busy message.
+4. **`OWNER_SETUP.md`** written.
+5. **Lighthouse mobile**, three runs on six pages: performance 96 to 100, the other three categories 100. Local server; measure the Vercel preview too.
+
+Gates at the last full run: format, lint (0 warnings), typecheck, 103 unit tests, build and 201 Playwright tests passed (29 skipped by design); no real service called.
+
+---
+
 # DocuMorph rebuild: status after session 3
 
 Branch `rebuild/production` (from `v2`). `main` and `v2` have not been touched, no pull request was opened, nothing was merged or deployed.
