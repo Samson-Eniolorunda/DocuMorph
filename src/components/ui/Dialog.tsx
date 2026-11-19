@@ -146,11 +146,11 @@ export function Dialog({
         "sheet fixed m-0 max-h-[85dvh] w-full max-w-none overflow-hidden bg-surface p-0 text-fg shadow-md backdrop:bg-black/50",
         "inset-x-0 bottom-0 top-auto rounded-t-lg border border-b-0 border-line",
         side
-          ? "md:inset-y-0 md:left-auto md:right-0 md:max-h-none md:w-96 md:rounded-none md:border-b md:border-r-0"
+          ? "md:inset-y-0 md:left-auto md:right-0 md:h-dvh md:max-h-dvh md:w-96 md:rounded-none md:border-b md:border-r-0"
           : "md:inset-auto md:left-1/2 md:top-1/2 md:max-w-lg md:-translate-x-1/2 md:-translate-y-1/2 md:rounded-lg md:border-b",
       )}
     >
-      <div className="flex max-h-[85dvh] flex-col md:max-h-[inherit]">
+      <div className={cn("flex max-h-[85dvh] flex-col md:max-h-[inherit]", side && "md:h-full")}>
         <div {...swipe} className="flex touch-none flex-col border-b border-line md:touch-auto" data-sheet-handle>
           <span aria-hidden className="mx-auto mt-2 h-1 w-10 rounded-full bg-control md:hidden" />
           <div className="flex items-center justify-between gap-2 py-1 pl-4 pr-2">
@@ -162,7 +162,7 @@ export function Dialog({
         </div>
         <div className="scroll-quiet min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4">{children}</div>
         {footer && (
-          <div className="flex justify-end gap-3 border-t border-line px-4 pt-3 pb-[max(12px,env(safe-area-inset-bottom))]">
+          <div className="flex items-center justify-between gap-3 border-t border-line px-4 pt-3 pb-[max(12px,env(safe-area-inset-bottom))] [&>*:only-child]:ml-auto">
             {footer}
           </div>
         )}

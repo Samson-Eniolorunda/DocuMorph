@@ -86,10 +86,9 @@ export function FeedbackLink({ className, onOpen }: { className?: string; onOpen
             </div>
           </div>
         ) : (
-          <form onSubmit={send} className="space-y-4" noValidate>
-            <p className="text-muted">
-              Tell me what is broken, what is missing, or what worked well. The message is e-mailed to me and is not
-              stored on this site.
+          <form onSubmit={send} className="space-y-3" noValidate>
+            <p className="text-body-sm text-muted">
+              What is broken, missing or working well? It is e-mailed to me, not stored here.
             </p>
             <TextArea
               label="Message"
@@ -98,6 +97,7 @@ export function FeedbackLink({ className, onOpen }: { className?: string; onOpen
               maxLength={FEEDBACK_MAX}
               onChange={(e) => setMessage(e.target.value)}
               disabled={sending}
+              rows={3}
             />
             <Field
               label="E-mail address (optional)"
@@ -109,9 +109,6 @@ export function FeedbackLink({ className, onOpen }: { className?: string; onOpen
               onChange={(e) => setEmail(e.target.value)}
               disabled={sending}
             />
-            <p className="text-body-sm text-subtle">
-              Sent from <span className="font-mono">{path}</span>
-            </p>
             <div aria-hidden className="absolute -left-[9999px] h-0 w-0 overflow-hidden">
               <label>
                 Leave this empty
@@ -123,7 +120,7 @@ export function FeedbackLink({ className, onOpen }: { className?: string; onOpen
                 {state.message}
               </Notice>
             )}
-            <div className="flex justify-end gap-3">
+            <div className="flex items-center justify-between gap-3 pt-1">
               <Button variant="secondary" type="button" onClick={close}>
                 Cancel
               </Button>
