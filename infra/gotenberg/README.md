@@ -80,6 +80,7 @@ gcloud run deploy "$SERVICE" \
   --min-instances=0 --max-instances=2 \
   --port=3000 \
   --timeout=60 \
+  --command="gotenberg" \
   --args="--api-enable-basic-auth,--api-timeout=55s" \
   --set-secrets="GOTENBERG_API_BASIC_AUTH_USERNAME=gotenberg-username:latest,GOTENBERG_API_BASIC_AUTH_PASSWORD=gotenberg-password:latest" \
   --allow-unauthenticated
@@ -94,6 +95,7 @@ What each setting does:
 | `--min-instances=0`       | Scales to zero: no cost while idle. The first request after idle takes several seconds; the DocuMorph server module retries once to allow for this. |
 | `--max-instances=2`       | A hard ceiling on cost and on abuse.                                                                                                                |
 | `--port=3000`             | Gotenberg listens on port 3000.                                                                                                                     |
+| `--command`               | Starts the converter itself. Without it, `--args` replaces the image's start command, nothing listens on port 3000 and the deployment fails.        |
 | `--args`                  | `--api-enable-basic-auth` makes every conversion route require the login. `--api-timeout` stops a stuck conversion before Cloud Run's own limit.    |
 | `--allow-unauthenticated` | Cloud Run itself is open to the internet; Gotenberg's basic authentication is the lock. Only the DocuMorph server holds the password.               |
 

@@ -11,9 +11,13 @@ account, a Buy Me a Coffee page, and a Vercel project connected to this reposito
 
 Without this store no server conversion runs, because the daily and monthly caps must be exact.
 
-1. Sign in at upstash.com and choose Create Database (Redis).
-2. Name it `documorph`, choose the free plan, and pick a European region (for example `eu-central-1`, Frankfurt),
-   matching the Vercel function region set in step 2a, so each count is a short hop rather than a transatlantic one.
+1. Sign in at upstash.com. The free plan allows one database per account, so DocuMorph shares the existing free
+   database (in `us-east-1`) with the owner's other projects. This is safe: every DocuMorph key starts with `dm:` and
+   expires on its own (one day, or 35 days for the Adobe monthly count). Check in the database settings that eviction
+   is off, so counts are never dropped when the database is nearly full. Each count crosses the Atlantic from the
+   Frankfurt functions (about 0.1 s), which is negligible next to a conversion.
+2. Only if DocuMorph should later have its own database: create one in a second free account, in a European region
+   such as `eu-central-1`, to avoid the crossing.
 3. Open the database, then the REST API section.
 4. Copy the REST URL into `UPSTASH_REDIS_REST_URL` and the REST token into `UPSTASH_REDIS_REST_TOKEN`.
 
@@ -31,8 +35,8 @@ Without this store no server conversion runs, because the daily and monthly caps
    loop of failing or oversized files still reaches the caps.
    - **Region.** Gotenberg runs in `europe-west1` (Belgium). `vercel.json` sets the Vercel function region to
      Frankfurt (`fra1`); if you prefer Paris, change it to `cdg1`, or set Functions, Region in the Vercel project
-     settings (a project setting overrides nothing in `vercel.json`, so keep the two the same). Create the Upstash
-     database in a matching European region (step 1).
+     settings (a project setting overrides nothing in `vercel.json`, so keep the two the same). The shared Upstash
+     database stays in `us-east-1` (step 1).
 3. Put the Service URL (it must start with `https://`) into `GOTENBERG_URL`, the username into `GOTENBERG_USERNAME`
    and the password into `GOTENBERG_PASSWORD`.
 4. Time the first conversion after a quiet period. Cloud Run wakes from zero in several seconds; if that is too slow,
