@@ -4,6 +4,7 @@ import {
   checkFeedbackCalls,
   checkLimit,
   defaultCounter,
+  refund,
   releaseAdobe,
   reserveAdobe,
   type Counter,
@@ -90,5 +91,30 @@ describe("the shared store's answers", () => {
   });
   it("throws when the store answers with an error status", async () => {
     await expect(withStore([], 500)("k", 60)).rejects.toThrow();
+  });
+});
+
+describe("refunds", () => {
+  it("gives a visitor at most 3 refunds a day, and always gives the site count back", async () => {
+    const { map, count } = counting();
+    const limits = { perVisitor: 10, perSite: 100, today: "2026-11-19" };
+    for (let i = 0; i < 5; i++) {
+      await checkLimit("v", limits, count);
+      await refund("v", limits, count);
+    }
+    // Five attempts; the visitor kept 3 refunds and the two later failures stayed counted.
+    expect(map.get("dm:2026-11-19:v:v")).toBe(2);
+    expect(map.get("dm:2026-11-19:site")).toBe(0);
+  });
+
+  it("never gives attempts back", async () => {
+    const { map, count } = counting();
+    const limits = { perVisitor: 10, perSite: 100, perAttempt: 2, today: "2026-11-19" };
+    for (let i = 0; i < 2; i++) {
+      expect((await checkLimit("v", limits, count)).ok).toBe(true);
+      await refund("v", limits, count);
+    }
+    expect((await checkLimit("v", limits, count)).ok).toBe(false);
+    expect(map.get("dm:2026-11-19:attempts")).toBe(3);
   });
 });

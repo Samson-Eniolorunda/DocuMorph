@@ -12,7 +12,9 @@ const text = z.string().trim().min(1).optional();
 
 const schema = z.object({
   CONVERT_DAILY_PER_VISITOR: positiveInt(10).pipe(z.number().min(1)),
-  CONVERT_DAILY_SITE_CAP: positiveInt(200),
+  CONVERT_DAILY_SITE_CAP: positiveInt(200).pipe(z.number().min(1)),
+  // Every attempt that reaches a service, successful or not; never given back.
+  CONVERT_DAILY_ATTEMPT_CAP: positiveInt(300).pipe(z.number().min(1)),
   UPSTASH_REDIS_REST_URL: z.url().optional(),
   UPSTASH_REDIS_REST_TOKEN: text,
   // Word and Excel to PDF: a self-hosted Gotenberg service (see infra/gotenberg).

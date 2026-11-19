@@ -1,11 +1,11 @@
-// Limits server conversions per visitor (by IP address) per day, plus an
-// optional daily cap for the whole site, so nobody can spend the conversion
-// allowance.
+// Limits server conversions per visitor (by IP address) per day, plus a daily
+// cap for the whole site and a daily cap on attempts, so nobody can spend the
+// conversion allowance. The site cap is always on.
 //
-// With UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN set (free tier is
-// enough) the counts are shared by every server instance. Without them the
-// counts live in the memory of each instance: still a useful brake, but not
-// exact, because Vercel may run several instances.
+// Every server tool needs UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN
+// (the free tier is enough): the counts must be shared by every server
+// instance, so the tools stay off without them. The in-memory counter below
+// serves only the feedback form and tests.
 
 export interface LimitResult {
   ok: boolean;
@@ -60,7 +60,12 @@ const DAY = 24 * 60 * 60;
 
 export async function checkLimit(
   visitor: string,
-  { perVisitor, perSite, today }: { perVisitor: number; perSite: number; today: string },
+  {
+    perVisitor,
+    perSite,
+    perAttempt,
+    today,
+  }: { perVisitor: number; perSite: number; perAttempt?: number; today: string },
   count: Counter = defaultCounter(),
 ): Promise<LimitResult> {
   const mine = await count(`dm:${today}:v:${visitor}`, DAY);
@@ -74,16 +79,27 @@ export async function checkLimit(
       return { ok: false, remaining: 0, reason: "site" };
     }
   }
+  // Attempts are never given back: they bound how much work the service can be asked to do, whatever the outcome.
+  if (perAttempt !== undefined && (await count(`dm:${today}:attempts`, DAY)) > perAttempt) {
+    await count(`dm:${today}:site`, DAY, -1);
+    await count(`dm:${today}:v:${visitor}`, DAY, -1);
+    return { ok: false, remaining: 0, reason: "site" };
+  }
   return { ok: true, remaining: perVisitor - mine };
 }
 
-/** Gives back one conversion, for a visitor whose conversion failed. */
+/**
+ * Gives back one conversion. Used only when the service did no work (it could not be reached, or Adobe never
+ * accepted the job). The visitor gets at most `maxVisitorRefunds` a day, so failures cannot be used to loop; the
+ * site count is always given back, and the attempts counter never is.
+ */
 export async function refund(
   visitor: string,
-  { perSite, today }: { perSite: number; today: string },
+  { perSite, today, maxVisitorRefunds = 3 }: { perSite: number; today: string; maxVisitorRefunds?: number },
   count: Counter = defaultCounter(),
 ) {
-  await count(`dm:${today}:v:${visitor}`, DAY, -1);
+  if ((await count(`dm:${today}:rf:${visitor}`, DAY)) <= maxVisitorRefunds)
+    await count(`dm:${today}:v:${visitor}`, DAY, -1);
   if (perSite > 0) await count(`dm:${today}:site`, DAY, -1);
 }
 

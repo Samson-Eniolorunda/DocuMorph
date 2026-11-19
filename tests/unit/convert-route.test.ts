@@ -136,7 +136,7 @@ describe("POST /api/convert: refusals", () => {
     expect((await POST(convertRequest({ tool: "word-to-pdf", file: docx() }, "2001:db8:1:3::1"))).status).toBe(200);
   });
 
-  it("refuses a result larger than 4.5 MB with a clear message, and gives the conversion back", async () => {
+  it("refuses a result larger than 4.5 MB with a clear message, and keeps the conversion counted", async () => {
     vi.stubEnv("CONVERT_DAILY_PER_VISITOR", "1");
     const address = ip();
     net.gotenberg = () => new Response(new Uint8Array([...PDF, ...new Array(4_600_000).fill(1)]), { status: 200 });
@@ -144,7 +144,31 @@ describe("POST /api/convert: refusals", () => {
     expect(res.status).toBe(413);
     expect((await res.json()).error).toMatch(/4\.5 MB/);
     net.gotenberg = () => pdfBytes();
-    expect((await POST(convertRequest({ tool: "word-to-pdf", file: docx() }, address))).status).toBe(200);
+    expect((await POST(convertRequest({ tool: "word-to-pdf", file: docx() }, address))).status).toBe(429);
+    const today = new Date().toISOString().slice(0, 10);
+    expect(net.counters.get(`dm:${today}:site`)).toBe(1);
+  });
+
+  it("keeps a failed conversion counted once Gotenberg has done the work, so a loop reaches the cap", async () => {
+    vi.stubEnv("CONVERT_DAILY_PER_VISITOR", "2");
+    const address = ip();
+    net.gotenberg = () => new Response("bad file", { status: 500 });
+    expect((await POST(convertRequest({ tool: "word-to-pdf", file: docx() }, address))).status).toBe(502);
+    expect((await POST(convertRequest({ tool: "word-to-pdf", file: docx() }, address))).status).toBe(502);
+    expect((await POST(convertRequest({ tool: "word-to-pdf", file: docx() }, address))).status).toBe(429);
+    expect(upstream()).toHaveLength(2);
+  });
+
+  it("stops at the daily attempt cap, which is never given back", async () => {
+    vi.stubEnv("CONVERT_DAILY_ATTEMPT_CAP", "2");
+    net.gotenberg = () => new Response("bad file", { status: 500 });
+    for (let i = 0; i < 2; i++)
+      expect((await POST(convertRequest({ tool: "word-to-pdf", file: docx() }))).status).toBe(502);
+    const res = await POST(convertRequest({ tool: "word-to-pdf", file: docx() }));
+    expect(res.status).toBe(429);
+    const today = new Date().toISOString().slice(0, 10);
+    expect(net.counters.get(`dm:${today}:attempts`)).toBe(3);
+    expect(net.counters.get(`dm:${today}:site`)).toBe(2);
   });
 
   it("answers 503 when a limit is mistyped, rather than running without it", async () => {
@@ -302,6 +326,16 @@ describe("PDF to Word and Excel (Adobe PDF Services)", () => {
     net.downloadFails = true;
     const res = await POST(convertRequest({ tool: "pdf-to-word", file: pdf() }));
     expect(res.status).toBe(502);
+    expect(adobeCount("dm:adobe:m:")).toBe(1);
+    expect(adobeCount("dm:adobe:d:")).toBe(1);
+  });
+
+  it("keeps the allowance spent when the export request times out, because Adobe may have accepted it", async () => {
+    net.adobeJob = () => {
+      throw new DOMException("timed out", "TimeoutError");
+    };
+    const res = await POST(convertRequest({ tool: "pdf-to-word", file: pdf() }));
+    expect(res.status).toBe(504);
     expect(adobeCount("dm:adobe:m:")).toBe(1);
     expect(adobeCount("dm:adobe:d:")).toBe(1);
   });

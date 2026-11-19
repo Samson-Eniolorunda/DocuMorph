@@ -4,7 +4,9 @@
 // - only the conversions listed in SERVER_TOOLS (zod schema);
 // - the file's first bytes and its extension must match the tool, so renamed files are refused;
 // - files up to 4 MB, because Vercel accepts request bodies up to 4.5 MB;
-// - a daily limit per visitor and an optional site-wide cap, spent only when a conversion succeeds;
+// - a daily limit per visitor, a site-wide cap and a cap on attempts. Once a service has been contacted the attempt
+//   stays counted, so failing or oversized files cannot be looped for free; only a service that could not be
+//   reached gives the count back (at most 3 a day to a visitor);
 // - results over 4.5 MB (Vercel's response limit) are refused before sending;
 // - for Adobe, a monthly and a daily cap on the whole site so the free allowance is never exceeded;
 // - nothing is written anywhere: the converted file is sent back in the same response;
@@ -65,7 +67,12 @@ export async function POST(req: Request) {
 
   const today = new Date().toISOString().slice(0, 10);
   const visitor = await visitorKey(req, today);
-  const limits = { perVisitor: env.CONVERT_DAILY_PER_VISITOR, perSite: env.CONVERT_DAILY_SITE_CAP, today };
+  const limits = {
+    perVisitor: env.CONVERT_DAILY_PER_VISITOR,
+    perSite: env.CONVERT_DAILY_SITE_CAP,
+    perAttempt: env.CONVERT_DAILY_ATTEMPT_CAP,
+    today,
+  };
   let remaining: number;
   try {
     const limit = await checkLimit(visitor, limits);
@@ -87,13 +94,18 @@ export async function POST(req: Request) {
   let failure: "timeout" | "unauthorised" | "quota" | "unavailable" | "failed" | null = null;
   // Set once Adobe's allowance is spent; cleared when its job is accepted, because from then on it may have been used.
   let reservation: { day: string; month: string } | null = null;
+  // Set once the service has been contacted (Gotenberg) or has accepted the job (Adobe): from then on it may have
+  // done work, so the attempt stays counted against the visitor and the site.
+  let spent = false;
   const giveBack = async () => {
-    await refund(visitor, limits).catch(() => undefined);
+    if (!spent) await refund(visitor, limits).catch(() => undefined);
     if (reservation) await releaseAdobe(reservation).catch(() => undefined);
   };
 
   if (tool.engine === "gotenberg" && gotenberg) {
     const out = await officeToPdf(gotenberg, file);
+    // Only a service that could not be reached, or refused the credentials, did no work.
+    spent = out.ok || (out.reason !== "unavailable" && out.reason !== "unauthorised");
     if (out.ok) bytes = out.bytes;
     else {
       failure = out.reason;
@@ -114,7 +126,10 @@ export async function POST(req: Request) {
     }
     const out = await exportPdf(adobe, file, tool.outExt as AdobeTarget);
     await afterResponse(out.cleanup);
-    if (out.accepted) reservation = null;
+    if (out.accepted) {
+      reservation = null;
+      spent = true;
+    }
     if (out.ok) bytes = out.bytes;
     else {
       failure = out.reason;
@@ -135,7 +150,7 @@ export async function POST(req: Request) {
   }
 
   if (bytes.byteLength > SERVER_RESULT_MAX_BYTES) {
-    await giveBack();
+    // The work was done, so nothing is given back.
     return fail(
       413,
       "The converted file is larger than the 4.5 MB this site can send back. Please try a smaller or simpler file.",

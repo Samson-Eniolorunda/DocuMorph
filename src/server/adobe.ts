@@ -112,11 +112,18 @@ export async function exportPdf(
       }),
     );
 
-    const job = await call(`${BASE}/operation/exportpdf`, {
-      method: "POST",
-      headers: { ...headers, "Content-Type": "application/json" },
-      body: JSON.stringify({ assetID, targetFormat: target, ocrLang: "en-US" }),
-    });
+    // If this request times out, Adobe may already have accepted the job, so the unit must not be released.
+    let job: Response;
+    try {
+      job = await call(`${BASE}/operation/exportpdf`, {
+        method: "POST",
+        headers: { ...headers, "Content-Type": "application/json" },
+        body: JSON.stringify({ assetID, targetFormat: target, ocrLang: "en-US" }),
+      });
+    } catch (err) {
+      if (err instanceof Stop && err.reason === "timeout") accepted = true;
+      throw err;
+    }
     status(job);
     accepted = true;
     const location = job.headers.get("location");

@@ -23,6 +23,13 @@ describe("server settings", () => {
     expect(loadEnv({ CONVERT_DAILY_SITE_CAP: "lots" }).ok).toBe(false);
   });
 
+  it("refuses 0 for the site and attempt caps, so they cannot be switched off", () => {
+    expect(loadEnv({ CONVERT_DAILY_SITE_CAP: "0" }).ok).toBe(false);
+    expect(loadEnv({ CONVERT_DAILY_ATTEMPT_CAP: "0" }).ok).toBe(false);
+    const r = loadEnv({});
+    expect(r.ok && r.env.CONVERT_DAILY_ATTEMPT_CAP).toBe(300);
+  });
+
   it("refuses a malformed store address", () => {
     expect(loadEnv({ UPSTASH_REDIS_REST_URL: "not a url", UPSTASH_REDIS_REST_TOKEN: "t" }).ok).toBe(false);
   });
