@@ -152,7 +152,7 @@ export function Dropzone({
             </Button>
           </div>
           <p className="text-body-sm text-muted">
-            {named}, up to <span className="font-mono">{formatBytes(maxBytes)}</span>
+            {named}, up to <span className="tabular-nums">{formatBytes(maxBytes)}</span>
             {multiple ? " each" : ""}.
             <span className="hidden [@media(pointer:fine)]:inline"> Or drop {multiple ? "them" : "it"} here.</span>
           </p>

@@ -66,7 +66,7 @@ function ServerConvertTool({ tool }: { tool: ServerTool }) {
       <div className="space-y-3">
         <Results files={[done.file]} before={done.before} onReset={reset} />
         <p className="text-body-sm text-subtle">
-          Your file was not kept on the server. You have <span className="font-mono">{done.remaining}</span> server
+          Your file was not kept on the server. You have <span className="tabular-nums">{done.remaining}</span> server
           conversion{done.remaining === 1 ? "" : "s"} left today.
         </p>
       </div>
@@ -94,7 +94,7 @@ function ServerConvertTool({ tool }: { tool: ServerTool }) {
   return (
     <div className="space-y-5">
       <p className="min-w-0 truncate text-muted">
-        {file.name}, <span className="font-mono">{formatBytes(file.size)}</span>
+        {file.name}, <span className="tabular-nums">{formatBytes(file.size)}</span>
       </p>
       {error && (
         <Notice tone="error" title="The file was not converted">
@@ -105,7 +105,7 @@ function ServerConvertTool({ tool }: { tool: ServerTool }) {
         status={
           working ? (
             <div>
-              <p className="mb-1 font-mono">{label}</p>
+              <p className="mb-1 tabular-nums">{label}</p>
               <ProgressBar label={label} value={stage.kind === "uploading" ? stage.percent : undefined} />
             </div>
           ) : undefined

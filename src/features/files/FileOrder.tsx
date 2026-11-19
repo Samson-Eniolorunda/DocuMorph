@@ -73,10 +73,10 @@ export function FileOrder<T extends { id: string; file: File }>({
           >
             <GripVertical className="size-5" aria-hidden />
           </button>
-          <span className="w-6 shrink-0 text-right font-mono text-body-sm text-subtle">{i + 1}</span>
+          <span className="w-6 shrink-0 text-right tabular-nums text-body-sm text-subtle">{i + 1}</span>
           <span className="min-w-0 flex-1 basis-40 px-2">
             <span className="block truncate">{it.file.name}</span>
-            <span className="font-mono text-body-sm text-subtle">{formatBytes(it.file.size)}</span>
+            <span className="tabular-nums text-body-sm text-subtle">{formatBytes(it.file.size)}</span>
           </span>
           <span className="ml-auto flex">
             <IconButton label={`Move ${it.file.name} up`} disabled={i === 0} onClick={() => move(i, i - 1)}>

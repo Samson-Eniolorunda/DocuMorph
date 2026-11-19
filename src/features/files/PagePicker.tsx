@@ -34,7 +34,7 @@ export function PagePicker({
               )}
             >
               <PageThumb doc={doc} index={i} width={84} />
-              <span className="font-mono text-caption text-subtle">{i + 1}</span>
+              <span className="tabular-nums text-caption text-subtle">{i + 1}</span>
               {selected.has(i) && (
                 <span className="absolute right-1 top-1 flex size-5 items-center justify-center rounded-full bg-accent text-accent-fg">
                   <Check className="size-3.5" aria-hidden />

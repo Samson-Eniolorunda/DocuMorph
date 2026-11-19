@@ -97,7 +97,8 @@ export function SplitPdf() {
   return (
     <div className="space-y-5">
       <p className="min-w-0 truncate text-muted">
-        {file.name}, <span className="font-mono">{formatBytes(file.size)}</span>, {pages} page{pages === 1 ? "" : "s"}
+        {file.name}, <span className="tabular-nums">{formatBytes(file.size)}</span>, {pages} page
+        {pages === 1 ? "" : "s"}
       </p>
       <RadioGroup
         legend="How to split"

@@ -66,18 +66,18 @@ export function Results({
         </h2>
         {before !== undefined && (
           <p className="mt-1 text-muted">
-            <span className="font-mono">{formatBytes(before)}</span> to{" "}
-            <span className="font-mono">{formatBytes(total)}</span>
+            <span className="tabular-nums">{formatBytes(before)}</span> to{" "}
+            <span className="tabular-nums">{formatBytes(total)}</span>
             {saved > 0 ? `, ${saved}% smaller.` : saved < 0 ? ", larger than the original." : ", the same size."}
           </p>
         )}
         {dimensions && (
           <p className="mt-1 text-muted">
-            <span className="font-mono">
+            <span className="tabular-nums">
               {dimensions.before.width} × {dimensions.before.height}
             </span>{" "}
             to{" "}
-            <span className="font-mono">
+            <span className="tabular-nums">
               {dimensions.after.width} × {dimensions.after.height}
             </span>{" "}
             pixels.
@@ -105,7 +105,7 @@ export function Results({
           <li key={`${f.name}-${i}`} className="flex items-center justify-between gap-3 py-1 pl-3 pr-1.5">
             <span className="min-w-0">
               <span className="block truncate">{f.name}</span>
-              <span className="font-mono text-body-sm text-subtle">{formatBytes(f.blob.size)}</span>
+              <span className="tabular-nums text-body-sm text-subtle">{formatBytes(f.blob.size)}</span>
             </span>
             {multiple && (
               <Button variant="ghost" aria-label={`Save ${f.name}`} onClick={() => download(f)}>

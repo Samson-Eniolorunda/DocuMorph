@@ -62,7 +62,7 @@ export function ToolList({
                     {Icon && <Icon className="size-5 shrink-0 text-accent" aria-hidden />}
                     <span className="min-w-0 flex-1">
                       <span className="block font-medium">{t.name}</span>
-                      <span className="block truncate text-body-sm text-subtle md:whitespace-normal">{t.summary}</span>
+                      <span className={cn("block text-body-sm text-subtle", !columns && "truncate")}>{t.summary}</span>
                     </span>
                     {t.where === "server" && <Badge>Server</Badge>}
                   </Link>
