@@ -11,6 +11,11 @@
 import type { AdobeConfig } from "./env";
 
 const BASE = "https://pdf-services.adobe.io";
+/**
+ * Adobe answers with regional hosts for job and asset addresses (for example pdf-services-ue1.adobe.io), so a
+ * returned address is trusted when it is HTTPS on pdf-services[-region].adobe.io and nowhere else.
+ */
+export const isAdobeServiceUrl = (url: string) => /^https:\/\/pdf-services(?:-[a-z0-9]+)?\.adobe\.io\//.test(url);
 
 export type AdobeTarget = "docx" | "xlsx";
 type Reason = "timeout" | "unauthorised" | "quota" | "failed";
@@ -58,6 +63,7 @@ export async function exportPdf(
     }
   };
   const status = (res: Response) => {
+    lastStatus = res.status;
     if (res.status === 401 || res.status === 403) throw new Stop("unauthorised");
     if (res.status === 429) throw new Stop("quota");
     if (!res.ok) throw new Stop("failed");
@@ -66,6 +72,9 @@ export async function exportPdf(
   const assets: string[] = [];
   let access = "";
   let accepted = false;
+  // For the server log only: which step failed and Adobe's HTTP status (never keys, tokens or file names).
+  let step = "token";
+  let lastStatus = 0;
   const cleanup = async () => {
     if (!access) return;
     // Best effort and bounded: the upload and the result are both removed.
@@ -91,6 +100,7 @@ export async function exportPdf(
     if (!access) throw new Stop("unauthorised");
     const headers = { Authorization: `Bearer ${access}`, "x-api-key": config.clientId };
 
+    step = "asset";
     const slot = await call(`${BASE}/assets`, {
       method: "POST",
       headers: { ...headers, "Content-Type": "application/json" },
@@ -104,6 +114,7 @@ export async function exportPdf(
     if (!uploadUri || !assetID) throw new Stop("failed");
     assets.push(assetID);
 
+    step = "upload";
     status(
       await call(uploadUri, {
         method: "PUT",
@@ -113,6 +124,7 @@ export async function exportPdf(
     );
 
     // If this request times out, Adobe may already have accepted the job, so the unit must not be released.
+    step = "export";
     let job: Response;
     try {
       job = await call(`${BASE}/operation/exportpdf`, {
@@ -127,7 +139,8 @@ export async function exportPdf(
     status(job);
     accepted = true;
     const location = job.headers.get("location");
-    if (!location || !location.startsWith(`${BASE}/`)) throw new Stop("failed");
+    if (!location || !isAdobeServiceUrl(location)) throw new Stop("failed");
+    step = "poll";
 
     for (;;) {
       await sleep(Math.min(pollMs, Math.max(0, left() - 500)));
@@ -144,6 +157,7 @@ export async function exportPdf(
         if (resultId && !assets.includes(resultId)) assets.push(resultId);
         const downloadUri = state.asset?.downloadUri ?? state.resource?.downloadUri;
         if (!downloadUri) throw new Stop("failed");
+        step = "download";
         const out = await call(downloadUri, {});
         status(out);
         const bytes = new Uint8Array(await out.arrayBuffer());
@@ -152,7 +166,9 @@ export async function exportPdf(
       }
     }
   } catch (err) {
-    return { ok: false, reason: err instanceof Stop ? err.reason : "failed", accepted, cleanup };
+    const reason = err instanceof Stop ? err.reason : "failed";
+    console.error(`[adobe] ${target} failed at ${step}: ${reason}${lastStatus ? ` (HTTP ${lastStatus})` : ""}`);
+    return { ok: false, reason, accepted, cleanup };
   }
 }
 

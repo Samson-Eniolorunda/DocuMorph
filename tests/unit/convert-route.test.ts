@@ -49,7 +49,7 @@ function handler(url: string, init: RequestInit = {}): Response | Promise<Respon
     return Response.json({ uploadUri: "https://upload.test/put?sig=1", assetID: "asset-1" });
   if (url.startsWith("https://upload.test/")) return new Response(null, { status: net.uploadFails ? 500 : 200 });
   if (url === "https://pdf-services.adobe.io/operation/exportpdf") return net.adobeJob();
-  if (url === "https://pdf-services.adobe.io/operation/exportpdf/job-1/status")
+  if (/^https:\/\/pdf-services(-ue1)?\.adobe\.io\/operation\/exportpdf\/job-1\/status$/.test(url))
     return Response.json({
       status: "done",
       asset: { downloadUri: "https://download.test/out", ...(net.resultAssetId ? { assetID: net.resultAssetId } : {}) },
@@ -69,7 +69,8 @@ beforeEach(() => {
     adobeJob: () =>
       new Response(null, {
         status: 201,
-        headers: { location: "https://pdf-services.adobe.io/operation/exportpdf/job-1/status" },
+        // Adobe answers with a regional host, as in production.
+        headers: { location: "https://pdf-services-ue1.adobe.io/operation/exportpdf/job-1/status" },
       }),
   };
   vi.stubEnv("GOTENBERG_URL", "https://office.test");
@@ -355,5 +356,17 @@ describe("PDF to Word and Excel (Adobe PDF Services)", () => {
   it("never reveals the credentials", async () => {
     const res = await POST(convertRequest({ tool: "pdf-to-word", file: pdf() }));
     expect(JSON.stringify([...res.headers])).not.toMatch(/client-secret|tok/);
+  });
+});
+
+describe("Adobe status addresses", () => {
+  it("trusts Adobe's regional hosts and nothing else", async () => {
+    const { isAdobeServiceUrl } = await import("@/server/adobe");
+    expect(isAdobeServiceUrl("https://pdf-services.adobe.io/operation/exportpdf/1/status")).toBe(true);
+    expect(isAdobeServiceUrl("https://pdf-services-ue1.adobe.io/operation/exportpdf/1/status")).toBe(true);
+    expect(isAdobeServiceUrl("https://pdf-services-ew1.adobe.io/assets/1")).toBe(true);
+    expect(isAdobeServiceUrl("http://pdf-services-ue1.adobe.io/x")).toBe(false);
+    expect(isAdobeServiceUrl("https://pdf-services.adobe.io.evil.test/x")).toBe(false);
+    expect(isAdobeServiceUrl("https://evil.test/pdf-services.adobe.io/")).toBe(false);
   });
 });
