@@ -424,7 +424,7 @@ export function PdfEditor() {
         <button
           type="button"
           onClick={() => setSheet("pages")}
-          className="min-h-11 rounded-md px-3 font-mono text-[15px] hover:bg-raised"
+          className="min-h-11 rounded-md px-3 text-[15px] tabular-nums hover:bg-raised"
           aria-label={`Page ${current} of ${sizes.length}. Open the page list.`}
         >
           {current} / {sizes.length}
@@ -495,7 +495,7 @@ export function PdfEditor() {
                 className="mx-auto mb-1 flex items-center justify-between text-body-sm text-subtle"
                 style={{ width: cssW }}
               >
-                <span className="font-mono">
+                <span className="tabular-nums">
                   Page {i + 1} of {sizes.length}
                   {isDeleted && " · will be removed"}
                 </span>
@@ -534,47 +534,50 @@ export function PdfEditor() {
           <p className="px-4 pt-2 text-body-sm text-muted">{pending ? "Tap on the page to place it." : HINTS[tool]}</p>
           {sel && (
             <div
-              className="flex items-center gap-1 overflow-x-auto px-2 py-1"
+              className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 px-2 py-1"
               role="toolbar"
               aria-label="Selected item"
             >
-              {text && (
-                <Button
-                  variant="secondary"
-                  onClick={() => {
-                    checkpoint();
-                    setSheet("text");
-                  }}
-                >
-                  <Type className="size-5" aria-hidden /> Edit
+              <div className="flex items-center gap-2">
+                {text && (
+                  <Button
+                    variant="secondary"
+                    onClick={() => {
+                      checkpoint();
+                      setSheet("text");
+                    }}
+                  >
+                    <Type className="size-5" aria-hidden /> Edit
+                  </Button>
+                )}
+                {sel.type === "box" && (
+                  <Button variant="secondary" onClick={() => setSheet("colour")}>
+                    <Palette className="size-5" aria-hidden /> Colour
+                  </Button>
+                )}
+                {sel.type === "image" && (
+                  <Button variant="secondary" aria-pressed={freeResize} onClick={() => setFreeResize((v) => !v)}>
+                    Free resize {freeResize ? "on" : "off"}
+                  </Button>
+                )}
+                <Button variant="danger" onClick={removeSelected} aria-label="Delete selected item">
+                  <Trash2 className="size-5" aria-hidden /> Delete
                 </Button>
-              )}
-              {sel.type === "box" && (
-                <Button variant="secondary" onClick={() => setSheet("colour")}>
-                  <Palette className="size-5" aria-hidden /> Colour
-                </Button>
-              )}
-              {sel.type === "image" && (
-                <Button variant="secondary" aria-pressed={freeResize} onClick={() => setFreeResize((v) => !v)}>
-                  Free resize {freeResize ? "on" : "off"}
-                </Button>
-              )}
-              <Button variant="danger" onClick={removeSelected} aria-label="Delete selected item">
-                <Trash2 className="size-5" aria-hidden /> Delete
-              </Button>
-              <span className="mx-1 h-6 w-px shrink-0 bg-line" aria-hidden />
-              <IconButton label="Move left" onClick={() => nudge(-NUDGE, 0)}>
-                <ArrowLeft className="size-5" />
-              </IconButton>
-              <IconButton label="Move up" onClick={() => nudge(0, -NUDGE)}>
-                <ArrowUp className="size-5" />
-              </IconButton>
-              <IconButton label="Move down" onClick={() => nudge(0, NUDGE)}>
-                <ArrowDown className="size-5" />
-              </IconButton>
-              <IconButton label="Move right" onClick={() => nudge(NUDGE, 0)}>
-                <ArrowRight className="size-5" />
-              </IconButton>
+              </div>
+              <div className="flex items-center gap-1">
+                <IconButton label="Move left" onClick={() => nudge(-NUDGE, 0)}>
+                  <ArrowLeft className="size-5" />
+                </IconButton>
+                <IconButton label="Move up" onClick={() => nudge(0, -NUDGE)}>
+                  <ArrowUp className="size-5" />
+                </IconButton>
+                <IconButton label="Move down" onClick={() => nudge(0, NUDGE)}>
+                  <ArrowDown className="size-5" />
+                </IconButton>
+                <IconButton label="Move right" onClick={() => nudge(NUDGE, 0)}>
+                  <ArrowRight className="size-5" />
+                </IconButton>
+              </div>
             </div>
           )}
           <div role="toolbar" aria-label="Editing tools" className="flex px-1 pb-1 pt-0.5">
@@ -682,7 +685,7 @@ export function PdfEditor() {
                 }}
               >
                 {pdf.doc && <PageThumb doc={pdf.doc} index={i} width={84} />}
-                <span className="font-mono text-caption">{i + 1}</span>
+                <span className="text-caption tabular-nums">{i + 1}</span>
               </button>
               <Button variant="ghost" className="mt-0.5 w-full" onClick={() => togglePage(i)}>
                 {deleted.has(i) ? "Keep" : "Delete"}
