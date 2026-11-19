@@ -1,6 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
 import { addressPrefix } from "@/server/http";
-import { checkFeedbackCalls, defaultCounter, releaseAdobe, reserveAdobe, type Counter } from "@/server/rate-limit";
+import {
+  checkFeedbackCalls,
+  checkLimit,
+  defaultCounter,
+  releaseAdobe,
+  reserveAdobe,
+  type Counter,
+} from "@/server/rate-limit";
 
 function counting() {
   const map = new Map<string, number>();
@@ -21,6 +28,18 @@ describe("IPv6 visitors", () => {
     expect(addressPrefix("203.0.113.7")).toBe("203.0.113.7");
     expect(addressPrefix("::ffff:203.0.113.7")).toBe("203.0.113.7");
     expect(addressPrefix("unknown")).toBe("unknown");
+  });
+});
+
+describe("conversion allowance", () => {
+  it("does not spend a visitor's count when the site cap refuses the request", async () => {
+    const { count, map } = counting();
+    const limits = { perVisitor: 5, perSite: 1, today: "2026-11-19" };
+    expect((await checkLimit("a", limits, count)).ok).toBe(true);
+    const refused = await checkLimit("b", limits, count);
+    expect(refused).toMatchObject({ ok: false, reason: "site" });
+    expect(map.get("dm:2026-11-19:v:b")).toBe(0);
+    expect(map.get("dm:2026-11-19:site")).toBe(1);
   });
 });
 

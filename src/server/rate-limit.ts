@@ -67,7 +67,12 @@ export async function checkLimit(
   if (mine > perVisitor) return { ok: false, remaining: 0, reason: "visitor" };
   if (perSite > 0) {
     const all = await count(`dm:${today}:site`, DAY);
-    if (all > perSite) return { ok: false, remaining: 0, reason: "site" };
+    if (all > perSite) {
+      // Refused, so nothing was converted: neither count is spent.
+      await count(`dm:${today}:site`, DAY, -1);
+      await count(`dm:${today}:v:${visitor}`, DAY, -1);
+      return { ok: false, remaining: 0, reason: "site" };
+    }
   }
   return { ok: true, remaining: perVisitor - mine };
 }
