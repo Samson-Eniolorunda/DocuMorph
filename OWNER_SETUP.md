@@ -12,8 +12,8 @@ account, a Buy Me a Coffee page, and a Vercel project connected to this reposito
 Without this store no server conversion runs, because the daily and monthly caps must be exact.
 
 1. Sign in at upstash.com and choose Create Database (Redis).
-2. Name it `documorph`, choose the free plan, and pick the region closest to your Vercel functions (the default
-   Vercel region is Washington, D.C., so `us-east-1`; choose a European region if you set Vercel to Frankfurt or Paris).
+2. Name it `documorph`, choose the free plan, and pick a European region (for example `eu-central-1`, Frankfurt),
+   matching the Vercel function region set in step 2a, so each count is a short hop rather than a transatlantic one.
 3. Open the database, then the REST API section.
 4. Copy the REST URL into `UPSTASH_REDIS_REST_URL` and the REST token into `UPSTASH_REDIS_REST_TOKEN`.
 
@@ -22,9 +22,17 @@ Without this store no server conversion runs, because the daily and monthly caps
 1. Follow `infra/gotenberg/README.md` from the top, steps 1 to 6: create the project, mirror the image, store the
    login, deploy with 2 GiB, 1 CPU, concurrency 1, minimum 0, maximum 2 instances in `europe-west1`, and run the two
    `curl` checks (401 without the login, 200 and a PDF with it).
-2. Step 7 of that guide creates the budget alert (£5, with e-mails at 50 %, 90 % and 100 %). Do not skip it: it is the
-   only warning you get if the service is abused. The site-wide daily cap (`CONVERT_DAILY_SITE_CAP`, default 200) is the
-   other protection.
+2. Step 7 of that guide creates the budget alert (5 units, with e-mails at 50 %, 90 % and 100 %). The budget must be in
+   the billing account's own currency, so the guide reads it first with
+   `gcloud billing accounts describe "$BILLING_ACCOUNT" --format='value(currencyCode)'`; do not type a currency by
+   hand. Do not skip it: it is the only warning you get if the service is abused. The other protections are the
+   site-wide daily cap (`CONVERT_DAILY_SITE_CAP`, default 200, minimum 1) and the daily cap on attempts
+   (`CONVERT_DAILY_ATTEMPT_CAP`, default 300, minimum 1). Attempts that reach the service are never given back, so a
+   loop of failing or oversized files still reaches the caps.
+   - **Region.** Gotenberg runs in `europe-west1` (Belgium). `vercel.json` sets the Vercel function region to
+     Frankfurt (`fra1`); if you prefer Paris, change it to `cdg1`, or set Functions, Region in the Vercel project
+     settings (a project setting overrides nothing in `vercel.json`, so keep the two the same). Create the Upstash
+     database in a matching European region (step 1).
 3. Put the Service URL (it must start with `https://`) into `GOTENBERG_URL`, the username into `GOTENBERG_USERNAME`
    and the password into `GOTENBERG_PASSWORD`.
 4. Time the first conversion after a quiet period. Cloud Run wakes from zero in several seconds; if that is too slow,
@@ -67,16 +75,17 @@ canonical links and share images). Changing it needs a new build, because it is 
 
 ## 7. Vercel environment variable names
 
-| Name                                                        | Value from  | Needed for                    |
-| ----------------------------------------------------------- | ----------- | ----------------------------- |
-| `NEXT_PUBLIC_SITE_URL`                                      | step 6      | Required for the build        |
-| `NEXT_PUBLIC_PORTFOLIO_URL`, `NEXT_PUBLIC_BUYMEACOFFEE_URL` | step 5      | Optional links                |
-| `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN`        | step 1      | Every server tool             |
-| `GOTENBERG_URL`, `GOTENBERG_USERNAME`, `GOTENBERG_PASSWORD` | step 2      | Word and Excel to PDF         |
-| `PDF_SERVICES_CLIENT_ID`, `PDF_SERVICES_CLIENT_SECRET`      | step 3      | PDF to Word and PDF to Excel  |
-| `ADOBE_MONTHLY_CAP`, `ADOBE_DAILY_CAP`                      | step 3      | Optional; defaults 450 and 25 |
-| `RESEND_API_KEY`, `FEEDBACK_TO_EMAIL`                       | step 4      | Feedback                      |
-| `CONVERT_DAILY_PER_VISITOR`, `CONVERT_DAILY_SITE_CAP`       | your choice | Optional; defaults 10 and 200 |
+| Name                                                        | Value from  | Needed for                                       |
+| ----------------------------------------------------------- | ----------- | ------------------------------------------------ |
+| `NEXT_PUBLIC_SITE_URL`                                      | step 6      | Required for the build                           |
+| `NEXT_PUBLIC_PORTFOLIO_URL`, `NEXT_PUBLIC_BUYMEACOFFEE_URL` | step 5      | Optional links                                   |
+| `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN`        | step 1      | Every server tool                                |
+| `GOTENBERG_URL`, `GOTENBERG_USERNAME`, `GOTENBERG_PASSWORD` | step 2      | Word and Excel to PDF                            |
+| `PDF_SERVICES_CLIENT_ID`, `PDF_SERVICES_CLIENT_SECRET`      | step 3      | PDF to Word and PDF to Excel                     |
+| `ADOBE_MONTHLY_CAP`, `ADOBE_DAILY_CAP`                      | step 3      | Optional; defaults 450 and 25                    |
+| `RESEND_API_KEY`, `FEEDBACK_TO_EMAIL`                       | step 4      | Feedback                                         |
+| `CONVERT_DAILY_PER_VISITOR`, `CONVERT_DAILY_SITE_CAP`       | your choice | Optional; defaults 10 and 200 (neither can be 0) |
+| `CONVERT_DAILY_ATTEMPT_CAP`                                 | your choice | Optional; default 300, never given back          |
 
 Not used any more, remove them if set: `CONVERTAPI_SECRET`, `BLOB_READ_WRITE_TOKEN`, `FORMSPREE_ENDPOINT` and every
 `WALLET_*` name.

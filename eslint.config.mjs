@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Stale build output; the worker is bundled from src/lib/pdf/render.ts.
+    "public/pdf.worker.min.mjs",
   ]),
 ]);
 

@@ -45,3 +45,6 @@ next-env.d.ts
 # playwright
 /test-results/
 /playwright-report/
+
+# stale build file: the PDF worker is bundled from src/lib/pdf/render.ts
+/public/pdf.worker.min.mjs

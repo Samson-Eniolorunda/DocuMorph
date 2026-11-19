@@ -40,17 +40,17 @@ Checks: `npm run typecheck`, `npm run lint` (zero warnings), `npm run format:che
 
 ## Settings
 
-| Name                                                        | Required                         | Purpose                                                                                |
-| ----------------------------------------------------------- | -------------------------------- | -------------------------------------------------------------------------------------- |
-| `NEXT_PUBLIC_SITE_URL`                                      | Yes (the build stops without it) | Public address, for canonical addresses, the sitemap and share images.                 |
-| `NEXT_PUBLIC_PORTFOLIO_URL`                                 | No                               | The owner's name in the footer links here. Unset: plain text.                          |
-| `NEXT_PUBLIC_BUYMEACOFFEE_URL`                              | No                               | The "Buy me a coffee" links. Unset: hidden.                                            |
-| `GOTENBERG_URL`, `GOTENBERG_USERNAME`, `GOTENBERG_PASSWORD` | For Word and Excel to PDF        | The Cloud Run service and its basic-authentication login.                              |
-| `PDF_SERVICES_CLIENT_ID`, `PDF_SERVICES_CLIENT_SECRET`      | For PDF to Word and PDF to Excel | Adobe PDF Services credentials.                                                        |
-| `ADOBE_MONTHLY_CAP`, `ADOBE_DAILY_CAP`                      | No                               | Whole-site caps (defaults 450 and 25).                                                 |
-| `RESEND_API_KEY`, `FEEDBACK_TO_EMAIL`                       | For feedback                     | Resend key and the owner's address.                                                    |
-| `CONVERT_DAILY_PER_VISITOR`                                 | No                               | Server conversions per visitor per day (default 10).                                   |
-| `CONVERT_DAILY_SITE_CAP`                                    | No                               | Server conversions for the whole site per day (default: no cap).                       |
-| `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN`        | For the Adobe tools              | Shared counts. Without them the Adobe tools stay off, because their cap must be exact. |
+| Name                                                        | Required                         | Purpose                                                                                      |
+| ----------------------------------------------------------- | -------------------------------- | -------------------------------------------------------------------------------------------- |
+| `NEXT_PUBLIC_SITE_URL`                                      | Yes (the build stops without it) | Public address, for canonical addresses, the sitemap and share images.                       |
+| `NEXT_PUBLIC_PORTFOLIO_URL`                                 | No                               | The owner's name in the footer links here. Unset: plain text.                                |
+| `NEXT_PUBLIC_BUYMEACOFFEE_URL`                              | No                               | The "Buy me a coffee" links. Unset: hidden.                                                  |
+| `GOTENBERG_URL`, `GOTENBERG_USERNAME`, `GOTENBERG_PASSWORD` | For Word and Excel to PDF        | The Cloud Run service and its basic-authentication login.                                    |
+| `PDF_SERVICES_CLIENT_ID`, `PDF_SERVICES_CLIENT_SECRET`      | For PDF to Word and PDF to Excel | Adobe PDF Services credentials.                                                              |
+| `ADOBE_MONTHLY_CAP`, `ADOBE_DAILY_CAP`                      | No                               | Whole-site caps (defaults 450 and 25).                                                       |
+| `RESEND_API_KEY`, `FEEDBACK_TO_EMAIL`                       | For feedback                     | Resend key and the owner's address.                                                          |
+| `CONVERT_DAILY_PER_VISITOR`                                 | No                               | Server conversions per visitor per day (default 10).                                         |
+| `CONVERT_DAILY_SITE_CAP`, `CONVERT_DAILY_ATTEMPT_CAP`       | No                               | Whole-site conversions and attempts per day (defaults 200 and 300; always on, 0 is refused). |
+| `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN`        | For every server tool            | Shared counts. Without them the server tools stay off, because the caps must be exact.       |
 
 See `.env.example`.

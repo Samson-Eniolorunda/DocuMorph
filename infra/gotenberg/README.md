@@ -117,13 +117,16 @@ The service's `/health` route is deliberately open so Cloud Run can check it.
 
 ## 7. Add a billing budget alert
 
-A small budget e-mails you well before any charge becomes meaningful. This sets £5 with alerts at 50 %, 90 % and 100 %:
+A small budget e-mails you well before any charge becomes meaningful. A budget must be in the billing account's own
+currency, so read that first; the example sets an amount of 5 in that currency, with alerts at 50 %, 90 % and 100 %:
 
 ```bash
+CURRENCY=$(gcloud billing accounts describe "$BILLING_ACCOUNT" --format='value(currencyCode)')
+echo "$CURRENCY"   # for example GBP, USD or EUR; change the 5 if you want a different amount
 gcloud billing budgets create \
   --billing-account="$BILLING_ACCOUNT" \
   --display-name="DocuMorph conversions" \
-  --budget-amount=5GBP \
+  --budget-amount="5${CURRENCY}" \
   --filter-projects="projects/$PROJECT_ID" \
   --threshold-rule=percent=0.5 --threshold-rule=percent=0.9 --threshold-rule=percent=1.0
 ```

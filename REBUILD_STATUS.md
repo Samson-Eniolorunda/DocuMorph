@@ -113,10 +113,11 @@ These are against a local server. Because the CSP makes pages dynamic, the live 
 | `NEXT_PUBLIC_PORTFOLIO_URL`, `NEXT_PUBLIC_BUYMEACOFFEE_URL` | Optional links |
 | `GOTENBERG_URL`, `GOTENBERG_USERNAME`, `GOTENBERG_PASSWORD` | Word and Excel to PDF |
 | `PDF_SERVICES_CLIENT_ID`, `PDF_SERVICES_CLIENT_SECRET` | PDF to Word and PDF to Excel |
-| `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN` | Shared counts; the Adobe tools stay off without them |
+| `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN` | Shared counts; every server tool stays off without them |
 | `ADOBE_MONTHLY_CAP`, `ADOBE_DAILY_CAP` | Optional; defaults 450 and 25 |
 | `RESEND_API_KEY`, `FEEDBACK_TO_EMAIL` | Feedback |
-| `CONVERT_DAILY_PER_VISITOR`, `CONVERT_DAILY_SITE_CAP` | Optional; defaults 10 a visitor and **200 a day for the whole site** (the cap protects the Cloud Run bill; `0` turns it off) |
+| `CONVERT_DAILY_PER_VISITOR`, `CONVERT_DAILY_SITE_CAP` | Optional; defaults 10 a visitor and **200 a day for the whole site** (the cap protects the Cloud Run bill; it is always on, and `0` is refused) |
+| `CONVERT_DAILY_ATTEMPT_CAP` | Optional; default 300 a day. Counts every attempt that reaches a service and is never given back, so looping failing files cannot run the service for free |
 
 Remove `CONVERTAPI_SECRET` from Vercel if it is still set; nothing reads it now. `BLOB_READ_WRITE_TOKEN`, `FORMSPREE_ENDPOINT` and the `WALLET_*` names are also unused.
 
