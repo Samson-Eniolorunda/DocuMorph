@@ -75,7 +75,7 @@ export function FileOrder<T extends { id: string; file: File }>({
           </button>
           <span className="w-6 shrink-0 text-right tabular-nums text-body-sm text-subtle">{i + 1}</span>
           <span className="min-w-0 flex-1 basis-40 px-2">
-            <span className="block truncate">{it.file.name}</span>
+            <span className="block break-all sm:truncate">{it.file.name}</span>
             <span className="tabular-nums text-body-sm text-subtle">{formatBytes(it.file.size)}</span>
           </span>
           <span className="ml-auto flex">

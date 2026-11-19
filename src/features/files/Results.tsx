@@ -104,7 +104,7 @@ export function Results({
         {files.map((f, i) => (
           <li key={`${f.name}-${i}`} className="flex items-center justify-between gap-3 py-1 pl-3 pr-1.5">
             <span className="min-w-0">
-              <span className="block truncate">{f.name}</span>
+              <span className="block break-all sm:truncate">{f.name}</span>
               <span className="tabular-nums text-body-sm text-subtle">{formatBytes(f.blob.size)}</span>
             </span>
             {multiple && (
