@@ -3,6 +3,8 @@
 Branch `rebuild/production` (from `v2`). `main` and `v2` have not been touched, no pull request was opened, nothing was merged or deployed.
 Written 19 November 2026 (session 3 fixes the findings of a code review of the rebuild; no feature was added).
 
+Session 3 gates, all run on this branch: `format:check` clean; `lint` 0 warnings; `typecheck` 0 errors; `npm test` 102 unit tests pass (23 new); `npm run build` passes; `npm run budgets` passes; `npx playwright test` 173 pass, 3 skipped by design, 0 fail. No real service was called.
+
 ## What session 3 fixed (review findings)
 
 1. **Cost.** `CONVERT_DAILY_SITE_CAP` now defaults to 200. Every server tool (Word, Excel, PDF to Word, PDF to Excel) needs the Upstash shared store; without it the tool is off ("This conversion is not set up on this site."). IPv6 visitors are keyed on their /64 prefix (`addressPrefix`, `src/server/http.ts`), and IPv4-mapped addresses are treated as IPv4.
