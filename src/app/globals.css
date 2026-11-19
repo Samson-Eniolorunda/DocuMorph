@@ -159,3 +159,34 @@ dialog[open]::backdrop {
     transition-duration: 120ms !important;
   }
 }
+
+/* While a panel (Tools, Send feedback) is open, the page behind it does not scroll (owner 2026-11-19). */
+html:has(dialog[open]) {
+  overflow: hidden;
+}
+
+/* Panel scrollbars stay invisible; on a computer a thin bar appears while the pointer is over the
+   list or it is focused, and phones show their own bar only while scrolling (owner 2026-11-19). */
+.scroll-quiet {
+  scrollbar-width: none;
+}
+.scroll-quiet::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+@media (hover: hover) and (pointer: fine) {
+  .scroll-quiet:hover,
+  .scroll-quiet:focus-within {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-control) transparent;
+  }
+  .scroll-quiet:hover::-webkit-scrollbar,
+  .scroll-quiet:focus-within::-webkit-scrollbar {
+    width: 6px;
+  }
+  .scroll-quiet:hover::-webkit-scrollbar-thumb,
+  .scroll-quiet:focus-within::-webkit-scrollbar-thumb {
+    border-radius: 9999px;
+    background: var(--color-control);
+  }
+}

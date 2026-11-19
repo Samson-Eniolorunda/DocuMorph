@@ -160,7 +160,7 @@ export function Dialog({
             </IconButton>
           </div>
         </div>
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4">{children}</div>
+        <div className="scroll-quiet min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4">{children}</div>
         {footer && (
           <div className="flex justify-end gap-3 border-t border-line px-4 pt-3 pb-[max(12px,env(safe-area-inset-bottom))]">
             {footer}
