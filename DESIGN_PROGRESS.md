@@ -9,10 +9,14 @@ Audit 2026-11-19 (six widths, light and dark, home, tool pages, privacy, 404). N
 3. [x] Loaded file lists: long file names were cut off on phones; they now wrap on phones and truncate from 640 px up. Merge, split and compress states checked at 360, 390, 768, 1280, light and dark: consistent.
 4. [x] Editor: the selected-item toolbar clipped the move-down and move-right arrows at 360 px; actions and arrows are now two groups that wrap. Page labels no longer use monospace. Text sheet and error pages checked: consistent.
 5. [x] Go-live pass: sizes and counts use tabular figures in the body face (Geist Mono removed); single file names wrap on phones; the two upload buttons sit side by side, 44 px tall.
-6. [ ] Remaining: Lighthouse re-run (needs a deployed site).
+6. [~] Lighthouse re-run needs a deployed site; handed to the owner as a post-deploy check (target 90+ mobile in every category).
 
 Note: the drawn-signature end-to-end test failed once in ten runs under load (passes alone); it is a timing flake in the test, not related to layout.
 
 ## Status
 
-IN PROGRESS (only the Lighthouse re-run on the deployed site remains; it cannot be done here)
+DONE
+
+Before / after: phone tool descriptions were truncated, now in full; monospace figures in running text replaced by the body face with tabular numbers; long file names clipped on phones, now wrap; editor toolbar clipped arrows at 360 px, now two wrapping groups; upload buttons 44 px and aligned; feedback form and footer follow the button rule (secondary left, primary right). No horizontal scroll at 360 to 1536 px, light or dark.
+
+Owner check after deploy: run Lighthouse mobile on the live site.
