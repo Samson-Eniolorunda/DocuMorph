@@ -93,3 +93,37 @@ test("a conversion can be cancelled", async ({ page }) => {
   await expect(page.getByRole("button", { name: "Word to PDF" })).toBeVisible();
   await expect(page.locator("main").getByRole("alert")).toHaveCount(0);
 });
+
+test("PDF to Excel converts, names the result .xlsx and refuses a non-PDF", async ({ page }) => {
+  const XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+  await page.route("**/api/convert", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: XLSX,
+      headers: { "X-Remaining": "9" },
+      body: Buffer.from([0x50, 0x4b, 0x03, 0x04, 1, 2, 3, 4]),
+    }),
+  );
+  await page.goto("/pdf-to-excel");
+  await expect(page.getByText(/Sent to a conversion service/)).toBeVisible();
+  await pick(page, [{ name: "ignored.txt", mimeType: "text/plain", buffer: Buffer.from("plain text") }]);
+  await expect(page.locator("main").getByRole("alert")).toContainText("not a .pdf file");
+  await pick(page, [{ name: "tables.pdf", mimeType: "application/pdf", buffer: Buffer.from("%PDF-1.4 test") }]);
+  await page.getByRole("button", { name: "PDF to Excel" }).click();
+  await expect(page.getByText("Your file is ready")).toBeVisible();
+  await expect(page.getByText("tables.xlsx")).toBeVisible();
+});
+
+test("PDF to Excel shows the busy message when the allowance is used up", async ({ page }) => {
+  await page.route("**/api/convert", (route) =>
+    route.fulfill({
+      status: 503,
+      contentType: "application/json",
+      body: JSON.stringify({ error: "PDF to Excel is busy today, please try tomorrow." }),
+    }),
+  );
+  await page.goto("/pdf-to-excel");
+  await pick(page, [{ name: "a.pdf", mimeType: "application/pdf", buffer: Buffer.from("%PDF-1.4 test") }]);
+  await page.getByRole("button", { name: "PDF to Excel" }).click();
+  await expect(page.locator("main").getByRole("alert")).toContainText("PDF to Excel is busy today");
+});

@@ -258,6 +258,7 @@ describe("PDF to Word and Excel (Adobe PDF Services)", () => {
     const res = await POST(convertRequest({ tool: "pdf-to-excel", file: pdf() }));
     expect(res.status).toBe(200);
     expect(JSON.parse(String(upstream()[3]?.init.body))).toMatchObject({ targetFormat: "xlsx" });
+    expect(res.headers.get("Content-Type")).toBe("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
   });
 
   it("says it is busy when the daily cap is reached, without calling Adobe or using the visitor's allowance", async () => {
