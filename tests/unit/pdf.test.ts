@@ -244,3 +244,24 @@ describe("pages as pictures", () => {
     expect(destroy).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("protected PDFs are refused by every tool that rewrites a file", () => {
+  const protectedMessage = (doing: string) => `This PDF is protected, so it cannot be ${doing} here.`;
+  it("merge", async () => {
+    await expect(merge([await makePdf(1), await ownerPasswordPdf()])).rejects.toThrow(protectedMessage("merged"));
+  });
+  it("organise", async () => {
+    await expect(organise(await ownerPasswordPdf(), [{ index: 0, rotate: 0 }])).rejects.toThrow(
+      protectedMessage("organised or split"),
+    );
+  });
+  it("split", async () => {
+    await expect(split(await ownerPasswordPdf(), [[0]])).rejects.toThrow(protectedMessage("organised or split"));
+  });
+  it("form fields", async () => {
+    await expect(readFields(await ownerPasswordPdf())).rejects.toThrow(protectedMessage("filled in"));
+  });
+  it("edit", async () => {
+    await expect(applyEdits(await ownerPasswordPdf(), [])).rejects.toThrow(protectedMessage("edited"));
+  });
+});

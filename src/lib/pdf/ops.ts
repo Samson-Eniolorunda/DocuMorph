@@ -21,6 +21,16 @@ import { normaliseRotation, placeBox, type PageGeometry } from "../coords";
 // files (common for "no editing" flags) still open with this option.
 const LOAD = { ignoreEncryption: true } as const;
 
+/**
+ * Loads a PDF for changing. A protected file is refused: copying or re-saving it would write its encrypted strings
+ * and streams out as if they were plain, giving blank or garbled pages. Rather than risk a damaged download, say so.
+ */
+async function loadEditable(bytes: Uint8Array, doing: string) {
+  const doc = await PDFDocument.load(bytes, LOAD);
+  if (doc.isEncrypted) throw new Error(`This PDF is protected, so it cannot be ${doing} here.`);
+  return doc;
+}
+
 export async function pageCount(bytes: Uint8Array) {
   return (await PDFDocument.load(bytes, LOAD)).getPageCount();
 }
@@ -41,7 +51,7 @@ export function geometryOf(page: PDFPage): PageGeometry {
 export async function merge(files: Uint8Array[]) {
   const out = await PDFDocument.create();
   for (const bytes of files) {
-    const src = await PDFDocument.load(bytes, LOAD);
+    const src = await loadEditable(bytes, "merged");
     const pages = await out.copyPages(src, src.getPageIndices());
     pages.forEach((p) => out.addPage(p));
   }
@@ -51,7 +61,7 @@ export async function merge(files: Uint8Array[]) {
 /** Builds a new PDF from pages of `bytes`, in the given order, each turned by `rotate` degrees clockwise. */
 export async function organise(bytes: Uint8Array, pages: { index: number; rotate: number }[]) {
   if (!pages.length) throw new Error("Keep at least one page.");
-  const src = await PDFDocument.load(bytes, LOAD);
+  const src = await loadEditable(bytes, "organised or split");
   const out = await PDFDocument.create();
   const copied = await out.copyPages(
     src,
@@ -123,10 +133,7 @@ export async function pdfFromJpegs(pages: { bytes: Uint8Array; width: number; he
 
 /** A lossless tidy-up: drops metadata and packs objects into compressed streams. Text stays text. */
 export async function tidyPdf(bytes: Uint8Array) {
-  const doc = await PDFDocument.load(bytes, LOAD);
-  // Re-packing a protected file would write its encrypted strings and streams out as if they were plain, which
-  // corrupts it. Refuse rather than risk a damaged download.
-  if (doc.isEncrypted) throw new Error("This PDF is protected, so it cannot be compressed here.");
+  const doc = await loadEditable(bytes, "compressed");
   doc.setTitle("");
   doc.setAuthor("");
   doc.setSubject("");
@@ -144,7 +151,7 @@ export type FieldInfo =
   | { name: string; type: "choice"; value: string; options: string[] };
 
 export async function readFields(bytes: Uint8Array): Promise<FieldInfo[]> {
-  const doc = await PDFDocument.load(bytes, LOAD);
+  const doc = await loadEditable(bytes, "filled in");
   const out: FieldInfo[] = [];
   for (const f of doc.getForm().getFields()) {
     const name = f.getName();
@@ -238,7 +245,7 @@ async function setFields(doc: PDFDocument, fields: Record<string, string | boole
 }
 
 export async function applyEdits(bytes: Uint8Array, edits: Edit[], opts: EditOptions = {}) {
-  const doc = await PDFDocument.load(bytes, LOAD);
+  const doc = await loadEditable(bytes, "edited");
   const pages = doc.getPages();
   const fontCache = new Map<string, PDFFont>();
   let unicode: PDFFont | null = null;
