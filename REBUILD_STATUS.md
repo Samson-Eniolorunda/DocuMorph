@@ -1,7 +1,23 @@
-# DocuMorph rebuild: status after session 2
+# DocuMorph rebuild: status after session 3
 
 Branch `rebuild/production` (from `v2`). `main` and `v2` have not been touched, no pull request was opened, nothing was merged or deployed.
-Written 18 November 2026.
+Written 19 November 2026 (session 3 fixes the findings of a code review of the rebuild; no feature was added).
+
+## What session 3 fixed (review findings)
+
+1. **Cost.** `CONVERT_DAILY_SITE_CAP` now defaults to 200. Every server tool (Word, Excel, PDF to Word, PDF to Excel) needs the Upstash shared store; without it the tool is off ("This conversion is not set up on this site."). IPv6 visitors are keyed on their /64 prefix (`addressPrefix`, `src/server/http.ts`), and IPv4-mapped addresses are treated as IPv4.
+2. **Privacy.** Adobe cleanup deletes the uploaded asset and the result asset, so the privacy page is true.
+3. **Protected PDFs.** "Light" compression refuses an encrypted (owner-password) PDF: "This PDF is protected, so it cannot be compressed here." Tested with an owner-password fixture.
+4. **Time.** The Adobe budget is 45 s (was 55 s) and the asset deletions run after the response with `after()` from `next/server`.
+5. **Refunds.** An Adobe unit is given back only if the failure came before `/operation/exportpdf` was accepted; after that it may have been spent and stays counted.
+6. **Feedback.** A site-wide cap of 30 messages a day and the /64 key for IPv6. Feedback still falls back to a per-instance count when Upstash is absent (it costs nothing but e-mail).
+7. **Store errors.** A pipeline entry with an error, or a result that is not a number, now throws; the routes already fail closed.
+8. **Release day.** `releaseAdobe` uses the day and month of the reservation, not of the release.
+9. **pdf.js.** Compress PDF destroys the pdf.js document in `finally` (success, failure and cancel); the loop moved to `src/features/compress-pdf/pictures.ts` so it is unit-tested.
+10. **HTTPS.** `GOTENBERG_URL` must be `https://`.
+11. **Result size.** Vercel limits a function response to 4.5 MB. A converted file larger than 4,500,000 bytes is refused before sending, with "The converted file is larger than the 4.5 MB this site can send back. Please try a smaller or simpler file.", and the visitor's and Adobe's allowances are given back. This is a real limit: a 4 MB Word file with images can produce a larger PDF and will be refused. Raising it needs a different delivery route (for example a short-lived signed download), which would reintroduce storage, so I have not built it.
+
+**Owner to confirm:** on Adobe's licensing page, how PDF export jobs are counted against the free allowance (per call, or per block of pages). The caps assume one unit per call; if large files count per page block, lower `ADOBE_MONTHLY_CAP`.
 
 ## What session 2 did
 
@@ -65,7 +81,7 @@ These are against a local server. Because the CSP makes pages dynamic, the live 
 
 **2. Adobe account.** Sign in at Adobe's developer console (developer.adobe.com, Document Services), create a project, add the **PDF Services API**, and copy the **Client ID** and **Client Secret**. Read the free-tier terms on the page.
 
-**3. Upstash (shared counts, required for the Adobe tools).** Create a free Redis database at upstash.com, region near your Vercel region. Copy its **REST URL** and **REST token**.
+**3. Upstash (shared counts, required for every server tool: Word and Excel to PDF as well as the Adobe ones).** Create a free Redis database at upstash.com, region near your Vercel region. Copy its **REST URL** and **REST token**.
 
 **4. Resend (feedback).** Create an account **with the e-mail address that should receive feedback**, make an API key with sending access, and put that same address in `FEEDBACK_TO_EMAIL`. Without a verified domain Resend only delivers to that account address, which is exactly this use.
 
@@ -84,7 +100,7 @@ These are against a local server. Because the CSP makes pages dynamic, the live 
 | `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN` | Shared counts; the Adobe tools stay off without them |
 | `ADOBE_MONTHLY_CAP`, `ADOBE_DAILY_CAP` | Optional; defaults 450 and 25 |
 | `RESEND_API_KEY`, `FEEDBACK_TO_EMAIL` | Feedback |
-| `CONVERT_DAILY_PER_VISITOR`, `CONVERT_DAILY_SITE_CAP` | Optional; defaults 10 and no cap |
+| `CONVERT_DAILY_PER_VISITOR`, `CONVERT_DAILY_SITE_CAP` | Optional; defaults 10 a visitor and **200 a day for the whole site** (the cap protects the Cloud Run bill; `0` turns it off) |
 
 Remove `CONVERTAPI_SECRET` from Vercel if it is still set; nothing reads it now. `BLOB_READ_WRITE_TOKEN`, `FORMSPREE_ENDPOINT` and the `WALLET_*` names are also unused.
 
