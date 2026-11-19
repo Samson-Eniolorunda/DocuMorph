@@ -136,14 +136,21 @@ export function Dropzone({
         )}
       >
         <div className="mx-auto flex max-w-sm flex-col items-center gap-3 text-center">
-          <Button variant="primary" size="lg" className="w-full" onClick={() => input.current?.click()}>
-            <FolderOpen className="size-5" aria-hidden /> {multiple ? "Choose files" : "Choose a file"}
-          </Button>
-          {camera && (
-            <Button variant="secondary" size="lg" className="w-full" onClick={() => cameraInput.current?.click()}>
-              <Camera className="size-5" aria-hidden /> Take a photo
+          <div className="flex w-full flex-wrap justify-center gap-3">
+            {camera && (
+              <Button
+                variant="secondary"
+                size="lg"
+                className="min-w-40 flex-1"
+                onClick={() => cameraInput.current?.click()}
+              >
+                <Camera className="size-5" aria-hidden /> Take a photo
+              </Button>
+            )}
+            <Button variant="primary" size="lg" className="min-w-40 flex-1" onClick={() => input.current?.click()}>
+              <FolderOpen className="size-5" aria-hidden /> {multiple ? "Choose files" : "Choose a file"}
             </Button>
-          )}
+          </div>
           <p className="text-body-sm text-muted">
             {named}, up to <span className="font-mono">{formatBytes(maxBytes)}</span>
             {multiple ? " each" : ""}.
