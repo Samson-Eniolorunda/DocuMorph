@@ -28,7 +28,7 @@ export function Slider({
         <label htmlFor={id} className="text-body font-medium">
           {label}
         </label>
-        <output htmlFor={id} className="font-mono text-[15px] font-medium">
+        <output htmlFor={id} className="tabular-nums text-[15px] font-medium">
           {value}
           {unit}
         </output>
@@ -106,7 +106,7 @@ export function Stepper({
           enterKeyHint="done"
           value={value}
           onChange={(e) => set(Number(e.target.value.replace(/\D/g, "")))}
-          className="min-h-11 w-20 rounded-md border border-control bg-surface px-3 text-center font-mono text-body"
+          className="min-h-11 w-20 rounded-md border border-control bg-surface px-3 text-center tabular-nums text-body"
         />
         <IconButton
           label={`Increase ${label.toLowerCase()}`}

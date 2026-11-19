@@ -96,7 +96,7 @@ export function SplitPdf() {
 
   return (
     <div className="space-y-5">
-      <p className="min-w-0 truncate text-muted">
+      <p className="min-w-0 break-words text-muted sm:truncate">
         {file.name}, <span className="tabular-nums">{formatBytes(file.size)}</span>, {pages} page
         {pages === 1 ? "" : "s"}
       </p>

@@ -136,18 +136,13 @@ export function Dropzone({
         )}
       >
         <div className="mx-auto flex max-w-sm flex-col items-center gap-3 text-center">
-          <div className="flex w-full flex-wrap justify-center gap-3">
+          <div className={cn("grid w-full gap-3", camera ? "grid-cols-2" : "grid-cols-1")}>
             {camera && (
-              <Button
-                variant="secondary"
-                size="lg"
-                className="min-w-40 flex-1"
-                onClick={() => cameraInput.current?.click()}
-              >
+              <Button variant="secondary" className="min-h-11 w-full px-3" onClick={() => cameraInput.current?.click()}>
                 <Camera className="size-5" aria-hidden /> Take a photo
               </Button>
             )}
-            <Button variant="primary" size="lg" className="min-w-40 flex-1" onClick={() => input.current?.click()}>
+            <Button variant="primary" className="min-h-11 w-full px-3" onClick={() => input.current?.click()}>
               <FolderOpen className="size-5" aria-hidden /> {multiple ? "Choose files" : "Choose a file"}
             </Button>
           </div>

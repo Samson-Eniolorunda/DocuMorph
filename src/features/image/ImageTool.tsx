@@ -186,7 +186,7 @@ export function ImageTool({ mode }: { mode: ImageMode }) {
         <>
           <FileOrder items={items} onChange={setItems} />
           {items.some((i) => i.size) && (
-            <ul className="font-mono text-[15px] text-muted">
+            <ul className="tabular-nums text-[15px] text-muted">
               {items.map((i) => (
                 <li key={i.id} className="truncate">
                   {i.file.name}: {i.size ? `${i.size.width} × ${i.size.height} px` : "reading size…"}

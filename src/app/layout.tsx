@@ -1,13 +1,12 @@
 import type { Metadata, Viewport } from "next";
 import { headers } from "next/headers";
-import { Dancing_Script, Geist, Geist_Mono } from "next/font/google";
+import { Dancing_Script, Geist } from "next/font/google";
 import "./globals.css";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 import { SITE } from "@/config/site";
 
 const sans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
-const mono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
 const script = Dancing_Script({ variable: "--font-script", subsets: ["latin"], preload: false });
 
 export const metadata: Metadata = {
@@ -38,7 +37,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
   // Reading the request makes every page render per request, which is what gives each its own nonce.
   const nonce = (await headers()).get("x-nonce") ?? undefined;
   return (
-    <html lang="en-GB" className={`${sans.variable} ${mono.variable} ${script.variable}`} suppressHydrationWarning>
+    <html lang="en-GB" className={`${sans.variable} ${script.variable}`} suppressHydrationWarning>
       <head>
         <script nonce={nonce} dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>

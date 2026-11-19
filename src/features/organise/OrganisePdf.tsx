@@ -104,8 +104,9 @@ export function OrganisePdf() {
   return (
     <div className="space-y-4">
       <p className="text-muted">
-        {pdf.file?.name}: <span className="font-mono">{kept}</span> of <span className="font-mono">{slots.length}</span>{" "}
-        pages kept. Drag a page by its handle to move it, or tap a page and use the buttons below.
+        {pdf.file?.name}: <span className="tabular-nums">{kept}</span> of{" "}
+        <span className="tabular-nums">{slots.length}</span> pages kept. Drag a page by its handle to move it, or tap a
+        page and use the buttons below.
       </p>
       {error && <Notice tone="error">{error}</Notice>}
       <ol
@@ -158,7 +159,7 @@ export function OrganisePdf() {
               )}
             >
               <PageThumb doc={doc} index={s.index} rotate={s.rotate} width={140} />
-              <span className="font-mono text-body-sm text-subtle">
+              <span className="tabular-nums text-body-sm text-subtle">
                 {s.removed ? "Deleted · " : ""}
                 {s.index + 1}
               </span>

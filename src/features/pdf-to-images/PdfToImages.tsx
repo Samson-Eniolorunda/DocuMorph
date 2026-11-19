@@ -101,7 +101,7 @@ export function PdfToImages() {
   return (
     <div className="space-y-5">
       <p className="min-w-0 truncate text-muted">
-        {pdf.file?.name}, <span className="font-mono">{formatBytes(pdf.file?.size ?? 0)}</span>, {n} page
+        {pdf.file?.name}, <span className="tabular-nums">{formatBytes(pdf.file?.size ?? 0)}</span>, {n} page
         {n === 1 ? "" : "s"}
       </p>
       <Select label="Format" value={format} onChange={(e) => setFormat(e.target.value as typeof format)}>
@@ -138,7 +138,7 @@ export function PdfToImages() {
         status={
           progress ? (
             <div>
-              <p className="mb-1 font-mono">
+              <p className="mb-1 tabular-nums">
                 Page {Math.min(progress.done + 1, progress.total)} of {progress.total}
               </p>
               <ProgressBar label="Creating images" value={(progress.done / progress.total) * 100} />

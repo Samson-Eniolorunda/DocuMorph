@@ -95,7 +95,7 @@ export function CompressPdf() {
   return (
     <div className="space-y-5">
       <p className="min-w-0 truncate text-muted">
-        {file.name}, <span className="font-mono">{formatBytes(file.size)}</span>
+        {file.name}, <span className="tabular-nums">{formatBytes(file.size)}</span>
       </p>
       {warning && <Notice tone="warning">{warning}</Notice>}
       <RadioGroup
@@ -123,7 +123,7 @@ export function CompressPdf() {
         status={
           working ? (
             <div>
-              <p className="mb-1 font-mono">{label}</p>
+              <p className="mb-1 tabular-nums">{label}</p>
               <ProgressBar
                 label={label}
                 value={progress.total ? Math.round((progress.done / progress.total) * 100) : undefined}
